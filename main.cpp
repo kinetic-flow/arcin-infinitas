@@ -1,0 +1,129 @@
+#include <rcc/rcc.h>
+#include <gpio/pin.h>
+#include <os/time.h>
+#include <usb/usb.h>
+#include <usb/descriptor.h>
+
+template <uint32_t S>
+struct raw_t {
+	uint8_t a[S];
+} __attribute__((packed));
+
+uint8_t report_desc[] = {
+	0x05, 0x01, // Usage page: Generic Desktop
+	0x09, 0x05, // Usage: Gamepad
+	0xa1, 0x01, // Collection: Application
+		0xa1, 0x00, // Collection: Physical
+			0x05, 0x09, // Usage page: Button
+			0x19, 0x01, // Usage minimum: Button 1
+			0x29, 0x20, // Usage maximum: Button 32
+			0x15, 0x00, // Logical minimum: 0
+			0x25, 0x01, // Logical maximum: 1
+			0x95, 0x20, // Report count: 32
+			0x75, 0x01, // Report size: 1
+			0x81, 0x02, // Input (data, var, abs)
+		0xc0, // End collection
+	0xc0, // End collection
+};
+
+raw_t<9> hid_desc = {{0x09, 0x21, 0x11, 0x01, 0x00, 0x01, 0x22, sizeof(report_desc), 0x00}};
+
+auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1234, 0x5678, 0, 0, 0, 0, 1);
+auto conf_desc = configuration_desc(1, 1, 0, 0xc0, 0,
+	// HID interface.
+	interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
+		hid_desc,
+		endpoint_desc(0x81, 0x03, 16, 1)
+	)
+);
+
+desc_t dev_desc_p = {sizeof(dev_desc), (void*)&dev_desc};
+desc_t conf_desc_p = {sizeof(conf_desc), (void*)&conf_desc};
+
+Pin& usb_dm   = PA11;
+Pin& usb_dp   = PA12;
+Pin  usb_disc = {GPIOF, 6};
+
+USB_f1 usb(USB, dev_desc_p, conf_desc_p);
+
+class USB_HID : public USB_class_driver {
+	private:
+		USB_generic& usb;
+		
+		uint32_t buf[16];
+	
+	public:
+		USB_HID(USB_generic& usbd) : usb(usbd) {
+			usb.register_driver(this);
+		}
+	
+	protected:
+		virtual SetupStatus handle_setup(uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, uint16_t wLength) {
+			// Get report descriptor.
+			if(bmRequestType == 0x81 && bRequest == 0x06 && wValue == 0x2200) {
+				usb.write(0, (uint32_t*)report_desc, sizeof(report_desc) < wLength ? sizeof(report_desc) : wLength);
+				return SetupStatus::Ok;
+			}
+			
+			return SetupStatus::Unhandled;
+		}
+		
+		virtual void handle_set_configuration(uint8_t configuration) {
+			if(configuration) {
+				//usb.register_out_handler(this, 1);
+				usb.hw_conf_ep(0x81, EPType::Interrupt, 16);
+			}
+		}
+		
+		virtual void handle_out(uint8_t ep, uint32_t len) {
+			if(ep == 0) {
+				usb.write(0, nullptr, 0);
+			}
+		}
+};
+
+USB_HID usb_hid(usb);
+
+uint32_t buttons;
+
+int main() {
+	// Initialize system timer.
+	STK.LOAD = 72000000 / 8 / 1000; // 1000 Hz.
+	STK.CTRL = 0x03;
+	
+	RCC.enable(RCC.GPIOA);
+	
+	usb_disc.set_mode(Pin::Output);
+	usb_disc.on();
+	
+	usb_dm.set_mode(Pin::AF);
+	usb_dm.set_af(14);
+	usb_dp.set_mode(Pin::AF);
+	usb_dp.set_af(14);
+	
+	RCC.enable(RCC.USB);
+	
+	usb.init();
+	
+	Time::sleep(100);
+	usb_disc.off();
+	
+	uint32_t last_time = 0;
+	
+	while(1) {
+		usb.process();
+		
+		int32_t time_delta = Time::time() - last_time;
+		
+		if(time_delta >= 500) {
+			if(!(buttons <<= 1)) {
+				buttons = 1;
+			}
+			last_time += time_delta;
+		}
+		
+		if(usb.ep_ready(1)) {
+			usb.write(1, &buttons, sizeof(buttons));
+		}
+	}
+}

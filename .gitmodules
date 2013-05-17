@@ -1,0 +1,3 @@
+[submodule "laks"]
+	path = laks
+	url = git://git.jvnv.net/laks.git
