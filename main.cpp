@@ -40,9 +40,9 @@ auto conf_desc = configuration_desc(1, 1, 0, 0xc0, 0,
 desc_t dev_desc_p = {sizeof(dev_desc), (void*)&dev_desc};
 desc_t conf_desc_p = {sizeof(conf_desc), (void*)&conf_desc};
 
-Pin& usb_dm   = PA11;
-Pin& usb_dp   = PA12;
-Pin  usb_disc = {GPIOF, 6};
+Pin& usb_dm = PA11;
+Pin& usb_dp = PA12;
+Pin& usb_pu = PA15;
 
 USB_f1 usb(USB, dev_desc_p, conf_desc_p);
 
@@ -84,17 +84,14 @@ class USB_HID : public USB_class_driver {
 
 USB_HID usb_hid(usb);
 
-uint32_t buttons;
-
 int main() {
 	// Initialize system timer.
 	STK.LOAD = 72000000 / 8 / 1000; // 1000 Hz.
 	STK.CTRL = 0x03;
 	
 	RCC.enable(RCC.GPIOA);
-	
-	usb_disc.set_mode(Pin::Output);
-	usb_disc.on();
+	RCC.enable(RCC.GPIOB);
+	RCC.enable(RCC.GPIOC);
 	
 	usb_dm.set_mode(Pin::AF);
 	usb_dm.set_af(14);
@@ -105,22 +102,41 @@ int main() {
 	
 	usb.init();
 	
-	Time::sleep(100);
-	usb_disc.off();
+	usb_pu.set_mode(Pin::Output);
+	usb_pu.on();
 	
-	uint32_t last_time = 0;
+	PB0.set_pull(Pin::PullUp);
+	PB1.set_pull(Pin::PullUp);
+	PB2.set_pull(Pin::PullUp);
+	PB3.set_pull(Pin::PullUp);
+	PB4.set_pull(Pin::PullUp);
+	PB5.set_pull(Pin::PullUp);
+	PB6.set_pull(Pin::PullUp);
+	PB7.set_pull(Pin::PullUp);
+	PB8.set_pull(Pin::PullUp);
+	PB9.set_pull(Pin::PullUp);
+	PB10.set_pull(Pin::PullUp);
+	
+	PC0.set_mode(Pin::Output);
+	PC1.set_mode(Pin::Output);
+	PC2.set_mode(Pin::Output);
+	PC3.set_mode(Pin::Output);
+	PC4.set_mode(Pin::Output);
+	PC5.set_mode(Pin::Output);
+	PC6.set_mode(Pin::Output);
+	PC7.set_mode(Pin::Output);
+	PC8.set_mode(Pin::Output);
+	PC9.set_mode(Pin::Output);
+	PC10.set_mode(Pin::Output);
+	
+	PB14.set_mode(Pin::Output);
+	PB14.on();
 	
 	while(1) {
 		usb.process();
 		
-		int32_t time_delta = Time::time() - last_time;
-		
-		if(time_delta >= 500) {
-			if(!(buttons <<= 1)) {
-				buttons = 1;
-			}
-			last_time += time_delta;
-		}
+		uint32_t buttons = (~GPIOB.reg.IDR & 0x7ff);
+		GPIOC.reg.ODR = buttons;
 		
 		if(usb.ep_ready(1)) {
 			usb.write(1, &buttons, sizeof(buttons));

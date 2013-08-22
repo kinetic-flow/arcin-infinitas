@@ -6,6 +6,6 @@ env = Environment(
 
 SConscript('laks/build_rules')
 
-env.SelectMCU('stm32f373cc')
+env.SelectMCU('stm32f303rc')
 
-env.Firmware('demo.elf', Glob('*.cpp'))
+env.Firmware('arcin.elf', Glob('*.cpp'))

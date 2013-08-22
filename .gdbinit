@@ -1,5 +1,5 @@
 define flash
-file demo.elf
+file arcin.elf
 load
 end
 
@@ -17,7 +17,6 @@ mon jtag_scan
 attach 1
 end
 
-file demo.elf
-target extended-remote /dev/cu.usbmodem7FC181B1
+file arcin.elf
 
 set mem inaccessible-by-default off
