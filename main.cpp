@@ -1,38 +1,151 @@
 #include <rcc/rcc.h>
 #include <gpio/pin.h>
+#include <timer/timer.h>
 #include <os/time.h>
 #include <usb/usb.h>
 #include <usb/descriptor.h>
+#include <usb/hid.h>
 
-template <uint32_t S>
-struct raw_t {
-	uint8_t a[S];
-} __attribute__((packed));
+auto report_desc = gamepad(
+	// Inputs.
+	buttons(11),
+	padding_in(5),
+	
+	usage_page(UsagePage::Desktop),
+	usage(DesktopUsage::X),
+	logical_minimum(0),
+	logical_maximum(255),
+	report_count(1),
+	report_size(8),
+	input(0x02),
 
-uint8_t report_desc[] = {
-	0x05, 0x01, // Usage page: Generic Desktop
-	0x09, 0x05, // Usage: Gamepad
-	0xa1, 0x01, // Collection: Application
-		0xa1, 0x00, // Collection: Physical
-			0x05, 0x09, // Usage page: Button
-			0x19, 0x01, // Usage minimum: Button 1
-			0x29, 0x20, // Usage maximum: Button 32
-			0x15, 0x00, // Logical minimum: 0
-			0x25, 0x01, // Logical maximum: 1
-			0x95, 0x20, // Report count: 32
-			0x75, 0x01, // Report size: 1
-			0x81, 0x02, // Input (data, var, abs)
-		0xc0, // End collection
-	0xc0, // End collection
-};
-
-raw_t<9> hid_desc = {{0x09, 0x21, 0x11, 0x01, 0x00, 0x01, 0x22, sizeof(report_desc), 0x00}};
+	usage_page(UsagePage::Desktop),
+	usage(DesktopUsage::Y),
+	logical_minimum(0),
+	logical_maximum(255),
+	report_count(1),
+	report_size(8),
+	input(0x02),
+	
+	// Outputs.
+	usage_page(UsagePage::Ordinal),
+	usage(1),
+	collection(Collection::Logical, 
+		usage_page(UsagePage::LED),
+		usage(0x4b),
+		report_size(1),
+		report_count(1),
+		output(0x02)
+	),
+	
+	usage_page(UsagePage::Ordinal),
+	usage(2),
+	collection(Collection::Logical, 
+		usage_page(UsagePage::LED),
+		usage(0x4b),
+		report_size(1),
+		report_count(1),
+		output(0x02)
+	),
+	
+	usage_page(UsagePage::Ordinal),
+	usage(3),
+	collection(Collection::Logical, 
+		usage_page(UsagePage::LED),
+		usage(0x4b),
+		report_size(1),
+		report_count(1),
+		output(0x02)
+	),
+	
+	usage_page(UsagePage::Ordinal),
+	usage(4),
+	collection(Collection::Logical, 
+		usage_page(UsagePage::LED),
+		usage(0x4b),
+		report_size(1),
+		report_count(1),
+		output(0x02)
+	),
+	
+	usage_page(UsagePage::Ordinal),
+	usage(5),
+	collection(Collection::Logical, 
+		usage_page(UsagePage::LED),
+		usage(0x4b),
+		report_size(1),
+		report_count(1),
+		output(0x02)
+	),
+	
+	usage_page(UsagePage::Ordinal),
+	usage(6),
+	collection(Collection::Logical, 
+		usage_page(UsagePage::LED),
+		usage(0x4b),
+		report_size(1),
+		report_count(1),
+		output(0x02)
+	),
+	
+	usage_page(UsagePage::Ordinal),
+	usage(7),
+	collection(Collection::Logical, 
+		usage_page(UsagePage::LED),
+		usage(0x4b),
+		report_size(1),
+		report_count(1),
+		output(0x02)
+	),
+	
+	usage_page(UsagePage::Ordinal),
+	usage(8),
+	collection(Collection::Logical, 
+		usage_page(UsagePage::LED),
+		usage(0x4b),
+		report_size(1),
+		report_count(1),
+		output(0x02)
+	),
+	
+	usage_page(UsagePage::Ordinal),
+	usage(9),
+	collection(Collection::Logical, 
+		usage_page(UsagePage::LED),
+		usage(0x4b),
+		report_size(1),
+		report_count(1),
+		output(0x02)
+	),
+	
+	usage_page(UsagePage::Ordinal),
+	usage(10),
+	collection(Collection::Logical, 
+		usage_page(UsagePage::LED),
+		usage(0x4b),
+		report_size(1),
+		report_count(1),
+		output(0x02)
+	),
+	
+	usage_page(UsagePage::Ordinal),
+	usage(11),
+	collection(Collection::Logical, 
+		usage_page(UsagePage::LED),
+		usage(0x4b),
+		report_size(1),
+		report_count(1),
+		output(0x02)
+	),
+	
+	padding_out(5)
+);
 
 auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1234, 0x5678, 0, 0, 0, 0, 1);
 auto conf_desc = configuration_desc(1, 1, 0, 0xc0, 0,
 	// HID interface.
-	interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
-		hid_desc,
+	interface_desc(1, 0, 1, 0x03, 0x00, 0x00, 0,
+		hid_desc(0x111, 0, 1, 0x22, sizeof(report_desc)),
 		endpoint_desc(0x81, 0x03, 16, 1)
 	)
 );
@@ -61,7 +174,27 @@ class USB_HID : public USB_class_driver {
 		virtual SetupStatus handle_setup(uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, uint16_t wLength) {
 			// Get report descriptor.
 			if(bmRequestType == 0x81 && bRequest == 0x06 && wValue == 0x2200) {
-				usb.write(0, (uint32_t*)report_desc, sizeof(report_desc) < wLength ? sizeof(report_desc) : wLength);
+				if(wLength > sizeof(report_desc)) {
+					wLength = sizeof(report_desc);
+				}
+				
+				uint32_t* p = (uint32_t*)&report_desc;
+				
+				while(wLength >= 64) {
+					usb.write(0, p, 64);
+					p += 64/4;
+					wLength -= 64;
+					
+					while(!usb.ep_ready(0));
+				}
+				
+				usb.write(0, p, wLength);
+				return SetupStatus::Ok;
+			}
+			
+			// Set output report.
+			if(bmRequestType == 0x21 && bRequest == 0x09 && wValue == 0x0200) {
+				//return set_output(wLength) ? SetupStatus::Ok : SetupStatus::Stall;
 				return SetupStatus::Ok;
 			}
 			
@@ -79,10 +212,22 @@ class USB_HID : public USB_class_driver {
 			if(ep == 0) {
 				usb.write(0, nullptr, 0);
 			}
+			
+			if(len == 2) {
+				uint32_t buf;
+				usb.read(ep, &buf, len);
+				GPIOC.reg.ODR = buf & 0x7ff;
+			}
 		}
 };
 
 USB_HID usb_hid(usb);
+
+struct report_t {
+	uint16_t buttons;
+	uint8_t axis_x;
+	uint8_t axis_y;
+} __attribute__((packed));
 
 int main() {
 	// Initialize system timer.
@@ -132,14 +277,39 @@ int main() {
 	PB14.set_mode(Pin::Output);
 	PB14.on();
 	
+	RCC.enable(RCC.TIM2);
+	RCC.enable(RCC.TIM3);
+	
+	TIM2.CCMR1 = (1 << 8) | (1 << 0);
+	TIM2.CCER = 1 << 1;
+	TIM2.SMCR = 3;
+	TIM2.CR1 = 1;
+	
+	TIM3.CCMR1 = (1 << 8) | (1 << 0);
+	TIM3.CCER = 1 << 1;
+	TIM3.SMCR = 3;
+	TIM3.CR1 = 1;
+	
+	PA0.set_af(1);
+	PA1.set_af(1);
+	PA0.set_mode(Pin::AF);
+	PA1.set_mode(Pin::AF);
+	
+	PA6.set_af(2);
+	PA7.set_af(2);
+	PA6.set_mode(Pin::AF);
+	PA7.set_mode(Pin::AF);
+	
 	while(1) {
 		usb.process();
 		
-		uint32_t buttons = (~GPIOB.reg.IDR & 0x7ff);
-		GPIOC.reg.ODR = buttons;
+		uint16_t buttons = (~GPIOB.reg.IDR & 0x7ff);
+		//GPIOC.reg.ODR = buttons;
 		
 		if(usb.ep_ready(1)) {
-			usb.write(1, &buttons, sizeof(buttons));
+			report_t report = {buttons, uint8_t(TIM2.CNT), uint8_t(TIM3.CNT)};
+			
+			usb.write(1, (uint32_t*)&report, sizeof(report));
 		}
 	}
 }
