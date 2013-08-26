@@ -159,6 +159,8 @@ Pin& usb_pu = PA15;
 
 USB_f1 usb(USB, dev_desc_p, conf_desc_p);
 
+uint32_t last_led_time;
+
 class USB_HID : public USB_class_driver {
 	private:
 		USB_generic& usb;
@@ -216,6 +218,7 @@ class USB_HID : public USB_class_driver {
 			if(len == 2) {
 				uint32_t buf;
 				usb.read(ep, &buf, len);
+				last_led_time = Time::time();
 				GPIOC.reg.ODR = buf & 0x7ff;
 			}
 		}
@@ -304,7 +307,10 @@ int main() {
 		usb.process();
 		
 		uint16_t buttons = (~GPIOB.reg.IDR & 0x7ff);
-		//GPIOC.reg.ODR = buttons;
+		
+		if(Time::time() - last_led_time > 1000) {
+			GPIOC.reg.ODR = buttons;
+		}
 		
 		if(usb.ep_ready(1)) {
 			report_t report = {buttons, uint8_t(TIM2.CNT), uint8_t(TIM3.CNT)};
