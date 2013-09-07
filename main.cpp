@@ -1,5 +1,5 @@
 #include <rcc/rcc.h>
-#include <gpio/pin.h>
+#include <gpio/gpio.h>
 #include <timer/timer.h>
 #include <os/time.h>
 #include <usb/usb.h>
@@ -153,9 +153,19 @@ auto conf_desc = configuration_desc(1, 1, 0, 0xc0, 0,
 desc_t dev_desc_p = {sizeof(dev_desc), (void*)&dev_desc};
 desc_t conf_desc_p = {sizeof(conf_desc), (void*)&conf_desc};
 
-Pin& usb_dm = PA11;
-Pin& usb_dp = PA12;
-Pin& usb_pu = PA15;
+static Pin usb_dm = GPIOA[11];
+static Pin usb_dp = GPIOA[12];
+static Pin usb_pu = GPIOA[15];
+
+static PinArray button_inputs = GPIOB.array(0, 10);
+static PinArray button_leds = GPIOC.array(0, 10);
+
+static Pin qe1a = GPIOA[0];
+static Pin qe1b = GPIOA[1];
+static Pin qe2a = GPIOA[6];
+static Pin qe2b = GPIOA[7];
+
+static Pin led1 = GPIOB[14];
 
 USB_f1 usb(USB, dev_desc_p, conf_desc_p);
 
@@ -219,7 +229,7 @@ class USB_HID : public USB_class_driver {
 				uint32_t buf;
 				usb.read(ep, &buf, len);
 				last_led_time = Time::time();
-				GPIOC.reg.ODR = buf & 0x7ff;
+				button_leds.set(buf);
 			}
 		}
 };
@@ -253,32 +263,13 @@ int main() {
 	usb_pu.set_mode(Pin::Output);
 	usb_pu.on();
 	
-	PB0.set_pull(Pin::PullUp);
-	PB1.set_pull(Pin::PullUp);
-	PB2.set_pull(Pin::PullUp);
-	PB3.set_pull(Pin::PullUp);
-	PB4.set_pull(Pin::PullUp);
-	PB5.set_pull(Pin::PullUp);
-	PB6.set_pull(Pin::PullUp);
-	PB7.set_pull(Pin::PullUp);
-	PB8.set_pull(Pin::PullUp);
-	PB9.set_pull(Pin::PullUp);
-	PB10.set_pull(Pin::PullUp);
+	button_inputs.set_mode(Pin::Input);
+	button_inputs.set_pull(Pin::PullUp);
 	
-	PC0.set_mode(Pin::Output);
-	PC1.set_mode(Pin::Output);
-	PC2.set_mode(Pin::Output);
-	PC3.set_mode(Pin::Output);
-	PC4.set_mode(Pin::Output);
-	PC5.set_mode(Pin::Output);
-	PC6.set_mode(Pin::Output);
-	PC7.set_mode(Pin::Output);
-	PC8.set_mode(Pin::Output);
-	PC9.set_mode(Pin::Output);
-	PC10.set_mode(Pin::Output);
+	button_leds.set_mode(Pin::Output);
 	
-	PB14.set_mode(Pin::Output);
-	PB14.on();
+	led1.set_mode(Pin::Output);
+	led1.on();
 	
 	RCC.enable(RCC.TIM2);
 	RCC.enable(RCC.TIM3);
@@ -293,23 +284,23 @@ int main() {
 	TIM3.SMCR = 3;
 	TIM3.CR1 = 1;
 	
-	PA0.set_af(1);
-	PA1.set_af(1);
-	PA0.set_mode(Pin::AF);
-	PA1.set_mode(Pin::AF);
+	qe1a.set_af(1);
+	qe1b.set_af(1);
+	qe1a.set_mode(Pin::AF);
+	qe1b.set_mode(Pin::AF);
 	
-	PA6.set_af(2);
-	PA7.set_af(2);
-	PA6.set_mode(Pin::AF);
-	PA7.set_mode(Pin::AF);
+	qe2a.set_af(2);
+	qe2b.set_af(2);
+	qe2a.set_mode(Pin::AF);
+	qe2b.set_mode(Pin::AF);
 	
 	while(1) {
 		usb.process();
 		
-		uint16_t buttons = (~GPIOB.reg.IDR & 0x7ff);
+		uint16_t buttons = button_inputs.get() ^ 0x7ff;
 		
 		if(Time::time() - last_led_time > 1000) {
-			GPIOC.reg.ODR = buttons;
+			button_leds.set(buttons);
 		}
 		
 		if(usb.ep_ready(1)) {
