@@ -152,6 +152,7 @@ auto conf_desc = configuration_desc(1, 1, 0, 0xc0, 0,
 
 desc_t dev_desc_p = {sizeof(dev_desc), (void*)&dev_desc};
 desc_t conf_desc_p = {sizeof(conf_desc), (void*)&conf_desc};
+desc_t report_desc_p = {sizeof(report_desc), (void*)&report_desc};
 
 static Pin usb_dm = GPIOA[11];
 static Pin usb_dp = GPIOA[12];
@@ -171,70 +172,19 @@ USB_f1 usb(USB, dev_desc_p, conf_desc_p);
 
 uint32_t last_led_time;
 
-class USB_HID : public USB_class_driver {
-	private:
-		USB_generic& usb;
-		
-		uint32_t buf[16];
-	
+class HID_arcin : public USB_HID {
 	public:
-		USB_HID(USB_generic& usbd) : usb(usbd) {
-			usb.register_driver(this);
-		}
+		HID_arcin(USB_generic& usbd, desc_t rdesc) : USB_HID(usbd, rdesc, 1, 1, 64) {}
 	
 	protected:
-		virtual SetupStatus handle_setup(uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, uint16_t wLength) {
-			// Get report descriptor.
-			if(bmRequestType == 0x81 && bRequest == 0x06 && wValue == 0x2200) {
-				if(wLength > sizeof(report_desc)) {
-					wLength = sizeof(report_desc);
-				}
-				
-				uint32_t* p = (uint32_t*)&report_desc;
-				
-				while(wLength >= 64) {
-					usb.write(0, p, 64);
-					p += 64/4;
-					wLength -= 64;
-					
-					while(!usb.ep_ready(0));
-				}
-				
-				usb.write(0, p, wLength);
-				return SetupStatus::Ok;
-			}
-			
-			// Set output report.
-			if(bmRequestType == 0x21 && bRequest == 0x09 && wValue == 0x0200) {
-				//return set_output(wLength) ? SetupStatus::Ok : SetupStatus::Stall;
-				return SetupStatus::Ok;
-			}
-			
-			return SetupStatus::Unhandled;
-		}
-		
-		virtual void handle_set_configuration(uint8_t configuration) {
-			if(configuration) {
-				//usb.register_out_handler(this, 1);
-				usb.hw_conf_ep(0x81, EPType::Interrupt, 16);
-			}
-		}
-		
-		virtual void handle_out(uint8_t ep, uint32_t len) {
-			if(ep == 0) {
-				usb.write(0, nullptr, 0);
-			}
-			
-			if(len == 2) {
-				uint32_t buf;
-				usb.read(ep, &buf, len);
-				last_led_time = Time::time();
-				button_leds.set(buf);
-			}
+		virtual bool set_output_report(uint32_t* buf, uint32_t len) {
+			last_led_time = Time::time();
+			button_leds.set(*buf);
+			return true;
 		}
 };
 
-USB_HID usb_hid(usb);
+HID_arcin usb_hid(usb, report_desc_p);
 
 struct report_t {
 	uint16_t buttons;
