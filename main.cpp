@@ -1,10 +1,19 @@
 #include <rcc/rcc.h>
 #include <gpio/gpio.h>
+#include <interrupt/interrupt.h>
 #include <timer/timer.h>
 #include <os/time.h>
 #include <usb/usb.h>
 #include <usb/descriptor.h>
 #include <usb/hid.h>
+#include <usb/dfu.h>
+
+uint32_t& reset_reason = *(uint32_t*)0x10000000;
+
+void reset_bootloader() {
+	reset_reason = 0xb007;
+	SCB.AIRCR = (0x5fa << 16) | (1 << 2); // SYSRESETREQ
+}
 
 auto report_desc = gamepad(
 	// Inputs.
@@ -141,12 +150,15 @@ auto report_desc = gamepad(
 	padding_out(5)
 );
 
-auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1234, 0x5678, 0, 0, 0, 0, 1);
-auto conf_desc = configuration_desc(1, 1, 0, 0xc0, 0,
+auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6080, 0, 0, 0, 0, 1);
+auto conf_desc = configuration_desc(2, 1, 0, 0xc0, 0,
 	// HID interface.
-	interface_desc(1, 0, 1, 0x03, 0x00, 0x00, 0,
+	interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
 		hid_desc(0x111, 0, 1, 0x22, sizeof(report_desc)),
 		endpoint_desc(0x81, 0x03, 16, 1)
+	),
+	interface_desc(1, 0, 0, 0xfe, 0x01, 0x01, 0,
+		dfu_functional_desc(0x0d, 0, 64, 0x110)
 	)
 );
 
@@ -174,7 +186,7 @@ uint32_t last_led_time;
 
 class HID_arcin : public USB_HID {
 	public:
-		HID_arcin(USB_generic& usbd, desc_t rdesc) : USB_HID(usbd, rdesc, 1, 1, 64) {}
+		HID_arcin(USB_generic& usbd, desc_t rdesc) : USB_HID(usbd, rdesc, 0, 1, 64) {}
 	
 	protected:
 		virtual bool set_output_report(uint32_t* buf, uint32_t len) {
@@ -186,6 +198,39 @@ class HID_arcin : public USB_HID {
 
 HID_arcin usb_hid(usb, report_desc_p);
 
+class USB_DFU_runtime : public USB_class_driver {
+	private:
+		USB_generic& usb;
+		
+	public:
+		USB_DFU_runtime(USB_generic& usbd) : usb(usbd) {
+			usb.register_driver(this);
+		}
+	
+	protected:
+		virtual SetupStatus handle_setup(uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, uint16_t wLength) {
+			// DFU_DETACH
+			if(bmRequestType == 0x21 && bRequest == 0x00 && wIndex == 0x01) {
+				detach();
+				return SetupStatus::Ok;
+			}
+			
+			return SetupStatus::Unhandled;
+		}
+		
+		bool detach() {
+			usb.write(0, nullptr, 0);
+			
+			Time::sleep(10);
+			
+			reset_bootloader();
+			
+			return true;
+		}
+};
+
+USB_DFU_runtime usb_dfu_runtime(usb);
+
 struct report_t {
 	uint16_t buttons;
 	uint8_t axis_x;
@@ -193,6 +238,8 @@ struct report_t {
 } __attribute__((packed));
 
 int main() {
+	rcc_init();
+	
 	// Initialize system timer.
 	STK.LOAD = 72000000 / 8 / 1000; // 1000 Hz.
 	STK.CTRL = 0x03;
@@ -249,12 +296,16 @@ int main() {
 		
 		uint16_t buttons = button_inputs.get() ^ 0x7ff;
 		
+		//if(buttons & (1 << 4)) {
+		//	reset_bootloader();
+		//}
+		
 		if(Time::time() - last_led_time > 1000) {
 			button_leds.set(buttons);
 		}
 		
 		if(usb.ep_ready(1)) {
-			report_t report = {buttons, uint8_t(TIM2.CNT), uint8_t(TIM3.CNT)};
+			report_t report = {buttons, uint8_t(TIM2.CNT >> 2), uint8_t(TIM3.CNT >> 2)};
 			
 			usb.write(1, (uint32_t*)&report, sizeof(report));
 		}

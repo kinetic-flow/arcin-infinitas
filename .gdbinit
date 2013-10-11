@@ -3,6 +3,11 @@ file arcin.elf
 load
 end
 
+define flash_bootloader
+file bootloader.elf
+load
+end
+
 define restart
 run
 end
