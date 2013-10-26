@@ -8,25 +8,51 @@
 #include <usb/hid.h>
 #include <usb/dfu.h>
 
+static uint32_t& reset_reason = *(uint32_t*)0x10000000;
+static const uint32_t* firmware_vtors = (uint32_t*)0x8002000;
+
+static bool do_reset;
+
 void reset() {
 	SCB.AIRCR = (0x5fa << 16) | (1 << 2); // SYSRESETREQ
 }
 
+void chainload(uint32_t offset) {
+	SCB.VTOR = offset;
+	
+	asm volatile("ldr sp, [%0]; ldr %0, [%0, #4]; bx %0" :: "r" (offset));
+}
+
+auto report_desc = pack(
+		usage_page(0xff55),
+		usage(0xb007),
+		collection(Collection::Application,
+			logical_minimum(0),
+			logical_maximum(255),
+			report_size(8),
+			report_count(1),
+			
+			input(0x02), // Status
+			
+			feature(0x02), // Function
+			
+			report_count(64),
+			output(0x02) // Data
+		)
+);
+
 auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6084, 0, 0, 0, 0, 1);
 auto conf_desc = configuration_desc(1, 1, 0, 0xc0, 0,
-	interface_desc(0, 0, 0, 0xfe, 0x01, 0x02, 0,
-		dfu_functional_desc(0x0d, 0, 64, 0x110)
-	)
 	// HID interface.
-	//interface_desc(1, 0, 1, 0x03, 0x00, 0x00, 0,
-	//	hid_desc(0x111, 0, 1, 0x22, sizeof(report_desc)),
-	//	endpoint_desc(0x81, 0x03, 16, 1)
-	//)
+	interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
+		hid_desc(0x111, 0, 1, 0x22, sizeof(report_desc)),
+		endpoint_desc(0x81, 0x03, 64, 1)
+	)
 );
 
 desc_t dev_desc_p = {sizeof(dev_desc), (void*)&dev_desc};
 desc_t conf_desc_p = {sizeof(conf_desc), (void*)&conf_desc};
-//desc_t report_desc_p = {sizeof(report_desc), (void*)&report_desc};
+desc_t report_desc_p = {sizeof(report_desc), (void*)&report_desc};
 
 static Pin usb_dm = GPIOA[11];
 static Pin usb_dp = GPIOA[12];
@@ -111,114 +137,48 @@ class Flashloader {
 
 Flashloader flashloader;
 
-class USB_DFU : public USB_class_driver {
-	private:
-		USB_generic& usb;
-		
-		uint8_t state;
-		
-		bool get_status(uint16_t wValue, uint16_t wIndex, uint16_t wLength) {
-			if(wLength > 6) {
-				wLength = 6;
-			}
-			
-			uint8_t buf[] = {0, 0, 0, 0, state, 0};
-			
-			usb.write(0, (uint32_t*)buf, wLength);
-			
-			return true;
-		}
-		
-		bool download(uint16_t wValue, uint16_t wIndex, uint16_t wLength) {
-			if(!wLength) {
-				state = 2;
-				
-				if(!flashloader.finish()) {
-					return false;
-				}
-				
-				usb.write(0, nullptr, 0);
-				
-				return true;
-			}
-			
-			if(state == 2) {
-				state = 5;
-				
-				return flashloader.prepare();
-			}
-			
-			return true;
-		}
-		
+class HID_bootloader : public USB_HID {
 	public:
-		USB_DFU(USB_generic& usbd) : usb(usbd), state(2) {
-			usb.register_driver(this);
-		}
-	
-	protected:
-		virtual SetupStatus handle_setup(uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, uint16_t wLength) {
-			// DFU_GETSTATUS
-			if(bmRequestType == 0xa1 && bRequest == 0x03) {
-				return get_status(wValue, wIndex, wLength) ? SetupStatus::Ok : SetupStatus::Stall;
-			}
-			
-			// DFU_CLRSTATUS
-			// DFU_GETSTATE
-			// DFU_ABORT
-			
-			// DFU_DNLOAD
-			if(bmRequestType == 0x21 && bRequest == 0x01) {
-				return download(wValue, wIndex, wLength) ? SetupStatus::Ok : SetupStatus::Stall;
-			}
-			
-			return SetupStatus::Unhandled;
-		}
-		
-		virtual void handle_out(uint8_t ep, uint32_t len) {
-			if(ep != 0 || len == 0) {
-				return;
-			}
-			
-			uint32_t buf[16];
-			usb.read(ep, buf, len);
-			
-			if(state == 5) {
-				flashloader.write_block(len, buf);
-			}
-			
-			usb.write(0, nullptr, 0);
-		}
-};
-
-USB_DFU usb_dfu(usb);
-
-/*
-uint32_t last_led_time;
-
-class HID_arcin : public USB_HID {
-	public:
-		HID_arcin(USB_generic& usbd, desc_t rdesc) : USB_HID(usbd, rdesc, 1, 1, 64) {}
+		HID_bootloader(USB_generic& usbd, desc_t rdesc) : USB_HID(usbd, rdesc, 0, 1, 64) {}
 	
 	protected:
 		virtual bool set_output_report(uint32_t* buf, uint32_t len) {
-			last_led_time = Time::time();
-			button_leds.set(*buf);
-			return true;
+			if(len != 64) {
+				return false;
+			}
+			
+			return flashloader.write_block(len, buf);
+		}
+		
+		virtual bool set_feature_report(uint32_t* buf, uint32_t len) {
+			if(len != 1) {
+				return false;
+			}
+			
+			switch(*buf & 0xff) {
+				case 0:
+					return true;
+				
+				case 0x10: // Reset to bootloader
+					return false; // Not available in bootloader mode
+				
+				case 0x11: // Reset to runtime
+					do_reset = true;
+					return true;
+				
+				case 0x20: // Flash prepare
+					return flashloader.prepare();
+				
+				case 0x21: // Flash finish
+					return flashloader.finish();
+				
+				default:
+					return false;
+			}
 		}
 };
 
-HID_arcin usb_hid(usb, report_desc_p);
-*/
-
-void chainload(uint32_t offset) {
-	SCB.VTOR = offset;
-	
-	asm volatile("ldr sp, [%0]; ldr %0, [%0, #4]; bx %0" :: "r" (offset));
-}
-
-uint32_t& reset_reason = *(uint32_t*)0x10000000;
-uint32_t* firmware_vtors = (uint32_t*)0x8002000;
+HID_bootloader usb_hid(usb, report_desc_p);
 
 bool normal_boot() {
 	// Check if this was a reset-to-bootloader.
@@ -280,26 +240,11 @@ int main() {
 	while(1) {
 		usb.process();
 		
-		if(~button_inputs.get() & (1 << 5)) {
+		if(do_reset) {
+			Time::sleep(10);
 			reset();
 		}
 		
 		GPIOC[0].set(Time::time() & 512);
-		
-		/*
-		usb.process();
-		
-		uint16_t buttons = button_inputs.get() ^ 0x7ff;
-		
-		if(Time::time() - last_led_time > 1000) {
-			button_leds.set(buttons);
-		}
-		
-		if(usb.ep_ready(1)) {
-			report_t report = {buttons, uint8_t(TIM2.CNT), uint8_t(TIM3.CNT)};
-			
-			usb.write(1, (uint32_t*)&report, sizeof(report));
-		}
-		*/
 	}
 }
