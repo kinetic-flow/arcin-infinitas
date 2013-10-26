@@ -6,7 +6,6 @@
 #include <usb/usb.h>
 #include <usb/descriptor.h>
 #include <usb/hid.h>
-#include <usb/dfu.h>
 
 static uint32_t& reset_reason = *(uint32_t*)0x10000000;
 
@@ -162,14 +161,11 @@ auto report_desc = gamepad(
 );
 
 auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6080, 0, 1, 2, 3, 1);
-auto conf_desc = configuration_desc(2, 1, 0, 0xc0, 0,
+auto conf_desc = configuration_desc(1, 1, 0, 0xc0, 0,
 	// HID interface.
 	interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
 		hid_desc(0x111, 0, 1, 0x22, sizeof(report_desc)),
 		endpoint_desc(0x81, 0x03, 16, 1)
-	),
-	interface_desc(1, 0, 0, 0xfe, 0x01, 0x01, 0,
-		dfu_functional_desc(0x0d, 0, 64, 0x110)
 	)
 );
 

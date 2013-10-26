@@ -6,7 +6,6 @@
 #include <usb/usb.h>
 #include <usb/descriptor.h>
 #include <usb/hid.h>
-#include <usb/dfu.h>
 
 static uint32_t& reset_reason = *(uint32_t*)0x10000000;
 static const uint32_t* firmware_vtors = (uint32_t*)0x8002000;
