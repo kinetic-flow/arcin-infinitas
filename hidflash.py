@@ -34,9 +34,27 @@ if len(buf) & (64 - 1):
 dev = hidapi.hid_open(0x1d50, 0x6084, None)
 
 if not dev:
-	raise RuntimeError('Device not found.')
+	dev = hidapi.hid_open(0x1d50, 0x6080, None)
+	
+	if not dev: 
+		raise RuntimeError('Device not found.')
+	
+	print 'Found runtime device, resetting to bootloader.'
+	
+	# Reset bootloader
+	if hidapi.hid_send_feature_report(dev, ctypes.c_char_p('\x00\x10'), 2) != 2:
+		raise RuntimeError('Reset failed.')
+	
+	time.sleep(1)
+	
+	hidapi.hid_exit()
+	
+	dev = hidapi.hid_open(0x1d50, 0x6084, None)
+	
+	if not dev: 
+		raise RuntimeError('Device not found.')
 
-print 'Found device, starting flashing.'
+print 'Found bootloader device, starting flashing.'
 
 # Prepare
 if hidapi.hid_send_feature_report(dev, ctypes.c_char_p('\x00\x20'), 2) != 2:
@@ -52,10 +70,21 @@ while buf:
 if hidapi.hid_send_feature_report(dev, ctypes.c_char_p('\x00\x21'), 2) != 2:
 	raise RuntimeError('Finish failed.')
 
-print 'Flashing finished, resetting.'
+print 'Flashing finished, resetting to runtime.'
 
 # Reset
 if hidapi.hid_send_feature_report(dev, ctypes.c_char_p('\x00\x11'), 2) != 2:
 	raise RuntimeError('Reset failed.')
 
-print 'Done, everything ok.'
+time.sleep(1)
+
+hidapi.hid_exit()
+
+if hidapi.hid_open(0x1d50, 0x6080, None):
+	print 'Done, everything ok.'
+	
+elif hidapi.hid_open(0x1d50, 0x6084, None):
+	print 'Still in bootloader mode.'
+
+else:
+	print 'Device disappeared.'

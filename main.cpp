@@ -8,7 +8,9 @@
 #include <usb/hid.h>
 #include <usb/dfu.h>
 
-uint32_t& reset_reason = *(uint32_t*)0x10000000;
+static uint32_t& reset_reason = *(uint32_t*)0x10000000;
+
+static bool do_reset_bootloader;
 
 void reset_bootloader() {
 	reset_reason = 0xb007;
@@ -147,7 +149,16 @@ auto report_desc = gamepad(
 		output(0x02)
 	),
 	
-	padding_out(5)
+	padding_out(5),
+	
+	usage_page(0xff55),
+	usage(0xb007),
+	logical_minimum(0),
+	logical_maximum(255),
+	report_size(8),
+	report_count(1),
+	
+	feature(0x02) // HID bootloader function
 );
 
 auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6080, 0, 1, 2, 3, 1);
@@ -194,42 +205,27 @@ class HID_arcin : public USB_HID {
 			button_leds.set(*buf);
 			return true;
 		}
+		
+		virtual bool set_feature_report(uint32_t* buf, uint32_t len) {
+			if(len != 1) {
+				return false;
+			}
+			
+			switch(*buf & 0xff) {
+				case 0:
+					return true;
+				
+				case 0x10: // Reset to bootloader
+					do_reset_bootloader = true;
+					return true;
+				
+				default:
+					return false;
+			}
+		}
 };
 
 HID_arcin usb_hid(usb, report_desc_p);
-
-class USB_DFU_runtime : public USB_class_driver {
-	private:
-		USB_generic& usb;
-		
-	public:
-		USB_DFU_runtime(USB_generic& usbd) : usb(usbd) {
-			usb.register_driver(this);
-		}
-	
-	protected:
-		virtual SetupStatus handle_setup(uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, uint16_t wLength) {
-			// DFU_DETACH
-			if(bmRequestType == 0x21 && bRequest == 0x00 && wIndex == 0x01) {
-				detach();
-				return SetupStatus::Ok;
-			}
-			
-			return SetupStatus::Unhandled;
-		}
-		
-		bool detach() {
-			usb.write(0, nullptr, 0);
-			
-			Time::sleep(10);
-			
-			reset_bootloader();
-			
-			return true;
-		}
-};
-
-USB_DFU_runtime usb_dfu_runtime(usb);
 
 uint32_t serial_num() {
 	uint32_t* uid = (uint32_t*)0x1ffff7ac;
@@ -365,9 +361,10 @@ int main() {
 		
 		uint16_t buttons = button_inputs.get() ^ 0x7ff;
 		
-		//if(buttons & (1 << 4)) {
-		//	reset_bootloader();
-		//}
+		if(do_reset_bootloader) {
+			Time::sleep(10);
+			reset_bootloader();
+		}
 		
 		if(Time::time() - last_led_time > 1000) {
 			button_leds.set(buttons);
