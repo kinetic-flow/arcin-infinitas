@@ -150,7 +150,7 @@ auto report_desc = gamepad(
 	padding_out(5)
 );
 
-auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6080, 0, 0, 0, 0, 1);
+auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6080, 0, 1, 2, 3, 1);
 auto conf_desc = configuration_desc(2, 1, 0, 0xc0, 0,
 	// HID interface.
 	interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
@@ -230,6 +230,75 @@ class USB_DFU_runtime : public USB_class_driver {
 };
 
 USB_DFU_runtime usb_dfu_runtime(usb);
+
+uint32_t serial_num() {
+	uint32_t* uid = (uint32_t*)0x1ffff7ac;
+	
+	return uid[0] * uid[1] * uid[2];
+}
+
+class USB_strings : public USB_class_driver {
+	private:
+		USB_generic& usb;
+		
+	public:
+		USB_strings(USB_generic& usbd) : usb(usbd) {
+			usb.register_driver(this);
+		}
+	
+	protected:
+		virtual SetupStatus handle_setup(uint8_t bmRequestType, uint8_t bRequest, uint16_t wValue, uint16_t wIndex, uint16_t wLength) {
+			// Get string descriptor.
+			if(bmRequestType == 0x80 && bRequest == 0x06 && (wValue & 0xff00) == 0x0300) {
+				const void* desc = nullptr;
+				uint16_t buf[9];
+				
+				switch(wValue & 0xff) {
+					case 0:
+						desc = u"\u0304\u0409";
+						break;
+					
+					case 1:
+						desc = u"\u0308zyp";
+						break;
+					
+					case 2:
+						desc = u"\u030carcin";
+						break;
+					
+					case 3:
+						{
+							buf[0] = 0x0312;
+							uint32_t id = serial_num();
+							for(int i = 8; i > 0; i--) {
+								buf[i] = (id & 0xf) > 9 ? 'A' + (id & 0xf) - 0xa : '0' + (id & 0xf);
+								id >>= 4;
+							}
+							desc = buf;
+						}
+						break;
+				}
+				
+				if(!desc) {
+					return SetupStatus::Unhandled;
+				}
+				
+				uint8_t len = *(uint8_t*)desc;
+				
+				if(len > wLength) {
+					len = wLength;
+				}
+				
+				usb.write(0, (uint32_t*)desc, len);
+				
+				return SetupStatus::Ok;
+			}
+			
+			return SetupStatus::Unhandled;
+		}
+};
+
+USB_strings usb_strings(usb);
 
 struct report_t {
 	uint16_t buttons;
