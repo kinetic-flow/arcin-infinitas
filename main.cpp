@@ -371,7 +371,7 @@ int main() {
 		}
 		
 		if(usb.ep_ready(1)) {
-			report_t report = {buttons, uint8_t(TIM2.CNT >> 2), uint8_t(TIM3.CNT >> 2)};
+			report_t report = {buttons, uint8_t(TIM2.CNT), uint8_t(TIM3.CNT)};
 			
 			usb.write(1, (uint32_t*)&report, sizeof(report));
 		}
