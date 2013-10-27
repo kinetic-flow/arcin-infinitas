@@ -40,7 +40,7 @@ auto report_desc = pack(
 		)
 );
 
-auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6084, 0, 1, 2, 3, 1);
+auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6084, 0x110, 1, 2, 3, 1);
 auto conf_desc = configuration_desc(1, 1, 0, 0xc0, 0,
 	// HID interface.
 	interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
@@ -60,7 +60,8 @@ static Pin usb_pu = GPIOA[15];
 static PinArray button_inputs = GPIOB.array(0, 10);
 static PinArray button_leds = GPIOC.array(0, 10);
 
-static Pin led1 = GPIOB[14];
+static Pin led1 = GPIOA[8];
+static Pin led2 = GPIOA[9];
 
 USB_f1 usb(USB, dev_desc_p, conf_desc_p);
 
@@ -281,6 +282,7 @@ int main() {
 	button_leds.set_mode(Pin::Output);
 	
 	led1.set_mode(Pin::Output);
+	led2.set_mode(Pin::Output);
 	
 	if(normal_boot()) {
 		chainload(0x8002000);

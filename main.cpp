@@ -160,7 +160,7 @@ auto report_desc = gamepad(
 	feature(0x02) // HID bootloader function
 );
 
-auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6080, 0, 1, 2, 3, 1);
+auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6080, 0x110, 1, 2, 3, 1);
 auto conf_desc = configuration_desc(1, 1, 0, 0xc0, 0,
 	// HID interface.
 	interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
@@ -185,7 +185,8 @@ static Pin qe1b = GPIOA[1];
 static Pin qe2a = GPIOA[6];
 static Pin qe2b = GPIOA[7];
 
-static Pin led1 = GPIOB[14];
+static Pin led1 = GPIOA[8];
+static Pin led2 = GPIOA[9];
 
 USB_f1 usb(USB, dev_desc_p, conf_desc_p);
 
@@ -328,6 +329,9 @@ int main() {
 	
 	led1.set_mode(Pin::Output);
 	led1.on();
+	
+	led2.set_mode(Pin::Output);
+	led2.on();
 	
 	RCC.enable(RCC.TIM2);
 	RCC.enable(RCC.TIM3);
