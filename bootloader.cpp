@@ -31,10 +31,13 @@ auto report_desc = pack(
 			report_size(8),
 			report_count(1),
 			
+			usage(0xb007),
 			input(0x02), // Status
 			
+			usage(0xb007),
 			feature(0x02), // Function
 			
+			usage(0xb007),
 			report_count(64),
 			output(0x02) // Data
 		)
