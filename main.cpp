@@ -561,10 +561,22 @@ int main() {
 	TIM2.SMCR = 3;
 	TIM2.CR1 = 1;
 	
+	if(config.qe1_sens < 0) {
+		TIM2.ARR = 256 * -config.qe1_sens - 1;
+	} else {
+		TIM2.ARR = 256 - 1;
+	}
+	
 	TIM3.CCMR1 = (1 << 8) | (1 << 0);
 	TIM3.CCER = 1 << 1;
 	TIM3.SMCR = 3;
 	TIM3.CR1 = 1;
+	
+	if(config.qe2_sens < 0) {
+		TIM3.ARR = 256 * -config.qe2_sens - 1;
+	} else {
+		TIM3.ARR = 256 - 1;
+	}
 	
 	qe1a.set_af(1);
 	qe1b.set_af(1);
@@ -596,7 +608,22 @@ int main() {
 		}
 		
 		if(usb.ep_ready(1)) {
-			report_t report = {buttons, uint8_t(TIM2.CNT), uint8_t(TIM3.CNT)};
+			uint32_t qe1_count = TIM2.CNT;
+			uint32_t qe2_count = TIM3.CNT;
+			
+			if(config.qe1_sens < 0) {
+				qe1_count /= -config.qe1_sens;
+			} else if(config.qe1_sens > 0) {
+				qe1_count *= config.qe1_sens;
+			}
+			
+			if(config.qe2_sens < 0) {
+				qe2_count /= -config.qe2_sens;
+			} else if(config.qe2_sens > 0) {
+				qe2_count *= config.qe2_sens;
+			}
+			
+			input_report_t report = {1, buttons, uint8_t(qe1_count), uint8_t(qe2_count)};
 			
 			usb.write(1, (uint32_t*)&report, sizeof(report));
 		}
