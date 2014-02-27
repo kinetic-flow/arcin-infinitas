@@ -1,4 +1,5 @@
 #include <rcc/rcc.h>
+#include <rcc/flash.h>
 #include <gpio/gpio.h>
 #include <interrupt/interrupt.h>
 #include <timer/timer.h>
@@ -7,17 +8,118 @@
 #include <usb/descriptor.h>
 #include <usb/hid.h>
 
+#include <string.h>
+
 static uint32_t& reset_reason = *(uint32_t*)0x10000000;
 
 static bool do_reset_bootloader;
+static bool do_reset;
 
-void reset_bootloader() {
-	reset_reason = 0xb007;
+void reset() {
 	SCB.AIRCR = (0x5fa << 16) | (1 << 2); // SYSRESETREQ
 }
 
+void reset_bootloader() {
+	reset_reason = 0xb007;
+	reset();
+}
+
+class Configloader {
+	private:
+		enum {
+			MAGIC = 0xc0ff600d,
+		};
+		
+		struct header_t {
+			uint32_t magic;
+			uint32_t size;
+		};
+		
+		uint32_t flash_addr;
+		
+	public:
+		Configloader(uint32_t addr) : flash_addr(addr) {}
+		
+		bool read(uint32_t size, void* data) {
+			header_t* header = (header_t*)flash_addr;
+			
+			if(header->magic != MAGIC) {
+				return false;
+			}
+			
+			if(header->size < size) {
+				size = header->size;
+			}
+			
+			memcpy(data, (void*)(flash_addr + sizeof(header_t)), size);
+			
+			return true;
+		}
+		
+		bool write(uint32_t size, void* data) {
+			header_t header = {MAGIC, size};
+			
+			// Unlock flash.
+			FLASH.KEYR = 0x45670123;
+			FLASH.KEYR = 0xCDEF89AB;
+			
+			// Erase page.
+			FLASH.CR = 1 << 1; // PER
+			FLASH.AR = flash_addr;
+			FLASH.CR = (1 << 6) | (1 << 1); // STRT, PER
+			
+			while(FLASH.SR & (1 << 0)); // BSY
+			
+			FLASH.SR &= ~(1 << 5); // EOP
+			FLASH.CR = 0;
+			
+			// Write header.
+			uint16_t* src = (uint16_t*)&header;
+			uint16_t* dest = (uint16_t*)flash_addr;
+			
+			for(uint32_t n = 0; n < sizeof(header); n += 2) {
+				FLASH.CR = 1 << 0; // PG
+				
+				*dest++ = *src++;
+				
+				while(FLASH.SR & (1 << 0)); // BSY
+			}
+			
+			// Write data.
+			src = (uint16_t*)data;
+			
+			for(uint32_t n = 0; n < size; n += 2) {
+				FLASH.CR = 1 << 0; // PG
+				
+				*dest++ = *src++;
+				
+				while(FLASH.SR & (1 << 0)); // BSY
+			}
+			
+			// Lock flash.
+			FLASH.CR = 1 << 7; // LOCK
+			
+			return true;
+		}
+};
+
+Configloader configloader(0x801f800);
+
+struct config_t {
+	uint8_t label[12];
+	uint32_t flags;
+	int8_t qe1_sens;
+	int8_t qe2_sens;
+	uint8_t ps2_mode;
+	uint8_t ws2812b_mode;
+};
+
+config_t config;
+
 auto report_desc = gamepad(
 	// Inputs.
+	report_id(1),
+	
 	buttons(11),
 	padding_in(5),
 	
@@ -38,6 +140,8 @@ auto report_desc = gamepad(
 	input(0x02),
 	
 	// Outputs.
+	report_id(2),
+	
 	usage_page(UsagePage::Ordinal),
 	usage(1),
 	collection(Collection::Logical, 
@@ -150,6 +254,9 @@ auto report_desc = gamepad(
 	
 	padding_out(5),
 	
+	// Bootloader
+	report_id(0xb0),
+	
 	usage_page(0xff55),
 	usage(0xb007),
 	logical_minimum(0),
@@ -157,8 +264,48 @@ auto report_desc = gamepad(
 	report_size(8),
 	report_count(1),
 	
-	feature(0x02) // HID bootloader function
+	feature(0x02), // HID bootloader function
+	
+	// Configuration
+	report_id(0xc0),
+	
+	usage(0xc000),
+	feature(0x02), // Config segment
+	
+	usage(0xc001),
+	feature(0x02), // Config segment size
+	
+	feature(0x01), // Padding
+	
+	usage(0xc0ff),
+	report_count(60),
+	feature(0x02) // Config data
 );
+
+struct input_report_t {
+	uint8_t report_id;
+	uint16_t buttons;
+	uint8_t axis_x;
+	uint8_t axis_y;
+} __attribute__((packed));
+
+struct output_report_t {
+	uint8_t report_id;
+	uint16_t leds;
+} __attribute__((packed));
+
+struct bootloader_report_t {
+	uint8_t report_id;
+	uint8_t func;
+} __attribute__((packed));
+
+struct config_report_t {
+	uint8_t report_id;
+	uint8_t segment;
+	uint8_t size;
+	uint8_t pad;
+	uint8_t data[60];
+} __attribute__((packed));
 
 auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6080, 0x110, 1, 2, 3, 1);
 auto conf_desc = configuration_desc(1, 1, 0, 0xc0, 0,
@@ -193,28 +340,86 @@ USB_f1 usb(USB, dev_desc_p, conf_desc_p);
 uint32_t last_led_time;
 
 class HID_arcin : public USB_HID {
-	public:
-		HID_arcin(USB_generic& usbd, desc_t rdesc) : USB_HID(usbd, rdesc, 0, 1, 64) {}
-	
-	protected:
-		virtual bool set_output_report(uint32_t* buf, uint32_t len) {
-			last_led_time = Time::time();
-			button_leds.set(*buf);
-			return true;
-		}
-		
-		virtual bool set_feature_report(uint32_t* buf, uint32_t len) {
-			if(len != 1) {
-				return false;
-			}
-			
-			switch(*buf & 0xff) {
+	private:
+		bool set_feature_bootloader(bootloader_report_t* report) {
+			switch(report->func) {
 				case 0:
 					return true;
 				
 				case 0x10: // Reset to bootloader
 					do_reset_bootloader = true;
 					return true;
+				
+				case 0x20: // Reset to runtime
+					do_reset = true;
+					return true;
+				
+				default:
+					return false;
+			}
+		}
+		
+		bool set_feature_config(config_report_t* report) {
+			if(report->segment != 0) {
+				return false;
+			}
+			
+			configloader.write(report->size, report->data);
+			
+			return true;
+		}
+		
+		bool get_feature_config() {
+			config_report_t report = {0xc0, 0, sizeof(config)};
+			
+			memcpy(report.data, &config, sizeof(config));
+			
+			usb.write(0, (uint32_t*)&report, sizeof(report));
+			
+			return true;
+		}
+	
+	public:
+		HID_arcin(USB_generic& usbd, desc_t rdesc) : USB_HID(usbd, rdesc, 0, 1, 64) {}
+	
+	protected:
+		virtual bool set_output_report(uint32_t* buf, uint32_t len) {
+			if(len != sizeof(output_report_t)) {
+				return false;
+			}
+			
+			output_report_t* report = (output_report_t*)buf;
+			
+			last_led_time = Time::time();
+			button_leds.set(report->leds);
+			return true;
+		}
+		
+		virtual bool set_feature_report(uint32_t* buf, uint32_t len) {
+			switch(*buf & 0xff) {
+				case 0xb0:
+					if(len != sizeof(bootloader_report_t)) {
+						return false;
+					}
+					
+					return set_feature_bootloader((bootloader_report_t*)buf);
+				
+				case 0xc0:
+					if(len != sizeof(config_report_t)) {
+						return false;
+					}
+					
+					return set_feature_config((config_report_t*)buf);
+				
+				default:
+					return false;
+			}
+		}
+		
+		virtual bool get_feature_report(uint8_t report_id) {
+			switch(report_id) {
+				case 0xc0:
+					return get_feature_config();
 				
 				default:
 					return false;
@@ -293,18 +498,15 @@ class USB_strings : public USB_class_driver {
 
 USB_strings usb_strings(usb);
 
-struct report_t {
-	uint16_t buttons;
-	uint8_t axis_x;
-	uint8_t axis_y;
-} __attribute__((packed));
-
 int main() {
 	rcc_init();
 	
 	// Initialize system timer.
 	STK.LOAD = 72000000 / 8 / 1000; // 1000 Hz.
 	STK.CTRL = 0x03;
+	
+	// Load config.
+	configloader.read(sizeof(config), &config);
 	
 	RCC.enable(RCC.GPIOA);
 	RCC.enable(RCC.GPIOB);
@@ -364,6 +566,11 @@ int main() {
 		if(do_reset_bootloader) {
 			Time::sleep(10);
 			reset_bootloader();
+		}
+		
+		if(do_reset) {
+			Time::sleep(10);
+			reset();
 		}
 		
 		if(Time::time() - last_led_time > 1000) {
