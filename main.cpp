@@ -449,7 +449,8 @@ class USB_strings : public USB_class_driver {
 			// Get string descriptor.
 			if(bmRequestType == 0x80 && bRequest == 0x06 && (wValue & 0xff00) == 0x0300) {
 				const void* desc = nullptr;
-				uint16_t buf[9];
+				uint16_t buf[64] = {0x300};
+				uint32_t i = 1;
 				
 				switch(wValue & 0xff) {
 					case 0:
@@ -461,7 +462,24 @@ class USB_strings : public USB_class_driver {
 						break;
 					
 					case 2:
-						desc = u"\u030carcin";
+						for(const char* p = "arcin"; *p; p++) {
+							buf[i++] = *p;
+						}
+						
+						if(config.label[0]) {
+							buf[i++] = ' ';
+							buf[i++] = '(';
+							
+							for(uint8_t* p = config.label; *p; p++) {
+								buf[i++] = *p;
+							}
+							
+							buf[i++] = ')';
+						}
+						
+						buf[0] |= i * 2;
+						
+						desc = buf;
 						break;
 					
 					case 3:
