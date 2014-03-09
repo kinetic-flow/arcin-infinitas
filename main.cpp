@@ -120,8 +120,8 @@ auto report_desc = gamepad(
 	// Inputs.
 	report_id(1),
 	
-	buttons(11),
-	padding_in(5),
+	buttons(15),
+	padding_in(1),
 	
 	usage_page(UsagePage::Desktop),
 	usage(DesktopUsage::X),
@@ -588,6 +588,12 @@ int main() {
 	qe2a.set_mode(Pin::AF);
 	qe2b.set_mode(Pin::AF);
 	
+	uint8_t last_x = 0;
+	uint8_t last_y = 0;
+	
+	int8_t state_x = 0;
+	int8_t state_y = 0;
+	
 	while(1) {
 		usb.process();
 		
@@ -610,6 +616,43 @@ int main() {
 		if(usb.ep_ready(1)) {
 			uint32_t qe1_count = TIM2.CNT;
 			uint32_t qe2_count = TIM3.CNT;
+			
+			int8_t rx = qe1_count - last_x;
+			int8_t ry = qe2_count - last_y;
+			last_x = qe1_count;
+			last_y = qe2_count;
+			
+			if(rx > 0) {
+				state_x = 100;
+			} else if(rx < 0) {
+				state_x = -100;
+			} else if(state_x > 0) {
+				state_x--;
+			} else if(state_x < 0) {
+				state_x++;
+			}
+			
+			if(ry > 0) {
+				state_y = 100;
+			} else if(ry < 0) {
+				state_y = -100;
+			} else if(state_y > 0) {
+				state_y--;
+			} else if(state_y < 0) {
+				state_y++;
+			}
+			
+			if(state_x > 0) {
+				buttons |= 1 << 11;
+			} else if(state_x < 0) {
+				buttons |= 1 << 12;
+			}
+			
+			if(state_y > 0) {
+				buttons |= 1 << 13;
+			} else if(state_y < 0) {
+				buttons |= 1 << 14;
+			}
 			
 			if(config.qe1_sens < 0) {
 				qe1_count /= -config.qe1_sens;
