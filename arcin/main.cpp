@@ -350,6 +350,54 @@ HID_arcin usb_hid(usb, report_desc_p);
 
 USB_strings usb_strings(usb, config.label);
 
+#define DEBOUNCE_TIME_MS 5
+
+uint16_t debounce_state = 0;
+uint16_t debounce_history[DEBOUNCE_TIME_MS] = { 0 };
+uint32_t debounce_sample_time = 0;
+int debounce_index = 0;
+
+/* 
+ * Perform debounce processing. The buttons input is sampled at most once per ms
+ * (when update is true); buttons is then set to the last stable state for each
+ * bit (i.e., the last state maintained for DEBOUNCE_TIME_MS consequetive samples
+ *
+ * We use update to sync to the USB polls; this helps avoid additional latency when
+ * debounce samples just after the USB poll.
+ */
+void debounce(uint16_t &buttons) {
+	if (Time::time() == debounce_sample_time) {
+		buttons = debounce_state;
+        return;
+	}
+
+    debounce_sample_time = Time::time();
+
+	debounce_history[debounce_index] = buttons;
+	debounce_index = (debounce_index + 1) % DEBOUNCE_TIME_MS;
+
+    uint16_t dbg = 0;
+
+	uint16_t has_ones = 0, has_zeroes = 0;
+	for (int i = 0; i < DEBOUNCE_TIME_MS; i++) {
+		has_ones |= debounce_history[i];
+		has_zeroes |= ~debounce_history[i];
+
+        dbg |= (debounce_history[i] & 1) ? (1 << i) : 0;
+	}
+
+	uint16_t stable = has_ones ^ has_zeroes;
+    dbg |= (stable & 1) ? (1 << 5) : 0;
+
+	debounce_state = (debounce_state & ~stable) | (has_ones & stable);
+    dbg |= (debounce_state & 1) ? (1 << 6) : 0;
+
+    dbg |= (buttons & 1) ? (1 << 10) : 0;
+
+	buttons = debounce_state;
+//    button_leds.set(dbg);
+}
+
 class analog_button {
 	public:
 		// config
