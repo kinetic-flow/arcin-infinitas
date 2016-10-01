@@ -169,6 +169,19 @@ auto report_desc = gamepad(
 	feature(0x02) // Config data
 );
 
+auto keyb_report_desc = keyboard(
+	usage_page(UsagePage::Keyboard),
+	report_size(1),
+	report_count(13),
+	logical_minimum(0),
+	logical_maximum(255),
+	usage_minimum(0),
+	usage_maximum(255),
+	report_count(13),
+	report_size(8),
+	input(0x00)
+);
+
 struct input_report_t {
 	uint8_t report_id;
 	uint16_t buttons;

@@ -72,19 +72,27 @@ auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6080, 0x110, 1, 2, 3, 
 // overridng any user settings in the launcher
 auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1CCF, 0x8048, 0x110, 1, 2, 3, 1);
 
-auto conf_desc_1000hz = configuration_desc(1, 1, 0, 0xc0, 0,
+auto conf_desc_1000hz = configuration_desc(2, 1, 0, 0xc0, 0,
     // HID interface.
     interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
         hid_desc(0x111, 0, 1, 0x22, sizeof(report_desc)),
         endpoint_desc(0x81, 0x03, 16, 1)
+    ),
+    interface_desc(1, 0, 1, 0x03, 0x00, 0x00, 0,
+        hid_desc(0x111, 0, 1, 0x22, sizeof(keyb_report_desc)),
+        endpoint_desc(0x82, 0x03, 16, 1)
     )
 );
 
-auto conf_desc_250hz = configuration_desc(1, 1, 0, 0xc0, 0,
+auto conf_desc_250hz = configuration_desc(2, 1, 0, 0xc0, 0,
     // HID interface.
     interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
         hid_desc(0x111, 0, 1, 0x22, sizeof(report_desc)),
         endpoint_desc(0x81, 0x03, 16, 4)
+    ),
+    interface_desc(1, 0, 1, 0x03, 0x00, 0x00, 0,
+        hid_desc(0x111, 0, 1, 0x22, sizeof(keyb_report_desc)),
+        endpoint_desc(0x82, 0x03, 16, 1)
     )
 );
 
@@ -94,6 +102,8 @@ desc_t conf_desc_p_1000hz = {sizeof(conf_desc_1000hz), (void*)&conf_desc_1000hz}
 desc_t conf_desc_p_250hz = {sizeof(conf_desc_250hz), (void*)&conf_desc_250hz};
 
 desc_t report_desc_p = {sizeof(report_desc), (void*)&report_desc};
+desc_t keyb_report_desc_p =
+    {sizeof(keyb_report_desc), (void*)&keyb_report_desc};
 
 static Pin usb_dm = GPIOA[11];
 static Pin usb_dp = GPIOA[12];
@@ -200,6 +210,22 @@ class HID_arcin : public USB_HID {
                 default:
                     return false;
             }
+        }
+};
+
+class HID_keyb : public USB_HID {
+    public:
+        HID_keyb(USB_generic& usbd, desc_t rdesc) : USB_HID(usbd, rdesc, 1, 2, 64) {}
+
+    protected:
+        virtual bool set_output_report(uint32_t* buf, uint32_t len) {
+            // ignore
+            return true;
+        }
+
+        virtual bool set_feature_report(uint32_t* buf, uint32_t len) {
+            // ignore
+            return false;
         }
 };
 
@@ -450,6 +476,8 @@ public:
 
 HID_arcin usb_hid_1000hz(usb_1000hz, report_desc_p);
 HID_arcin usb_hid_250hz(usb_250hz, report_desc_p);
+HID_keyb usb_hid_keyb_1000hz(usb_1000hz, keyb_report_desc_p);
+HID_keyb usb_hid_keyb_250hz(usb_250hz, keyb_report_desc_p);
 
 USB_strings usb_strings_1000hz(usb_1000hz, config.label);
 USB_strings usb_strings_250hz(usb_250hz, config.label);
@@ -584,8 +612,8 @@ int main() {
             }
         }
 
+        uint32_t qe1_count = TIM2.CNT;
         if(usb->ep_ready(1)) {
-            uint32_t qe1_count = TIM2.CNT;
             uint16_t remapped = remap_buttons(buttons);
 
             // Apply debounce...
@@ -668,6 +696,41 @@ int main() {
             }
             report.axis_y = 127;
             usb->write(1, (uint32_t*)&report, sizeof(report));
+        }
+        
+        if (usb->ep_ready(2)) {
+            unsigned char scancodes[13] = { 0 };
+
+            uint32_t nextscan = 0;
+
+            for (int i = 0; i < 9; i++) {
+                if (buttons & (1 << i)) {
+                    scancodes[nextscan++] = 4 + i;
+                }
+            }
+
+            if (buttons & (1 << 9)) { //start
+                scancodes[nextscan++] = 40; // ENTER
+            }
+
+            if (buttons & (1 << 10)) { //select
+                scancodes[nextscan++] = 42; // BACKSPACE
+            }
+
+            switch (tt1.poll(qe1_count)) {
+                case -1:
+                    scancodes[nextscan++] = 4 + 21;
+                    break;
+                case 1:
+                    scancodes[nextscan++] = 4 + 22;
+                    break;
+            }
+
+            while (nextscan < sizeof(scancodes)) {
+                scancodes[nextscan++] = 0;
+            }
+
+            usb->write(2, (uint32_t*)scancodes, sizeof(scancodes));
         }
     }
 }
