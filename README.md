@@ -30,9 +30,9 @@ On top of the "arcin_flash_config_alpha5" firmware, the following changes are ma
 
 * Changes the hardware ID (USB VID / PID) to be the same as Konami infinitas controller. This allows the game to automatically detect it & use the analog turntable.
 * Removes input elements that the game does not expect:
-   * Button 8/9 typically used for digital turntable in BMS
+   * Digital turntable in BMS
    * Analog Y-axis
-* Remaps button 8/9 to button 12/13 (E3 and E4 in game)
+* Remaps E1-E4 buttons correctly (start = E1, select = E2, 8 = E3, 9 = E4)
 * Optionally increases the turntable sensitivity to compensate for 120hz infinitas.
    * You can use the sensitive_tt version if you want this. If you don't need this, use the normal_tt version.
    
