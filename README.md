@@ -64,7 +64,7 @@ To create an executable for easily flashing the ELF file, grab https://github.co
 
 I had success with Ubuntu 20.04 LTS on WSL2 (Windows Subsystem for Linux). Mind that ARM toolchian will not work in WSL1!
 
-## Disclosure
+## Disclaimer
 
 The repository owner or contributors are not liable for any damage caused to your hardware. That being said, arcin is a fairly robust board with recovey capabilities, so you should be fine!
 
