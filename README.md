@@ -44,7 +44,9 @@ This is the hard part... components required to are not included in this reposit
 
 * Get the ARM toolchain for Linux and put it in your $PATH
     * https://launchpad.net/gcc-arm-embedded/+download
+    * Try to get these files from the website instead of the ones from your OS's package repository.
 * Get SCons : http://scons.org/pages/download.html
+    * You can get scons from yor OS's package repository (e.g., apt-get)
 * git submodule init: this will pull the external laks submodule, which contains headers for the hardware used by the arcin.
 
 To build, run
