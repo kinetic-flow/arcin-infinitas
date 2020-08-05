@@ -15,9 +15,9 @@ If it does not detect your controller, unplug, hold down 1+2, plug back in - you
 
 * Start the launcher
 * Settings
-* Press the button that resets all keybinds to DEFAULT.
-* Whatever you do, do not change the turntable settings.
-* You *might* be able to rebind some keys. As of launch (August 4th, 2020), this doesn't seem to work properly - the game tends to ignore any key binds if you are using an infinitas controller (or this firmware which pretends to be one)
+* Press the button that resets all keybinds to DEFAULT. This is important!
+    * This firmware pretends to be the official infinitas controller, so the game detects this automatically and uses the correct key binds. Even if the key binds "seem" wrong in the UI, ignore it.
+* Do not change any key binds - it won't work.
     * This means you might need to re-wire some buttons to make it friendly for the game
 
 ## Details
