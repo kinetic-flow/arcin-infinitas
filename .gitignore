@@ -3,3 +3,7 @@
 *.elf
 *.swp
 .sconsign.dblite
+bin
+pkg
+dist
+arcin-utils
