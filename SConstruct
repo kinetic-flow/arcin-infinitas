@@ -4,6 +4,16 @@ env = Environment(
 	ENV = os.environ,
 )
 
+if os.environ.get('ARCIN_INF_SENSITIVE_TT') == '1':
+	print("* * * Sensitive turntable mode for 120hz infinitas * * *")
+	env.Append(
+		CPPDEFINES = {
+			'ARCIN_INFINITAS_SENSITIVE_TT': 1
+		}
+	)
+else:
+	print("* * * Normal turntable mode * * *")
+
 SConscript('laks/build_rules')
 
 env.SelectMCU('stm32f303rc')

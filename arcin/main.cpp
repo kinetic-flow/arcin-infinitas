@@ -11,7 +11,8 @@
 #include "configloader.h"
 #include "config.h"
 
-#define ARCIN_INFINITAS_MORE_SENSITIVE_TT 1
+// Read from build environment
+// #define ARCIN_INFINITAS_SENSITIVE_TT 1
 
 static uint32_t& reset_reason = *(uint32_t*)0x10000000;
 
@@ -175,12 +176,12 @@ int main() {
 	// Load config.
 	configloader.read(sizeof(config), &config);
 
-#if ARCIN_INFINITAS_MORE_SENSITIVE_TT
+#if ARCIN_INFINITAS_SENSITIVE_TT
 
 	// manually fix up turntable sensitivity for new infinitas..
 	// 0.75 seems about right on full size turntable (DAO RED)
 	config.qe1_sens *= 0.75;
-	
+
 #endif
 
 	RCC.enable(RCC.GPIOA);
