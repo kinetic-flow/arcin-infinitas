@@ -3,7 +3,7 @@ arcin firmware for beatmania IIDX Infinitas (2020 ver)
 
 ## Where do I download???
 
-Check out the releases tab.
+[Check out the releases tab.](https://github.com/minsang-github/arcin-infinitas/releases)
 
 ## How do I flash??
 
@@ -32,8 +32,9 @@ On top of the "arcin_flash_config_alpha5" firmware, the following changes are ma
 * Removes input elements that the game does not expect:
    * Button 8/9 typically used for digital turntable in BMS
    * Analog Y-axis
-* Increases the turntable sensitivity
-   * This is a hardcoded 25% increase.
+* Remaps button 8/9 to button 12/13 (E3 and E4 in game)
+* Optionally increases the turntable sensitivity to compensate for 120hz infinitas.
+   * You can use the sensitive_tt version if you want this. If you don't need this, use the normal_tt version.
    
 This firmware is technically compatible with the configuration tool (arcin_conf.exe), but you need to flash the firmware to a compatible firmware, change the settings using the tool, and switch back to this infinitas firmware. Your settings should remain on the board even after a flash.
 
@@ -63,7 +64,7 @@ To create an executable for easily flashing the ELF file, grab https://github.co
 
 I had success with Ubuntu 20.04 LTS on WSL2 (Windows Subsystem for Linux). Mind that ARM toolchian will not work in WSL1!
 
-## Disclosure
+## Disclaimer
 
 The repository owner or contributors are not liable for any damage caused to your hardware. That being said, arcin is a fairly robust board with recovey capabilities, so you should be fine!
 
