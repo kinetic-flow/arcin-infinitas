@@ -29,7 +29,17 @@ Configloader configloader(0x801f800);
 
 config_t config;
 
+/* 
+ // origial hardware ID for arcin - expected by firmware flash
+ // and the settings tool
 auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6080, 0x110, 1, 2, 3, 1);
+*/
+
+// Hardware ID Infinitas controller: 0x1ccf, 0x8048
+// The game detects this and automatically uses its own (internal) key config
+// overridng any user settings in the launcher
+auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1CCF, 0x8048, 0x110, 1, 2, 3, 1);
+
 auto conf_desc = configuration_desc(1, 1, 0, 0xc0, 0,
 	// HID interface.
 	interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
@@ -162,6 +172,10 @@ int main() {
 	
 	// Load config.
 	configloader.read(sizeof(config), &config);
+
+	// manually fix up turntable sensitivity for new infinitas..
+	// 0.75 seems about right on full size turntable (DAO RED)
+	config.qe1_sens *= 0.75;
 	
 	RCC.enable(RCC.GPIOA);
 	RCC.enable(RCC.GPIOB);
@@ -229,13 +243,7 @@ int main() {
 	qe2a.set_af(2);
 	qe2b.set_af(2);
 	qe2a.set_mode(Pin::AF);
-	qe2b.set_mode(Pin::AF);
-	
-	uint8_t last_x = 0;
-	uint8_t last_y = 0;
-	
-	int8_t state_x = 0;
-	int8_t state_y = 0;
+	qe2b.set_mode(Pin::AF);	
 	
 	while(1) {
 		usb.process();
@@ -258,64 +266,27 @@ int main() {
 		
 		if(usb.ep_ready(1)) {
 			uint32_t qe1_count = TIM2.CNT;
-			uint32_t qe2_count = TIM3.CNT;
-			
-			int8_t rx = qe1_count - last_x;
-			int8_t ry = qe2_count - last_y;
-			
-			if(rx > 1) {
-				state_x = 100;
-				last_x = qe1_count;
-			} else if(rx < -1) {
-				state_x = -100;
-				last_x = qe1_count;
-			} else if(state_x > 0) {
-				state_x--;
-				last_x = qe1_count;
-			} else if(state_x < 0) {
-				state_x++;
-				last_x = qe1_count;
-			}
-			
-			if(ry > 1) {
-				state_y = 100;
-				last_y = qe2_count;
-			} else if(ry < -1) {
-				state_y = -100;
-				last_y = qe2_count;
-			} else if(state_y > 0) {
-				state_y--;
-				last_y = qe2_count;
-			} else if(state_y < 0) {
-				state_y++;
-				last_y = qe2_count;
-			}
-			
-			if(state_x > 0) {
-				buttons |= 1 << 11;
-			} else if(state_x < 0) {
-				buttons |= 1 << 12;
-			}
-			
-			if(state_y > 0) {
-				buttons |= 1 << 13;
-			} else if(state_y < 0) {
-				buttons |= 1 << 14;
-			}
-			
 			if(config.qe1_sens < 0) {
 				qe1_count /= -config.qe1_sens;
 			} else if(config.qe1_sens > 0) {
 				qe1_count *= config.qe1_sens;
-			}
+			}			
 			
-			if(config.qe2_sens < 0) {
-				qe2_count /= -config.qe2_sens;
-			} else if(config.qe2_sens > 0) {
-				qe2_count *= config.qe2_sens;
-			}
+			// Infinitas default key mapping:
+			// Keys: 1-7
+			// Digital TT: 8 and 9 (must be avoided since analog TT is in use)
+			// E1: 1p is 11, 2p is 10
+			// E2: 1p is 10, 2p is 11
+			// E3: 12
+			// E4: 13
+
+			// Shift up 8 and 9 on arcin so that the top buttons on RED can be
+			// used as E3 and E4.
+
+			uint16_t buttons_shifted = buttons & (0x67F);
+			buttons_shifted |= ((buttons & 0x180) << 4);
 			
-			input_report_t report = {1, buttons, uint8_t(qe1_count), uint8_t(qe2_count)};
+			input_report_t report = {1, buttons_shifted, uint8_t(qe1_count), uint8_t(0)};
 			
 			usb.write(1, (uint32_t*)&report, sizeof(report));
 		}
