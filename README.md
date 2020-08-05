@@ -13,9 +13,8 @@ If it does not detect your controller, unplug, hold down 1+2, plug back in - you
 
 ## How do I set up in the game?
 
-* Start the launcher
-* Settings
-* Press the button that resets all keybinds to DEFAULT. This is important!
+* Start the launcher, enter Settings
+* **Press "デフォルトに戻す" to reset all keybinds. This is important and you MUST do this!!**
     * This firmware pretends to be the official infinitas controller, so the game detects this automatically and uses the correct key binds. Even if the key binds "seem" wrong in the UI, ignore it.
 * Do not change any key binds - it won't work.
     * This means you might need to re-wire some buttons to make it friendly for the game
