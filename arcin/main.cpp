@@ -279,19 +279,30 @@ int main() {
 				qe1_count *= config.qe1_sens;
 			}			
 			
-			// Infinitas default key mapping:
-			// Keys: 1-7
-			// Digital TT: 8 and 9 (must be avoided since analog TT is in use)
-			// E1: 1p is 11, 2p is 10
-			// E2: 1p is 10, 2p is 11
-			// E3: 12
-			// E4: 13
+			// Remap (arcin -> infinitas)
+			// Start 10  -> 9  E1
+			// Select 11 -> 10 E2
+			//         8 -> 11 E3
+			//         9 -> 12 E4
+			//
+			// (8 and 9 are for RED top edge buttons)
 
-			// Shift up 8 and 9 on arcin so that the top buttons on RED can be
-			// used as E3 and E4.
+			uint16_t buttons_shifted = buttons & (0x7F);
+			if (buttons & (1 << 9)) {
+				buttons_shifted |= (1 << 8);
+			}
 
-			uint16_t buttons_shifted = buttons & (0x67F);
-			buttons_shifted |= ((buttons & 0x180) << 4);
+			if (buttons & (1 << 10)) {
+				buttons_shifted |= (1 << 9);
+			}
+
+			if (buttons & (1 << 7)) {
+				buttons_shifted |= (1 << 10);
+			}
+
+			if (buttons & (1 << 8)) {
+				buttons_shifted |= (1 << 11);
+			}
 			
 			input_report_t report = {1, buttons_shifted, uint8_t(qe1_count), uint8_t(0)};
 			
