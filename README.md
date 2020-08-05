@@ -33,8 +33,8 @@ On top of the "arcin_flash_config_alpha5" firmware, the following changes are ma
    * Button 8/9 typically used for digital turntable in BMS
    * Analog Y-axis
 * Remaps button 8/9 to button 12/13 (E3 and E4 in game)
-* Increases the turntable sensitivity
-   * This is a hardcoded 25% increase.
+* Optionally increases the turntable sensitivity to compensate for 120hz infinitas.
+   * You can use the "sensitive_tt" version if you want this. If you don't need this, use the normal_tt version.
    
 This firmware is technically compatible with the configuration tool (arcin_conf.exe), but you need to flash the firmware to a compatible firmware, change the settings using the tool, and switch back to this infinitas firmware. Your settings should remain on the board even after a flash.
 
