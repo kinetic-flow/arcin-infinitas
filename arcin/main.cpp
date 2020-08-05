@@ -13,6 +13,7 @@
 
 // Read from build environment
 // #define ARCIN_INFINITAS_SENSITIVE_TT 1
+// #define ARCIN_INFINITAS_FLIP_START_SELECT 1
 
 static uint32_t& reset_reason = *(uint32_t*)0x10000000;
 
@@ -288,12 +289,21 @@ int main() {
 			// (8 and 9 are for RED top edge buttons)
 
 			uint16_t buttons_shifted = buttons & (0x7F);
+			
 			if (buttons & (1 << 9)) {
+#if ARCIN_INFINITAS_FLIP_START_SELECT
+				buttons_shifted |= (1 << 9);
+#else
 				buttons_shifted |= (1 << 8);
+#endif
 			}
 
 			if (buttons & (1 << 10)) {
+#if ARCIN_INFINITAS_FLIP_START_SELECT
+				buttons_shifted |= (1 << 8);
+#else
 				buttons_shifted |= (1 << 9);
+#endif
 			}
 
 			if (buttons & (1 << 7)) {
