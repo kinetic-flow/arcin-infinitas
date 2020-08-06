@@ -2,11 +2,13 @@
 arcin firmware for beatmania IIDX Infinitas (2020 ver)
 
 ## What is this?
-A custom arcin firmware, mainly written for best experience playing new infinitas 120hz version. No key config or joy2key needed, everything will work with the game out of the gate. It is also general enough to work with HID-light and beatoraja. Does not work with LR2.
+A custom arcin firmware, mainly written for best experience playing new infinitas 120hz version. No key config or joy2key needed, everything will work with the game out of the gate. It is also general enough to work with HID-light and beatoraja. You can use the configuration tool to adjust options like turntable sensitivity. Does not work with LR2.
 
 ## Where do I download?
 
 [Check out the releases tab.](https://github.com/minsang-github/arcin-infinitas/releases)
+
+Make sure to download both the firmware and the configuration tool.
 
 ## How do I flash?
 
@@ -39,8 +41,6 @@ On top of the "arcin_flash_config_alpha5" firmware, the following changes are ma
    * You can use the sensitive_tt version if you want this. If you don't need this, use the normal_tt version.
 
 In addition to Infinitas, this firmware should perfectly fine with HID-light and beatoraja (analog turntable) configurations. It will not work with LR2 because it lacks a digital turntable - this is by design.
-
-This firmware is technically compatible with the configuration tool (arcin_conf.exe), but you need to flash the firmware to a compatible firmware, change the settings using the tool, and switch back to this infinitas firmware. Your settings should remain on the board even after a flash.
 
 This firmware is also technically compatible with the flashing tools, but the flashing tools are unable to automatically discover the controller becuase the USB IDs will be different from what they expect. To work around this, unplug the USB cable, hold down 1+2, plug in the USB cable, this will enter flashing mode and you will be able to proceed as normal.
 
