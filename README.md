@@ -1,11 +1,14 @@
 # arcin-infinitas
 arcin firmware for beatmania IIDX Infinitas (2020 ver)
 
-## Where do I download???
+## What is this?
+A custom arcin firmware, mainly written for best experience playing new infinitas 120hz version. No key config or joy2key needed, everything will work with the game out of the gate. It is also general enough to work with HID-light and beatoraja. Does not work with LR2.
+
+## Where do I download?
 
 [Check out the releases tab.](https://github.com/minsang-github/arcin-infinitas/releases)
 
-## How do I flash??
+## How do I flash?
 
 Run the executable in Windows. You might need to do it a few times until it works.
 
@@ -19,7 +22,7 @@ If it does not detect your controller, unplug, hold down 1+2, plug back in - you
 * Do not change any key binds - it won't work.
     * This means you might need to re-wire some buttons to make it friendly for the game
 
-## Details
+# Details
 
 This is a custom arcin firmware, mainly for playing the new version of Infinitas.
 
@@ -34,7 +37,9 @@ On top of the "arcin_flash_config_alpha5" firmware, the following changes are ma
 * Remaps E1-E4 buttons correctly (start = E1, select = E2, 8 = E3, 9 = E4)
 * Optionally increases the turntable sensitivity to compensate for 120hz infinitas.
    * You can use the sensitive_tt version if you want this. If you don't need this, use the normal_tt version.
-   
+
+In addition to Infinitas, this firmware should perfectly fine with HID-light and beatoraja (analog turntable) configurations. It will not work with LR2 because it lacks a digital turntable - this is by design.
+
 This firmware is technically compatible with the configuration tool (arcin_conf.exe), but you need to flash the firmware to a compatible firmware, change the settings using the tool, and switch back to this infinitas firmware. Your settings should remain on the board even after a flash.
 
 This firmware is also technically compatible with the flashing tools, but the flashing tools are unable to automatically discover the controller becuase the USB IDs will be different from what they expect. To work around this, unplug the USB cable, hold down 1+2, plug in the USB cable, this will enter flashing mode and you will be able to proceed as normal.
@@ -65,7 +70,7 @@ I had success with Ubuntu 20.04 LTS on WSL2 (Windows Subsystem for Linux). Mind 
 
 ## Disclaimer
 
-The repository owner or contributors are not liable for any damage caused to your hardware. That being said, arcin is a fairly robust board with recovey capabilities, so you should be fine!
+The repository owner or contributors are not liable for any damage caused to your hardware. That being said, arcin is a fairly robust board with recovery capabilities, so you should be fine!
 
 This repository is a fork of zyp's respository, specifically at this commit: https://cgit.jvnv.net/arcin/commit/?h=conf&id=1c211c70f4a23a770724ce435e223d442e5fb78e
 
