@@ -4,7 +4,7 @@ arcin firmware and configuration tool for beatmania IIDX Infinitas (2020 ver)
 ![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas/2791e94bf152bbd36e8ab20424a4a11679cceb8f/res/conf_screenshot.png)
 
 ## What is this?
-A custom arcin firmware, mainly written for best experience playing new infinitas 120hz version. No key config or joy2key needed, everything will work with the game out of the gate. It is also general enough to work with HID-light and beatoraja. You can use the configuration tool to adjust options like turntable sensitivity. Does not work with LR2.
+A custom arcin firmware, mainly written for best experience playing new infinitas 120hz version. No key config or joy2key needed, everything will work with the game out of the gate. It is also suitable for HID-light and beatoraja. You can use the configuration tool to adjust options like turntable sensitivity. Does not work with LR2.
 
 ## Where do I download?
 
@@ -38,6 +38,8 @@ On top of the "arcin_flash_config_alpha5" firmware, the following changes are ma
    * Digital turntable in BMS
    * Analog Y-axis
 * Remaps E1-E4 buttons correctly (customizable in the configuration tool)
+* Optional double-click / triple-click select button feature (like DJ DAO)
+   * Single click E2 for E2, double-click E2 for E3, triple-click E2 for E2+E3
 
 In addition to Infinitas, this firmware should perfectly fine with HID-light and beatoraja (analog turntable) configurations. It will not work with LR2 because it lacks a digital turntable - this is by design.
 
