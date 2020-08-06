@@ -10,15 +10,15 @@ A custom arcin firmware, mainly written for best experience playing new infinita
 
 [Check out the releases tab.](https://github.com/minsang-github/arcin-infinitas/releases)
 
-## How do I flash?
+## How do I flash the firmware?
 
 Run the executable in Windows. You might need to do it a few times until it works.
 
 If it does not detect your controller, unplug, hold down 1+2, plug back in - you are now in flashing mode. Try running the executable again.
 
-## How do I use it?
+## How do I use it with Infinitas?
 
-* Ensure your turntable is connected to QE1, and buttons to b1-b7.
+* Ensure your turntable is connected to QE1, buttons to b1-b7, start and select to b10 or b11.
 * Use the configuration tool to swap E buttons as needed.
 * Start the launcher, enter Settings
 * **Press "デフォルトに戻す" to reset all keybinds. This is important and you MUST do this!!**
@@ -29,23 +29,26 @@ If it does not detect your controller, unplug, hold down 1+2, plug back in - you
 
 This is a custom arcin firmware, mainly for playing the new version of Infinitas.
 
-On existing infinitas firmware that people use, some people reported that their turntable is not sensitive enough in the new verison of the game, as if the "deadzone" is too large. This is probably caused by the fact that the engine for Infinitas is now based on Heroic Verse to run at 120hz. This firmware aims to fix that.
+On existing infinitas firmware that people use, some people reported that their turntable is not sensitive enough in the new version of the game, as if the "deadzone" is too large. This is probably caused by the fact that the engine for Infinitas is now based on Heroic Verse to run at 120hz. This firmware aims to fix that.
 
 On top of the "arcin_flash_config_alpha5" firmware, the following changes are made:
 
 * Changes the hardware ID (USB VID / PID) to be the same as Konami infinitas controller. This allows the game to automatically detect it & use the analog turntable.
 * Removes input elements that the game does not expect:
-   * Digital turntable in BMS
+   * Digital turntable
    * Analog Y-axis
 * Remaps E1-E4 buttons correctly (customizable in the configuration tool)
 * Optional double-click / triple-click select button feature (like DJ DAO)
    * Single click E2 for E2, double-click E2 for E3, triple-click E2 for E2+E3
 
-In addition to Infinitas, this firmware should perfectly fine with HID-light and beatoraja (analog turntable) configurations. It will not work with LR2 because it lacks a digital turntable - this is by design.
+In addition to Infinitas, this firmware should be perfectly fine with HID-light and beatoraja (analog turntable) configurations. It will not work with LR2 because it lacks a digital turntable - this is by design.
 
 This firmware is also technically compatible with the flashing tools, but the flashing tools are unable to automatically discover the controller becuase the USB IDs will be different from what they expect. To work around this, unplug the USB cable, hold down 1+2, plug in the USB cable, this will enter flashing mode and you will be able to proceed as normal.
 
 ## Building
+
+This section is for developers only.
+
 This is the hard part... components required to are not included in this repository, so you need to shop around.
 
 * Get the ARM toolchain for Linux and put it in your $PATH
