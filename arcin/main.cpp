@@ -11,10 +11,6 @@
 #include "configloader.h"
 #include "config.h"
 
-// Read from build environment
-// #define ARCIN_INFINITAS_SENSITIVE_TT 1
-// #define ARCIN_INFINITAS_FLIP_START_SELECT 1
-
 static uint32_t& reset_reason = *(uint32_t*)0x10000000;
 
 static bool do_reset_bootloader;
@@ -177,14 +173,6 @@ int main() {
 	// Load config.
 	configloader.read(sizeof(config), &config);
 
-#if ARCIN_INFINITAS_SENSITIVE_TT
-
-	// manually fix up turntable sensitivity for new infinitas..
-	// 0.75 seems about right on full size turntable (DAO RED)
-	config.qe1_sens *= 0.75;
-
-#endif
-
 	RCC.enable(RCC.GPIOA);
 	RCC.enable(RCC.GPIOB);
 	RCC.enable(RCC.GPIOC);
@@ -280,38 +268,75 @@ int main() {
 				qe1_count *= config.qe1_sens;
 			}			
 			
-			// Remap (arcin -> infinitas)
-			// Start 10  -> 9  E1
-			// Select 11 -> 10 E2
-			//         8 -> 11 E3
-			//         9 -> 12 E4
-			//
-			// (8 and 9 are for RED top edge buttons)
+			// Infinitas controller key binding:
+			// E1 = 9
+			// E2 = 10
+			// E3 = 11
+			// E4 = 12
 
+			// Grab the first 7 buttons (keys)
 			uint16_t buttons_shifted = buttons & (0x7F);
-			
+
+			// start button
 			if (buttons & (1 << 9)) {
-#if ARCIN_INFINITAS_FLIP_START_SELECT
-				buttons_shifted |= (1 << 9);
-#else
-				buttons_shifted |= (1 << 8);
-#endif
+				switch(config.effector_mode) {
+				case E1_E2:
+				default:
+					buttons_shifted |= (1 << 8); // e1
+					break;
+
+				case E2_E1:
+					buttons_shifted |= (1 << 9); // e2
+					break;
+
+				case E3_E4:
+					buttons_shifted |= (1 << 10); // e3
+					break;
+
+				case E4_E3:
+					buttons_shifted |= (1 << 11); // e4
+					break;
+				}
 			}
 
+			// select button
 			if (buttons & (1 << 10)) {
-#if ARCIN_INFINITAS_FLIP_START_SELECT
-				buttons_shifted |= (1 << 8);
-#else
-				buttons_shifted |= (1 << 9);
-#endif
+				switch(config.effector_mode) {
+				case E1_E2:
+				default:
+					buttons_shifted |= (1 << 9); // e2
+					break;
+
+				case E2_E1:
+					buttons_shifted |= (1 << 8); // e1
+					break;
+
+				case E3_E4:
+					buttons_shifted |= (1 << 11); // e4
+					break;
+
+				case E4_E3:
+					buttons_shifted |= (1 << 10); // e3
+					break;
+				}
 			}
 
+			// Button 8
 			if (buttons & (1 << 7)) {
-				buttons_shifted |= (1 << 10);
+				if (config.flags & (1 << 3)) {
+					buttons_shifted |= (1 << 11); // E4
+				} else {
+					buttons_shifted |= (1 << 10); // E3
+				}
 			}
 
+			// Button 9
 			if (buttons & (1 << 8)) {
-				buttons_shifted |= (1 << 11);
+				if (config.flags & (1 << 3)) {
+					buttons_shifted |= (1 << 10); // E3
+				} else {
+					buttons_shifted |= (1 << 11); // E4
+				}
 			}
 			
 			input_report_t report = {1, buttons_shifted, uint8_t(qe1_count), uint8_t(0)};

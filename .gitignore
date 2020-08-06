@@ -6,4 +6,5 @@
 bin
 pkg
 dist
+conf
 arcin-utils
