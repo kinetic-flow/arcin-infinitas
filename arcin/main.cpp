@@ -159,6 +159,49 @@ class HID_arcin : public USB_HID {
 		}
 };
 
+uint32_t first_e2_falling_edge_time;
+
+#define LAST_E2_STATUS_SIZE 4
+
+bool last_e2_status[LAST_E2_STATUS_SIZE]; // [0] is most recent, [1] is one before that, and so on
+uint32_t e2_falling_edge_count;
+
+#define MULTITAP_ASSERT_WINDOW_MAX 400 //ms
+
+uint32_t multitap_assert_window;
+uint32_t multitap_assert_button;
+
+void e2_update(bool pressed) {
+	if ((config.flags & (1 << 2)) == 0) {
+		return;
+	}
+
+	if (multitap_assert_window > 0) {
+		return;
+	}
+
+	// falling edge (detect on-on-off-off-off sequence)
+	if (!pressed &&
+		!last_e2_status[0] &&
+		!last_e2_status[1] &&
+		last_e2_status[2] &&
+		last_e2_status[3]) {
+
+		// start counting on the first falling edge
+		if (e2_falling_edge_count == 0) {
+			first_e2_falling_edge_time = Time::time();
+		}
+
+		e2_falling_edge_count += 1;
+	}
+
+	for (int i = (LAST_E2_STATUS_SIZE - 1); i >= 1; i -= 1) {
+		last_e2_status[i] = last_e2_status[i-1];
+	}
+
+	last_e2_status[0] = pressed;
+}
+
 HID_arcin usb_hid(usb, report_desc_p);
 
 USB_strings usb_strings(usb, config.label);
@@ -215,10 +258,6 @@ int main() {
 		TIM2.ARR = 256 * -config.qe1_sens - 1;
 	} else {
 		TIM2.ARR = 256 - 1;
-	}
-	
-	if(!(config.flags & (1 << 2))) {
-		TIM3.CCER = 1 << 1;
 	}
 	
 	TIM3.CCMR1 = (1 << 8) | (1 << 0);
@@ -286,7 +325,12 @@ int main() {
 					break;
 
 				case E2_E1:
-					buttons_shifted |= (1 << 9); // e2
+					if (config.flags & (1 << 2)) {
+						e2_update(true);
+					} else {
+						buttons_shifted |= (1 << 9); // e2
+					}
+
 					break;
 
 				case E3_E4:
@@ -297,6 +341,9 @@ int main() {
 					buttons_shifted |= (1 << 11); // e4
 					break;
 				}
+			} else if (config.effector_mode == E2_E1) {
+				// start is e2
+				e2_update(false);
 			}
 
 			// select button
@@ -304,7 +351,12 @@ int main() {
 				switch(config.effector_mode) {
 				case E1_E2:
 				default:
-					buttons_shifted |= (1 << 9); // e2
+					if (config.flags & (1 << 2)) {
+						e2_update(true);
+					} else {
+						buttons_shifted |= (1 << 9); // e2
+					}
+
 					break;
 
 				case E2_E1:
@@ -319,7 +371,53 @@ int main() {
 					buttons_shifted |= (1 << 10); // e3
 					break;
 				}
+			} else if (config.effector_mode == E1_E2) {
+				// select is e2
+				e2_update(false);
 			}
+
+			if (config.flags & (1 << 2)) {
+				// process multitap
+				if ((first_e2_falling_edge_time > 0) &&
+					((Time::time() - first_e2_falling_edge_time) > MULTITAP_ASSERT_WINDOW_MAX)) {
+
+					multitap_assert_window = MULTITAP_ASSERT_WINDOW_MAX;
+					switch (e2_falling_edge_count) {
+					case 1:
+						// tapped once - assert e2
+						multitap_assert_button = (1 << 9); // e2
+						break;
+
+					case 2:
+						// tapped twice - assert e3
+						multitap_assert_button = (1 << 10); // e3
+						break;
+
+					case 3:
+						// tapped thrice - assert e2+e3
+						multitap_assert_button = (1 << 9); // e2
+						multitap_assert_button |= (1 << 10); // e3
+						break;
+
+					case 0:
+					default:
+						break;
+					}
+
+					first_e2_falling_edge_time = 0;
+					e2_falling_edge_count = 0;
+				}
+
+				if (multitap_assert_window > 0) {
+					multitap_assert_window--;
+
+					// assert for the first 100ms, and then ignore e2 input for
+					// 300ms
+					if (multitap_assert_window > (MULTITAP_ASSERT_WINDOW_MAX - 100)) {
+						buttons_shifted |= multitap_assert_button;
+					}
+				}
+			}			
 
 			// Button 8
 			if (buttons & (1 << 7)) {
