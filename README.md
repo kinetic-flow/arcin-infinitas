@@ -1,5 +1,7 @@
 # arcin-infinitas
-arcin firmware for beatmania IIDX Infinitas (2020 ver)
+arcin firmware and configuration tool for beatmania IIDX Infinitas (2020 ver)
+
+![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas/e513bb5616a45e47095984f108dcc45a417c15b5/res/conf_screenshot.png)
 
 ## What is this?
 A custom arcin firmware, mainly written for best experience playing new infinitas 120hz version. No key config or joy2key needed, everything will work with the game out of the gate. It is also general enough to work with HID-light and beatoraja. You can use the configuration tool to adjust options like turntable sensitivity. Does not work with LR2.
@@ -8,21 +10,20 @@ A custom arcin firmware, mainly written for best experience playing new infinita
 
 [Check out the releases tab.](https://github.com/minsang-github/arcin-infinitas/releases)
 
-Make sure to download both the firmware and the configuration tool.
-
 ## How do I flash?
 
 Run the executable in Windows. You might need to do it a few times until it works.
 
 If it does not detect your controller, unplug, hold down 1+2, plug back in - you are now in flashing mode. Try running the executable again.
 
-## How do I set up in the game?
+## How do I use it?
 
+* Ensure your turntable is connected to QE1, and buttons to b1-b7.
+* Use the configuration tool to swap E buttons as needed.
 * Start the launcher, enter Settings
 * **Press "デフォルトに戻す" to reset all keybinds. This is important and you MUST do this!!**
     * This firmware pretends to be the official infinitas controller, so the game detects this automatically and uses the correct key binds. Even if the key binds "seem" wrong in the UI, ignore it.
-* Do not change any key binds - it won't work.
-    * This means you might need to re-wire some buttons to make it friendly for the game
+* Do not change any key binds in the settings - it won't work.
 
 # Details
 
@@ -36,9 +37,7 @@ On top of the "arcin_flash_config_alpha5" firmware, the following changes are ma
 * Removes input elements that the game does not expect:
    * Digital turntable in BMS
    * Analog Y-axis
-* Remaps E1-E4 buttons correctly (start = E1, select = E2, 8 = E3, 9 = E4)
-* Optionally increases the turntable sensitivity to compensate for 120hz infinitas.
-   * You can use the sensitive_tt version if you want this. If you don't need this, use the normal_tt version.
+* Remaps E1-E4 buttons correctly (customizable in the configuration tool)
 
 In addition to Infinitas, this firmware should perfectly fine with HID-light and beatoraja (analog turntable) configurations. It will not work with LR2 because it lacks a digital turntable - this is by design.
 
