@@ -8,6 +8,7 @@ mkdir -p ./bin
 rm -rf ./bin/*
 scons
 ./arcin-utils/hidloader_append.py ./arcin.elf arcin-utils/hidloader_v2.exe ./bin/arcin_infinitas_new.exe
+./arcin-utils/hidloader_append_dev.py ./arcin.elf arcin-utils/hidloader_v2.exe ./bin/arcin_infinitas_new_upgrade.exe
 mkdir -p ./pkg
 rm -rf ./pkg/*
 cp COPYING ./pkg/license.txt

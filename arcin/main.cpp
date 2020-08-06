@@ -180,6 +180,8 @@ class HID_arcin : public USB_HID {
 		}
 };
 
+uint16_t ARCIN_DEBUG;
+
 uint32_t first_e2_falling_edge_time;
 
 #define LAST_E2_STATUS_SIZE 4
@@ -191,7 +193,7 @@ uint32_t e2_falling_edge_count;
 // the number of taps is calculated and the resulting button combination will
 // begin to assert.
 // i.e., any multi-taps must be done within this window in order to count
-#define MULTITAP_WINDOW_MS 		  400
+#define MULTITAP_DETECTION_WINDOW_MS 		  400
 #define MULTITAP_RESULT_HOLD_MS   100
 #define MULTITAP_IGNORE_WINDOW_MS 300
 
@@ -199,15 +201,6 @@ uint16_t multitap_active_frames;
 uint16_t multitap_buttons_to_assert;
 
 void e2_update(bool pressed) {
-	if ((config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) == 0) {
-		return;
-	}
-
-	// while multitap result is being outputted, ignore button input for now
-	if (multitap_active_frames > 0) {
-		return;
-	}
-
 	// falling edge (detect on-on-off-off-off sequence)
 	if (!pressed &&
 		!last_e2_status[0] &&
@@ -216,7 +209,7 @@ void e2_update(bool pressed) {
 		last_e2_status[3]) {
 
 		// start counting on the first falling edge
-		if (e2_falling_edge_count == 0) {
+		if (first_e2_falling_edge_time == 0) {
 			first_e2_falling_edge_time = Time::time();
 		}
 
@@ -228,6 +221,41 @@ void e2_update(bool pressed) {
 	}
 
 	last_e2_status[0] = pressed;
+}
+
+uint16_t get_multitap_output(uint32_t tap_count) {
+	uint16_t button;
+	switch (tap_count) {
+	case 1:
+		button = INFINITAS_BUTTON_E2;
+		break;
+
+	case 2:
+		button = INFINITAS_BUTTON_E3;
+		break;
+
+	case 3:
+		button = (INFINITAS_BUTTON_E2 | INFINITAS_BUTTON_E3);
+		break;
+
+	case 0:
+	default:
+		button = 0;
+		break;
+	}
+
+	return button;
+}
+
+bool is_multitap_window_closed() {
+	uint32_t diff;
+
+	if (first_e2_falling_edge_time == 0) {
+		return false;
+	}
+
+	diff = Time::time() - first_e2_falling_edge_time;
+	return diff > MULTITAP_DETECTION_WINDOW_MS;
 }
 
 uint16_t remap_buttons(uint16_t buttons) {
@@ -397,6 +425,10 @@ int main() {
 		if(Time::time() - last_led_time > 1000) {
 			button_leds.set(buttons);
 		}
+
+		if (ARCIN_DEBUG > 0) {
+			button_leds.set(ARCIN_DEBUG);
+		}
 		
 		if(usb.ep_ready(1)) {
 			uint32_t qe1_count = TIM2.CNT;
@@ -410,6 +442,15 @@ int main() {
 
 			if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
 				if (multitap_active_frames == 0) {
+					// Make a note of its current state
+					e2_update((remapped & INFINITAS_BUTTON_E2) != 0);
+				}
+
+				// Always clear E2 since it should not be asserted directly
+				remapped &= ~(INFINITAS_BUTTON_E2);
+
+				if (multitap_active_frames > 0) {
+					
 					// First, assert the resulting button combination
 					// Then, enter the "ignore" window where E2 taps are ignored
 					// for a bit.
@@ -418,11 +459,16 @@ int main() {
 					}
 
 					multitap_active_frames--;
-				} else {
-					// Make a note of its current state
-					e2_update(remapped & INFINITAS_BUTTON_E2);
-					// Clear E2 since it should not be asserted directly
-					remapped &= ~(INFINITAS_BUTTON_E2);
+
+				} else if (is_multitap_window_closed()) {
+					multitap_active_frames =
+						(MULTITAP_RESULT_HOLD_MS + MULTITAP_IGNORE_WINDOW_MS);
+
+					first_e2_falling_edge_time = 0;
+					multitap_buttons_to_assert =
+						get_multitap_output(e2_falling_edge_count);
+
+					e2_falling_edge_count = 0;
 				}
 			}			
 
