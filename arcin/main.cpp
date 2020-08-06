@@ -373,7 +373,7 @@ int main() {
 	RCC.enable(RCC.TIM2);
 	RCC.enable(RCC.TIM3);
 	
-	if(!(config.flags & ARCIN_CONFIG_FLAG_QE1_FLIP)) {
+	if(!(config.flags & ARCIN_CONFIG_FLAG_INVERT_QE1)) {
 		TIM2.CCER = 1 << 1;
 	}
 	
