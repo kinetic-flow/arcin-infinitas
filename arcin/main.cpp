@@ -11,26 +11,26 @@
 #include "configloader.h"
 #include "config.h"
 
-#define ARCIN_BUTTON_KEY_1 (1 << 0)
-#define ARCIN_BUTTON_KEY_2 (1 << 1)
-#define ARCIN_BUTTON_KEY_3 (1 << 2)
-#define ARCIN_BUTTON_KEY_4 (1 << 3)
-#define ARCIN_BUTTON_KEY_5 (1 << 4)
-#define ARCIN_BUTTON_KEY_6 (1 << 5)
-#define ARCIN_BUTTON_KEY_7 (1 << 6)
+#define ARCIN_BUTTON_KEY_1 ((uint16_t)(1 << 0))
+#define ARCIN_BUTTON_KEY_2 ((uint16_t)(1 << 1))
+#define ARCIN_BUTTON_KEY_3 ((uint16_t)(1 << 2))
+#define ARCIN_BUTTON_KEY_4 ((uint16_t)(1 << 3))
+#define ARCIN_BUTTON_KEY_5 ((uint16_t)(1 << 4))
+#define ARCIN_BUTTON_KEY_6 ((uint16_t)(1 << 5))
+#define ARCIN_BUTTON_KEY_7 ((uint16_t)(1 << 6))
 
-#define ARCIN_BUTTON_KEY_ALL_MAIN (0x7F)
+#define ARCIN_BUTTON_KEY_ALL_MAIN ((uint16_t)(0x7F))
 
-#define ARCIN_BUTTON_EXTRA_8 (1 << 7)
-#define ARCIN_BUTTON_EXTRA_9 (1 << 8)
+#define ARCIN_BUTTON_EXTRA_8 ((uint16_t)(1 << 7))
+#define ARCIN_BUTTON_EXTRA_9 ((uint16_t)(1 << 8))
 
-#define ARCIN_BUTTON_START (1 << 9) // button 10
-#define ARCIN_BUTTON_SEL   (1 << 10) // button 11
+#define ARCIN_BUTTON_START ((uint16_t)(1 << 9)) // button 10
+#define ARCIN_BUTTON_SEL   ((uint16_t)(1 << 10)) // button 11
 
-#define INFINITAS_BUTTON_E1 (1 << 8) // E1
-#define INFINITAS_BUTTON_E2 (1 << 9) // E2
-#define INFINITAS_BUTTON_E3 (1 << 10) // E3
-#define INFINITAS_BUTTON_E4 (1 << 11) // E4
+#define INFINITAS_BUTTON_E1 ((uint16_t)(1 << 8)) // E1
+#define INFINITAS_BUTTON_E2 ((uint16_t)(1 << 9)) // E2
+#define INFINITAS_BUTTON_E3 ((uint16_t)(1 << 10)) // E3
+#define INFINITAS_BUTTON_E4 ((uint16_t)(1 << 11)) // E4
 
 static uint32_t& reset_reason = *(uint32_t*)0x10000000;
 
@@ -195,8 +195,8 @@ uint32_t e2_falling_edge_count;
 #define MULTITAP_RESULT_HOLD_MS   100
 #define MULTITAP_IGNORE_WINDOW_MS 300
 
-uint32_t multitap_active_frames;
-uint32_t multitap_button_to_assert;
+uint16_t multitap_active_frames;
+uint16_t multitap_buttons_to_assert;
 
 void e2_update(bool pressed) {
 	if ((config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) == 0) {
@@ -228,6 +228,77 @@ void e2_update(bool pressed) {
 	}
 
 	last_e2_status[0] = pressed;
+}
+
+uint16_t remap_buttons(uint16_t buttons) {
+	uint16_t remapped;
+
+	// Grab the first 7 buttons (keys)
+	remapped = buttons & ARCIN_BUTTON_KEY_ALL_MAIN;
+
+	// Remap start button
+	if (buttons & ARCIN_BUTTON_START) {
+		switch(config.effector_mode) {
+		case START_E1_SEL_E2:
+		default:
+			remapped |= INFINITAS_BUTTON_E1;
+			break;
+
+		case START_E2_SEL_E1:
+			remapped |= INFINITAS_BUTTON_E2;
+			break;
+
+		case START_E3_SEL_E4:
+			remapped |= INFINITAS_BUTTON_E3;
+			break;
+
+		case START_E4_SEL_E3:
+			remapped |= INFINITAS_BUTTON_E4;
+			break;
+		}
+	}
+
+	// Remap select button
+	if (buttons & ARCIN_BUTTON_SEL) {
+		switch(config.effector_mode) {
+		case START_E1_SEL_E2:
+		default:
+			remapped |= INFINITAS_BUTTON_E2;
+			break;
+
+		case START_E2_SEL_E1:
+			remapped |= INFINITAS_BUTTON_E1;
+			break;
+
+		case START_E3_SEL_E4:
+			remapped |= INFINITAS_BUTTON_E4;
+			break;
+
+		case START_E4_SEL_E3:
+			remapped |= INFINITAS_BUTTON_E3;
+			break;
+		}
+	}
+
+	// Button 8 is normally E3, unless flipped
+	if (buttons & ARCIN_BUTTON_EXTRA_8) {
+		if (config.flags & ARCIN_CONFIG_FLAG_SWAP_8_9) {
+			remapped |= INFINITAS_BUTTON_E4;
+		} else {
+			remapped |= INFINITAS_BUTTON_E3;
+		}
+	}
+
+	// Button 9 is normally E4, unless flipped
+	if (buttons & ARCIN_BUTTON_EXTRA_9) {
+		if (config.flags & ARCIN_CONFIG_FLAG_SWAP_8_9) {
+			remapped |= INFINITAS_BUTTON_E3;
+		} else {
+			remapped |= INFINITAS_BUTTON_E4;
+		}
+	}
+
+	return remapped;
 }
 
 HID_arcin usb_hid(usb, report_desc_p);
@@ -335,134 +406,27 @@ int main() {
 				qe1_count *= config.qe1_sens;
 			}			
 
-			// Grab the first 7 buttons (keys)
-			uint16_t buttons_shifted = buttons & ARCIN_BUTTON_KEY_ALL_MAIN;
-
-			// start button
-			if (buttons & ARCIN_BUTTON_START) {
-				switch(config.effector_mode) {
-				case START_E1_SEL_E2:
-				default:
-					buttons_shifted |= INFINITAS_BUTTON_E1;
-					break;
-
-				case START_E2_SEL_E1:
-					if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
-						e2_update(true);
-					} else {
-						buttons_shifted |= INFINITAS_BUTTON_E2;
-					}
-
-					break;
-
-				case START_E3_SEL_E4:
-					buttons_shifted |= INFINITAS_BUTTON_E3;
-					break;
-
-				case START_E4_SEL_E3:
-					buttons_shifted |= INFINITAS_BUTTON_E4;
-					break;
-				}
-			} else if (config.effector_mode == START_E2_SEL_E1) {
-				// start is e2
-				e2_update(false);
-			}
-
-			// select button
-			if (buttons & ARCIN_BUTTON_SEL) {
-				switch(config.effector_mode) {
-				case START_E1_SEL_E2:
-				default:
-					if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
-						e2_update(true);
-					} else {
-						buttons_shifted |= INFINITAS_BUTTON_E2;
-					}
-
-					break;
-
-				case START_E2_SEL_E1:
-					buttons_shifted |= INFINITAS_BUTTON_E1;
-					break;
-
-				case START_E3_SEL_E4:
-					buttons_shifted |= INFINITAS_BUTTON_E4;
-					break;
-
-				case START_E4_SEL_E3:
-					buttons_shifted |= INFINITAS_BUTTON_E3;
-					break;
-				}
-			} else if (config.effector_mode == START_E1_SEL_E2) {
-				// select is e2
-				e2_update(false);
-			}
+			uint16_t remapped = remap_buttons(buttons);
 
 			if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
-				// process multitap
-				if ((first_e2_falling_edge_time > 0) &&
-					((Time::time() - first_e2_falling_edge_time) > MULTITAP_WINDOW_MS)) {
-
-					multitap_active_frames =
-						(MULTITAP_IGNORE_WINDOW_MS + MULTITAP_RESULT_HOLD_MS);
-
-					switch (e2_falling_edge_count) {
-					case 1:
-						// tapped once - assert e2
-						multitap_button_to_assert = INFINITAS_BUTTON_E2;
-						break;
-
-					case 2:
-						// tapped twice - assert e3
-						multitap_button_to_assert = INFINITAS_BUTTON_E3;
-						break;
-
-					case 3:
-						// tapped thrice - assert e2+e3
-						multitap_button_to_assert =
-							(INFINITAS_BUTTON_E2 | INFINITAS_BUTTON_E3);
-						break;
-
-					case 0:
-					default:
-						break;
-					}
-
-					first_e2_falling_edge_time = 0;
-					e2_falling_edge_count = 0;
-				}
-
-				if (multitap_active_frames > 0) {
+				if (multitap_active_frames == 0) {
 					// First, assert the resulting button combination
 					// Then, enter the "ignore" window where E2 taps are ignored
 					// for a bit.
 					if (multitap_active_frames > MULTITAP_IGNORE_WINDOW_MS) {
-						buttons_shifted |= multitap_button_to_assert;
+						remapped |= multitap_buttons_to_assert;
 					}
 
 					multitap_active_frames--;
+				} else {
+					// Make a note of its current state
+					e2_update(remapped & INFINITAS_BUTTON_E2);
+					// Clear E2 since it should not be asserted directly
+					remapped &= ~(INFINITAS_BUTTON_E2);
 				}
 			}			
 
-			// Button 8 is normally E3
-			if (buttons & ARCIN_BUTTON_EXTRA_8) {
-				if (config.flags & ARCIN_CONFIG_FLAG_SWAP_8_9) {
-					buttons_shifted |= INFINITAS_BUTTON_E4;
-				} else {
-					buttons_shifted |= INFINITAS_BUTTON_E3;
-				}
-			}
-
-			// Button 9 is normally E4
-			if (buttons & ARCIN_BUTTON_EXTRA_9) {
-				if (config.flags & ARCIN_CONFIG_FLAG_SWAP_8_9) {
-					buttons_shifted |= INFINITAS_BUTTON_E3;
-				} else {
-					buttons_shifted |= INFINITAS_BUTTON_E4;
-				}
-			}
-			
-			input_report_t report = {1, buttons_shifted, uint8_t(qe1_count), uint8_t(0)};
+			input_report_t report = {1, remapped, uint8_t(qe1_count), uint8_t(0)};
 			
 			usb.write(1, (uint32_t*)&report, sizeof(report));
 		}
