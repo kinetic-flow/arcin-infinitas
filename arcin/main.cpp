@@ -517,6 +517,8 @@ int main() {
 
     analog_button tt1(TIM2.CNT, 4, 100, true);
 
+    uint32_t boot_time = Time::time();
+
     while(1) {
         usb.process();
 
@@ -533,8 +535,17 @@ int main() {
             reset();
         }
         
-        if(now - last_led_time > 1000) {
-            button_leds.set(buttons);
+        if (now - last_led_time > 1000) {
+            if (now - boot_time < 2000) {
+                if (((now - boot_time) / 400) % 2 == 0) {
+                    button_leds.set(ARCIN_BUTTON_KEY_ALL_MAIN);
+                } else {
+                    button_leds.set(0);
+                }
+                
+            } else {
+                button_leds.set(buttons);
+            }
         }
 
         if(usb.ep_ready(1)) {
@@ -570,10 +581,6 @@ int main() {
             // Multi-tap processing of E2. Must be done after debounce.
             if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
                 if (multitap_active_frames == 0) {
-                    // reset fancy lights
-                    button_leds.set(0);
-                    last_led_time = 0;
-
                     // Make a note of its current state
                     e2_update((remapped & INFINITAS_BUTTON_E2) != 0);
                 } else if ((remapped & INFINITAS_BUTTON_E2) == 0) {
@@ -586,25 +593,6 @@ int main() {
 
                 if (multitap_active_frames > 0) {                    
                     remapped |= multitap_buttons_to_assert;
-
-                    uint16_t fancy_lights = 0;
-                    fancy_lights |= INFINITAS_BUTTON_E2;
-                    if (multitap_buttons_to_assert & INFINITAS_BUTTON_E2) {
-                        fancy_lights |= (ARCIN_BUTTON_KEY_1 |
-                                         ARCIN_BUTTON_KEY_3 |
-                                         ARCIN_BUTTON_KEY_5 |
-                                         ARCIN_BUTTON_KEY_7);
-                    }
-
-                    if (multitap_buttons_to_assert & INFINITAS_BUTTON_E3) {
-                        fancy_lights |= (ARCIN_BUTTON_KEY_2 |
-                                         ARCIN_BUTTON_KEY_4 |
-                                         ARCIN_BUTTON_KEY_6);
-                    }
-
-                    button_leds.set(fancy_lights);
-                    last_led_time = Time::time();
-
                 } else if (is_multitap_window_closed()) {
                     multitap_active_frames = MULTITAP_RESULT_HOLD_MS;
                     first_e2_rising_edge_time = 0;
