@@ -211,9 +211,11 @@ uint32_t e2_falling_edge_count;
 uint16_t multitap_active_frames;
 uint16_t multitap_buttons_to_assert;
 
-
+// For LR2 mode digital turntable
 #define DIGITAL_TT_HOLD_DURATION_MS 100
-#define DIGITAL_TT_IGNORE_SAME_DIRECTION_MS 400
+
+uint8_t last_x = 0;
+int16_t state_x = 0;
 
 void e2_update(bool pressed) {
 	// falling edge (detect on-on-off-off-off sequence)
@@ -422,13 +424,10 @@ int main() {
 	qe2a.set_mode(Pin::AF);
 	qe2b.set_mode(Pin::AF);	
 
-	// For LR2 mode digital turntable
-	uint8_t last_x = 0;
-	int16_t state_x = 0;
-
 	while(1) {
 		usb.process();
-		
+
+		uint32_t now = Time::time();
 		uint16_t buttons = button_inputs.get() ^ 0x7ff;
 		
 		if(do_reset_bootloader) {
@@ -441,7 +440,7 @@ int main() {
 			reset();
 		}
 		
-		if(Time::time() - last_led_time > 1000) {
+		if(now - last_led_time > 1000) {
 			button_leds.set(buttons);
 		}
 
@@ -451,12 +450,6 @@ int main() {
 		
 		if(usb.ep_ready(1)) {
 			uint32_t qe1_count = TIM2.CNT;
-			if(config.qe1_sens < 0) {
-				qe1_count /= -config.qe1_sens;
-			} else if(config.qe1_sens > 0) {
-				qe1_count *= config.qe1_sens;
-			}			
-
 			uint16_t remapped = remap_buttons(buttons);
 
 			if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
@@ -492,25 +485,33 @@ int main() {
 			}
 
 			// digital turntable
-			int8_t rx = qe1_count - last_x;
-			if(rx > 1) {
-				state_x = DIGITAL_TT_HOLD_DURATION_MS;
-				last_x = qe1_count;
-			} else if(rx < -1) {
-				state_x = -DIGITAL_TT_HOLD_DURATION_MS;
-				last_x = qe1_count;
-			} else if(state_x > 0) {
-				state_x--;
-				last_x = qe1_count;
-			} else if(state_x < 0) {
-				state_x++;
-				last_x = qe1_count;
+			if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
+				int8_t rx = qe1_count - last_x;
+				if(rx > 1) {
+					state_x = DIGITAL_TT_HOLD_DURATION_MS;
+					last_x = qe1_count;
+				} else if(rx < -1) {
+					state_x = -DIGITAL_TT_HOLD_DURATION_MS;
+					last_x = qe1_count;
+				} else if(state_x > 0) {
+					state_x--;
+					last_x = qe1_count;
+				} else if(state_x < 0) {
+					state_x++;
+					last_x = qe1_count;
+				}
+
+				if(state_x > 0) {
+					remapped |= INFINITAS_DIGITAL_TT_CCW;
+				} else if(state_x < 0) {
+					remapped |= INFINITAS_DIGITAL_TT_CW;
+				}
 			}
 
-			if(state_x > 0) {
-				remapped |= INFINITAS_DIGITAL_TT_CCW;
-			} else if(state_x < 0) {
-				remapped |= INFINITAS_DIGITAL_TT_CW;
+			if(config.qe1_sens < 0) {
+				qe1_count /= -config.qe1_sens;
+			} else if(config.qe1_sens > 0) {
+				qe1_count *= config.qe1_sens;
 			}
 
 			input_report_t report;
