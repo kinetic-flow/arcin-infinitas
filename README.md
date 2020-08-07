@@ -12,18 +12,20 @@ A custom arcin firmware, written for broad compatibility with various games, inc
 
 ## How do I flash the firmware?
 
-Run the executable in Windows. You might need to do it a few times until it works.
+Run the executable (arcin_infinitas_new.exe) in Windows. You might need to do it a few times until it works.
 
 If it does not detect your controller, unplug, hold down 1+2, plug back in - you are now in flashing mode. Try running the executable again.
 
 ## How do I use it with Infinitas?
-
 * Ensure your turntable is connected to QE1, buttons to b1-b7, start and select to b10 or b11.
-* Use the configuration tool to swap E buttons as needed.
-* Start the launcher, enter Settings
+* Launch the configuration tool (arcin_conf_infinitas.exe)
+    * Ensure "LR2 Digital TT" is OFF.
+    * Adjust turntable sensitity as needed.
+    * Change E-button layout as needed.
+* Start the Infinitas launcher, enter Settings
 * **Press "デフォルトに戻す" to reset all keybinds. This is important and you MUST do this!!**
     * This firmware pretends to be the official infinitas controller, so the game detects this automatically and uses the correct key binds. Even if the key binds "seem" wrong in the UI, ignore it.
-* Do not change any key binds in the settings - it won't work.
+    * Do not change any key binds in the settings - it won't work.
 
 # Details
 
