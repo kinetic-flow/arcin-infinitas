@@ -193,12 +193,13 @@ class HID_arcin : public USB_HID {
 
 uint16_t ARCIN_DEBUG;
 
-uint32_t first_e2_falling_edge_time;
+uint32_t first_e2_rising_edge_time;
 
-#define LAST_E2_STATUS_SIZE 4
+#define LAST_E2_STATUS_SIZE 3
 
-bool last_e2_status[LAST_E2_STATUS_SIZE]; // [0] is most recent, [1] is one before that, and so on
-uint32_t e2_falling_edge_count;
+// [0] is most recent, [1] is one before that, and so on
+bool last_e2_status[LAST_E2_STATUS_SIZE];
+uint32_t e2_rising_edge_count;
 
 // Window that begins on the first falling edge of E2. At the end of the window
 // the number of taps is calculated and the resulting button combination will
@@ -206,7 +207,6 @@ uint32_t e2_falling_edge_count;
 // i.e., any multi-taps must be done within this window in order to count
 #define MULTITAP_DETECTION_WINDOW_MS           400
 #define MULTITAP_RESULT_HOLD_MS   100
-#define MULTITAP_IGNORE_WINDOW_MS 300
 
 uint16_t multitap_active_frames;
 uint16_t multitap_buttons_to_assert;
@@ -218,19 +218,16 @@ uint8_t last_x = 0;
 int16_t state_x = 0;
 
 void e2_update(bool pressed) {
-    // falling edge (detect on-on-off-off-off sequence)
-    if (!pressed &&
-        !last_e2_status[0] &&
-        !last_e2_status[1] &&
-        last_e2_status[2] &&
-        last_e2_status[3]) {
+    // rising edge (detect off-off-on-on sequence)
+    if (pressed && last_e2_status[0] &&
+        !last_e2_status[1] && !last_e2_status[2]) {
 
         // start counting on the first falling edge
-        if (first_e2_falling_edge_time == 0) {
-            first_e2_falling_edge_time = Time::time();
+        if (first_e2_rising_edge_time == 0) {
+            first_e2_rising_edge_time = Time::time();
         }
 
-        e2_falling_edge_count += 1;
+        e2_rising_edge_count += 1;
     }
 
     for (int i = (LAST_E2_STATUS_SIZE - 1); i >= 1; i -= 1) {
@@ -267,11 +264,11 @@ uint16_t get_multitap_output(uint32_t tap_count) {
 bool is_multitap_window_closed() {
     uint32_t diff;
 
-    if (first_e2_falling_edge_time == 0) {
+    if (first_e2_rising_edge_time == 0) {
         return false;
     }
 
-    diff = Time::time() - first_e2_falling_edge_time;
+    diff = Time::time() - first_e2_rising_edge_time;
     return diff > MULTITAP_DETECTION_WINDOW_MS;
 }
 
@@ -581,30 +578,24 @@ int main() {
                 if (multitap_active_frames == 0) {
                     // Make a note of its current state
                     e2_update((remapped & INFINITAS_BUTTON_E2) != 0);
+                } else if ((remapped & INFINITAS_BUTTON_E2) == 0) {
+                    // if the button is no longer being held, count down
+                    multitap_active_frames -= 1;
                 }
 
                 // Always clear E2 since it should not be asserted directly
                 remapped &= ~(INFINITAS_BUTTON_E2);
 
                 if (multitap_active_frames > 0) {                    
-                    // First, assert the resulting button combination
-                    // Then, enter the "ignore" window where E2 taps are ignored
-                    // for a bit.
-                    if (multitap_active_frames > MULTITAP_IGNORE_WINDOW_MS) {
-                        remapped |= multitap_buttons_to_assert;
-                    }
-
-                    multitap_active_frames--;
+                    remapped |= multitap_buttons_to_assert;
 
                 } else if (is_multitap_window_closed()) {
-                    multitap_active_frames =
-                        (MULTITAP_RESULT_HOLD_MS + MULTITAP_IGNORE_WINDOW_MS);
-
-                    first_e2_falling_edge_time = 0;
+                    multitap_active_frames = MULTITAP_RESULT_HOLD_MS;
+                    first_e2_rising_edge_time = 0;
                     multitap_buttons_to_assert =
-                        get_multitap_output(e2_falling_edge_count);
+                        get_multitap_output(e2_rising_edge_count);
 
-                    e2_falling_edge_count = 0;
+                    e2_rising_edge_count = 0;
                 }
             }
 
