@@ -35,8 +35,8 @@
 // Remapped values for Windows
 //
 
-#define INFINITAS_DIGITAL_TT_CW   ((uint16_t)(1 << 12))  // button 13
-#define INFINITAS_DIGITAL_TT_CCW  ((uint16_t)(1 << 13))  // button 14
+#define JOY_BUTTON_13			  ((uint16_t)(1 << 12))  // button 13
+#define JOY_BUTTON_14             ((uint16_t)(1 << 13))  // button 14
 
 #define INFINITAS_BUTTON_E1       ((uint16_t)(1 << 8))  // E1
 #define INFINITAS_BUTTON_E2       ((uint16_t)(1 << 9))  // E2
@@ -520,6 +520,8 @@ int main() {
     qe2a.set_mode(Pin::AF);
     qe2b.set_mode(Pin::AF);    
 
+    analog_button tt1(TIM2.CNT, 4, 100, true);
+
     while(1) {
         usb.process();
 
@@ -550,25 +552,15 @@ int main() {
 
             // Digital turntable for LR2.
             if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
-                int8_t rx = qe1_count - last_x;
-                if(rx > 1) {
-                    state_x = DIGITAL_TT_HOLD_DURATION_MS;
-                    last_x = qe1_count;
-                } else if(rx < -1) {
-                    state_x = -DIGITAL_TT_HOLD_DURATION_MS;
-                    last_x = qe1_count;
-                } else if(state_x > 0) {
-                    state_x--;
-                    last_x = qe1_count;
-                } else if(state_x < 0) {
-                    state_x++;
-                    last_x = qe1_count;
-                }
-
-                if(state_x > 0) {
-                    remapped |= INFINITAS_DIGITAL_TT_CCW;
-                } else if(state_x < 0) {
-                    remapped |= INFINITAS_DIGITAL_TT_CW;
+                switch (tt1.poll()) {
+				case -1:
+					remapped |= JOY_BUTTON_13;
+					break;
+				case 1:
+					remapped |= JOY_BUTTON_14;
+					break;
+				default:
+					break;
                 }
             }
 
@@ -577,13 +569,6 @@ int main() {
             // If multi-tap on E2 is enabled, debounce E2 beforehand
             if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
                 debounce_mask |= INFINITAS_BUTTON_E2;
-            }
-
-            // Digital turntable debounce
-            if ((config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) &&
-                (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_DEBOUNCE)) {
-                debounce_mask |= INFINITAS_DIGITAL_TT_CCW;
-                debounce_mask |= INFINITAS_DIGITAL_TT_CW;
             }
 
             if (debounce_mask != 0) {
