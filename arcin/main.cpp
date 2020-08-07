@@ -346,10 +346,6 @@ uint16_t remap_buttons(uint16_t buttons) {
     return remapped;
 }
 
-HID_arcin usb_hid(usb, report_desc_p);
-
-USB_strings usb_strings(usb, config.label);
-
 #define DEBOUNCE_TIME_MS 5
 
 uint16_t debounce_state = 0;
@@ -365,37 +361,24 @@ int debounce_index = 0;
  * We use update to sync to the USB polls; this helps avoid additional latency when
  * debounce samples just after the USB poll.
  */
-void debounce(uint16_t &buttons) {
-	if (Time::time() == debounce_sample_time) {
-		buttons = debounce_state;
-        return;
-	}
+uint16_t debounce(uint16_t buttons) {
+    if (Time::time() == debounce_sample_time) {
+        return debounce_state;
+    }
 
     debounce_sample_time = Time::time();
+    debounce_history[debounce_index] = buttons;
+    debounce_index = (debounce_index + 1) % DEBOUNCE_TIME_MS;
 
-	debounce_history[debounce_index] = buttons;
-	debounce_index = (debounce_index + 1) % DEBOUNCE_TIME_MS;
+    uint16_t has_ones = 0, has_zeroes = 0;
+    for (int i = 0; i < DEBOUNCE_TIME_MS; i++) {
+        has_ones |= debounce_history[i];
+        has_zeroes |= ~debounce_history[i];
+    }
 
-    uint16_t dbg = 0;
-
-	uint16_t has_ones = 0, has_zeroes = 0;
-	for (int i = 0; i < DEBOUNCE_TIME_MS; i++) {
-		has_ones |= debounce_history[i];
-		has_zeroes |= ~debounce_history[i];
-
-        dbg |= (debounce_history[i] & 1) ? (1 << i) : 0;
-	}
-
-	uint16_t stable = has_ones ^ has_zeroes;
-    dbg |= (stable & 1) ? (1 << 5) : 0;
-
-	debounce_state = (debounce_state & ~stable) | (has_ones & stable);
-    dbg |= (debounce_state & 1) ? (1 << 6) : 0;
-
-    dbg |= (buttons & 1) ? (1 << 10) : 0;
-
-	buttons = debounce_state;
-//    button_leds.set(dbg);
+    uint16_t stable = has_ones ^ has_zeroes;
+    debounce_state = (debounce_state & ~stable) | (has_ones & stable);
+    return debounce_state;
 }
 
 class analog_button {
@@ -458,6 +441,10 @@ class analog_button {
 			return state;
 		}
 };
+
+HID_arcin usb_hid(usb, report_desc_p);
+
+USB_strings usb_strings(usb, config.label);
 
 int main() {
     rcc_init();
@@ -561,6 +548,50 @@ int main() {
             uint32_t qe1_count = TIM2.CNT;
             uint16_t remapped = remap_buttons(buttons);
 
+            // Digital turntable for LR2.
+            if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
+                int8_t rx = qe1_count - last_x;
+                if(rx > 1) {
+                    state_x = DIGITAL_TT_HOLD_DURATION_MS;
+                    last_x = qe1_count;
+                } else if(rx < -1) {
+                    state_x = -DIGITAL_TT_HOLD_DURATION_MS;
+                    last_x = qe1_count;
+                } else if(state_x > 0) {
+                    state_x--;
+                    last_x = qe1_count;
+                } else if(state_x < 0) {
+                    state_x++;
+                    last_x = qe1_count;
+                }
+
+                if(state_x > 0) {
+                    remapped |= INFINITAS_DIGITAL_TT_CCW;
+                } else if(state_x < 0) {
+                    remapped |= INFINITAS_DIGITAL_TT_CW;
+                }
+            }
+
+			// Apply debounce...
+			uint16_t debounce_mask = 0;
+			// If multi-tap on E2 is enabled, debounce E2 beforehand
+			if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
+				debounce_mask |= INFINITAS_BUTTON_E2;
+			}
+
+			// Digital turntable debounce
+			if ((config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) &&
+			    (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_DEBOUNCE)) {
+				debounce_mask |= INFINITAS_DIGITAL_TT_CCW;
+				debounce_mask |= INFINITAS_DIGITAL_TT_CW;
+			}
+
+			if (debounce_mask != 0) {
+				remapped = (remapped & ~debounce_mask) |
+						(debounce(remapped) & debounce_mask);
+			}
+
+			// Multi-tap processing of E2. Must be done after debounce.
             if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
                 if (multitap_active_frames == 0) {
                     // Make a note of its current state
@@ -593,30 +624,7 @@ int main() {
                 }
             }
 
-            // digital turntable
-            if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
-                int8_t rx = qe1_count - last_x;
-                if(rx > 1) {
-                    state_x = DIGITAL_TT_HOLD_DURATION_MS;
-                    last_x = qe1_count;
-                } else if(rx < -1) {
-                    state_x = -DIGITAL_TT_HOLD_DURATION_MS;
-                    last_x = qe1_count;
-                } else if(state_x > 0) {
-                    state_x--;
-                    last_x = qe1_count;
-                } else if(state_x < 0) {
-                    state_x++;
-                    last_x = qe1_count;
-                }
-
-                if(state_x > 0) {
-                    remapped |= INFINITAS_DIGITAL_TT_CCW;
-                } else if(state_x < 0) {
-                    remapped |= INFINITAS_DIGITAL_TT_CW;
-                }
-            }
-
+			// Finally - adjust turntable sensitivity before reporting it
             if(config.qe1_sens < 0) {
                 qe1_count /= -config.qe1_sens;
             } else if(config.qe1_sens > 0) {
