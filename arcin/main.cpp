@@ -350,6 +350,115 @@ HID_arcin usb_hid(usb, report_desc_p);
 
 USB_strings usb_strings(usb, config.label);
 
+#define DEBOUNCE_TIME_MS 5
+
+uint16_t debounce_state = 0;
+uint16_t debounce_history[DEBOUNCE_TIME_MS] = { 0 };
+uint32_t debounce_sample_time = 0;
+int debounce_index = 0;
+
+/* 
+ * Perform debounce processing. The buttons input is sampled at most once per ms
+ * (when update is true); buttons is then set to the last stable state for each
+ * bit (i.e., the last state maintained for DEBOUNCE_TIME_MS consequetive samples
+ *
+ * We use update to sync to the USB polls; this helps avoid additional latency when
+ * debounce samples just after the USB poll.
+ */
+void debounce(uint16_t &buttons) {
+	if (Time::time() == debounce_sample_time) {
+		buttons = debounce_state;
+        return;
+	}
+
+    debounce_sample_time = Time::time();
+
+	debounce_history[debounce_index] = buttons;
+	debounce_index = (debounce_index + 1) % DEBOUNCE_TIME_MS;
+
+    uint16_t dbg = 0;
+
+	uint16_t has_ones = 0, has_zeroes = 0;
+	for (int i = 0; i < DEBOUNCE_TIME_MS; i++) {
+		has_ones |= debounce_history[i];
+		has_zeroes |= ~debounce_history[i];
+
+        dbg |= (debounce_history[i] & 1) ? (1 << i) : 0;
+	}
+
+	uint16_t stable = has_ones ^ has_zeroes;
+    dbg |= (stable & 1) ? (1 << 5) : 0;
+
+	debounce_state = (debounce_state & ~stable) | (has_ones & stable);
+    dbg |= (debounce_state & 1) ? (1 << 6) : 0;
+
+    dbg |= (buttons & 1) ? (1 << 10) : 0;
+
+	buttons = debounce_state;
+//    button_leds.set(dbg);
+}
+
+class analog_button {
+	public:
+		// config
+
+		// Number of ticks we need to advance before recognizing an input
+		uint32_t deadzone;
+		// How long to sustain the input before clearing it (if opposite direction is input, we'll release immediately)
+		uint32_t sustain_ms;
+		// Always provide a zero-input for one poll before reversing?
+		bool clear;
+
+		const volatile uint32_t &counter;
+
+		// State: Center of deadzone
+		uint32_t center;
+		// times to: reset to zero, reset center to counter
+		uint32_t t_timeout;
+
+		int8_t state; // -1, 0, 1
+		int8_t last_delta;
+	public:
+		analog_button(volatile uint32_t &counter, uint32_t deadzone, uint32_t sustain_ms, bool clear)
+			: deadzone(deadzone), sustain_ms(sustain_ms), clear(clear), counter(counter)
+		{
+			center = counter;
+			t_timeout = 0;
+			state = 0;
+		}
+
+		int8_t poll() {
+			uint8_t observed = counter;
+			int8_t delta = observed - center;
+			last_delta = delta;
+
+			uint8_t direction = 0;
+			if (delta >= (int32_t)deadzone) {
+				direction = 1;
+			} else if (delta <= -(int32_t)deadzone) {
+				direction = -1;
+			}
+
+			if (direction != 0) {
+				center = observed;
+				t_timeout = Time::time() + sustain_ms;
+			} else if (t_timeout != 0 && Time::time() >= t_timeout) {
+				state = 0;
+				center = observed;
+				t_timeout = 0;
+			}
+
+			if (direction == -state && clear) {
+				state = direction;
+				return 0;
+			} else if (direction != 0) {
+				state = direction;
+			}
+
+			return state;
+		}
+};
+
 int main() {
     rcc_init();
     
