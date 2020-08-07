@@ -191,8 +191,6 @@ class HID_arcin : public USB_HID {
         }
 };
 
-uint16_t ARCIN_DEBUG;
-
 uint32_t first_e2_rising_edge_time;
 
 #define LAST_E2_STATUS_SIZE 3
@@ -539,10 +537,6 @@ int main() {
             button_leds.set(buttons);
         }
 
-        if (ARCIN_DEBUG > 0) {
-            button_leds.set(ARCIN_DEBUG);
-        }
-        
         if(usb.ep_ready(1)) {
             uint32_t qe1_count = TIM2.CNT;
             uint16_t remapped = remap_buttons(buttons);
@@ -576,6 +570,10 @@ int main() {
             // Multi-tap processing of E2. Must be done after debounce.
             if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
                 if (multitap_active_frames == 0) {
+                    // reset fancy lights
+                    button_leds.set(0);
+                    last_led_time = 0;
+
                     // Make a note of its current state
                     e2_update((remapped & INFINITAS_BUTTON_E2) != 0);
                 } else if ((remapped & INFINITAS_BUTTON_E2) == 0) {
@@ -588,6 +586,24 @@ int main() {
 
                 if (multitap_active_frames > 0) {                    
                     remapped |= multitap_buttons_to_assert;
+
+                    uint16_t fancy_lights = 0;
+                    fancy_lights |= INFINITAS_BUTTON_E2;
+                    if (multitap_buttons_to_assert & INFINITAS_BUTTON_E2) {
+                        fancy_lights |= (ARCIN_BUTTON_KEY_1 |
+                                         ARCIN_BUTTON_KEY_3 |
+                                         ARCIN_BUTTON_KEY_5 |
+                                         ARCIN_BUTTON_KEY_7);
+                    }
+
+                    if (multitap_buttons_to_assert & INFINITAS_BUTTON_E3) {
+                        fancy_lights |= (ARCIN_BUTTON_KEY_2 |
+                                         ARCIN_BUTTON_KEY_4 |
+                                         ARCIN_BUTTON_KEY_6);
+                    }
+
+                    button_leds.set(fancy_lights);
+                    last_led_time = Time::time();
 
                 } else if (is_multitap_window_closed()) {
                     multitap_active_frames = MULTITAP_RESULT_HOLD_MS;
