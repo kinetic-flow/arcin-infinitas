@@ -8,7 +8,7 @@ A custom arcin firmware, written for broad compatibility with various games, inc
 
 ## Where do I download?
 
-[Check out the releases tab.](https://github.com/minsang-github/arcin-infinitas/releases)
+[Check out the latest release](https://github.com/minsang-github/arcin-infinitas/releases/latest).
 
 ## How do I flash the firmware?
 
