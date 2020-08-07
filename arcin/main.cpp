@@ -15,7 +15,7 @@
 // Pin out on arcin board
 //
 
-#define ARCIN_BUTTON_KEY_1           ((uint16_t)(1 << 0))
+#define ARCIN_BUTTON_KEY_1        ((uint16_t)(1 << 0))
 #define ARCIN_BUTTON_KEY_2        ((uint16_t)(1 << 1))
 #define ARCIN_BUTTON_KEY_3        ((uint16_t)(1 << 2))
 #define ARCIN_BUTTON_KEY_4        ((uint16_t)(1 << 3))
@@ -29,7 +29,7 @@
 #define ARCIN_BUTTON_EXTRA_9      ((uint16_t)(1 << 8))
 
 #define ARCIN_BUTTON_START        ((uint16_t)(1 << 9))  // button 10
-#define ARCIN_BUTTON_SEL             ((uint16_t)(1 << 10)) // button 11
+#define ARCIN_BUTTON_SEL          ((uint16_t)(1 << 10)) // button 11
 
 //
 // Remapped values for Windows
