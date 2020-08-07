@@ -28,20 +28,20 @@
 #define ARCIN_BUTTON_EXTRA_8      ((uint16_t)(1 << 7))
 #define ARCIN_BUTTON_EXTRA_9      ((uint16_t)(1 << 8))
 
-#define ARCIN_BUTTON_START        ((uint16_t)(1 << 9))  // button 10
-#define ARCIN_BUTTON_SEL          ((uint16_t)(1 << 10)) // button 11
+#define ARCIN_BUTTON_START        ((uint16_t)(1 << 9))
+#define ARCIN_BUTTON_SEL          ((uint16_t)(1 << 10))
 
 //
 // Remapped values for Windows
 //
 
-#define JOY_BUTTON_13              ((uint16_t)(1 << 12))  // button 13
-#define JOY_BUTTON_14             ((uint16_t)(1 << 13))  // button 14
+#define JOY_BUTTON_13             ((uint16_t)(1 << 12))
+#define JOY_BUTTON_14             ((uint16_t)(1 << 13))
 
-#define INFINITAS_BUTTON_E1       ((uint16_t)(1 << 8))  // E1
-#define INFINITAS_BUTTON_E2       ((uint16_t)(1 << 9))  // E2
-#define INFINITAS_BUTTON_E3       ((uint16_t)(1 << 10)) // E3
-#define INFINITAS_BUTTON_E4       ((uint16_t)(1 << 11)) // E4
+#define INFINITAS_BUTTON_E1       ((uint16_t)(1 << 8))
+#define INFINITAS_BUTTON_E2       ((uint16_t)(1 << 9))
+#define INFINITAS_BUTTON_E3       ((uint16_t)(1 << 10))
+#define INFINITAS_BUTTON_E4       ((uint16_t)(1 << 11))
 
 static uint32_t& reset_reason = *(uint32_t*)0x10000000;
 
@@ -586,8 +586,7 @@ int main() {
                 // Always clear E2 since it should not be asserted directly
                 remapped &= ~(INFINITAS_BUTTON_E2);
 
-                if (multitap_active_frames > 0) {
-                    
+                if (multitap_active_frames > 0) {                    
                     // First, assert the resulting button combination
                     // Then, enter the "ignore" window where E2 taps are ignored
                     // for a bit.
