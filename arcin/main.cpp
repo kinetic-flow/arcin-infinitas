@@ -35,7 +35,7 @@
 // Remapped values for Windows
 //
 
-#define JOY_BUTTON_13			  ((uint16_t)(1 << 12))  // button 13
+#define JOY_BUTTON_13              ((uint16_t)(1 << 12))  // button 13
 #define JOY_BUTTON_14             ((uint16_t)(1 << 13))  // button 14
 
 #define INFINITAS_BUTTON_E1       ((uint16_t)(1 << 8))  // E1
@@ -553,14 +553,14 @@ int main() {
             // Digital turntable for LR2.
             if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
                 switch (tt1.poll()) {
-				case -1:
-					remapped |= JOY_BUTTON_13;
-					break;
-				case 1:
-					remapped |= JOY_BUTTON_14;
-					break;
-				default:
-					break;
+                case -1:
+                    remapped |= JOY_BUTTON_13;
+                    break;
+                case 1:
+                    remapped |= JOY_BUTTON_14;
+                    break;
+                default:
+                    break;
                 }
             }
 
