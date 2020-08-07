@@ -4,7 +4,7 @@ arcin firmware and configuration tool for beatmania IIDX Infinitas (2020 ver)
 ![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas/7a6bab2475e741a532487686e32e7d89d3d0fed6/res/conf_screenshot.png)
 
 ## What is this?
-A custom arcin firmware, mainly written for best experience playing new infinitas 120hz version. No key config or joy2key needed, everything will work with the game out of the gate. It is also suitable for HID-light, LR2, and beatoraja! You can use the configuration tool to adjust options like turntable sensitivity.
+A custom arcin firmware, written for broad compatibility with various games, including the new infinitas 120hz version. No key config or joy2key needed - everything will work with the game out of the gate. It is suitable for HID-light, LR2, and beatoraja! You can use the configuration tool to adjust options like turntable sensitivity.
 
 ## Where do I download?
 
