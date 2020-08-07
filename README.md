@@ -39,11 +39,28 @@ On top of the "arcin_flash_config_alpha5" firmware, the following changes are ma
 * Remaps E1-E4 buttons correctly (customizable in the configuration tool)
 * Optional analog / digital turntable switch
 * Optional double-click / triple-click select button feature (like DJ DAO)
-   * Single click E2 for E2, double-click E2 for E3, triple-click E2 for E2+E3
 
 In addition to Infinitas, this firmware should be perfectly fine with HID-light and beatoraja (analog turntable) configurations. If you enable digital turntable in the configuration tool, it will also work in LR2 for playing BMS.
 
 This firmware is also technically compatible with the flashing tools, but the flashing tools are unable to automatically discover the controller becuase the USB IDs will be different from what they expect. To work around this, unplug the USB cable, hold down 1+2, plug in the USB cable, this will enter flashing mode and you will be able to proceed as normal.
+
+# Configuration tool
+
+![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas/11a84bc1b7bb3b4af14aa5897ed2dd006416c18e/res/conf_screenshot.png)
+
+Press "Read" to load settings from your controller. Press "Write" to save your settings to your controller.
+
+Label: Set custom name to be used as an identifer for your controller (useful if you have more than one controller)
+
+E2 multi-tap: Enables multi-tap mode - single click E2 for E2, double-click E2 for E3, triple-click E2 for E2+E3. If this feature is disabled, E2 is just E2.
+
+Swap 8/9: if you have buttons connected to button 8 and button 9 pins on arcin, enabling this will swap them around. These always map to E3 and E4 in infinitas.
+
+LR2 Digital TT: When disabled, analog turntable is used (Infinitas, HID-light, beatoraja). When enabled, digital turntable is used (LR2). You can't have both, sorry.
+
+QE1 sensitivity: Adjust turntable sensitivity. Experiment with various settings! Keep in mind that 120hz Infinitas requires higher sensitivty settings than other games for some reason.
+
+Effector: Configure what your Start and Select buttons will do in Infinitas. You probably want the first or the second option (E1 and E2).
 
 ## Building
 
