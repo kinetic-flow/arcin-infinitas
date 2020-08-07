@@ -11,26 +11,37 @@
 #include "configloader.h"
 #include "config.h"
 
-#define ARCIN_BUTTON_KEY_1 ((uint16_t)(1 << 0))
-#define ARCIN_BUTTON_KEY_2 ((uint16_t)(1 << 1))
-#define ARCIN_BUTTON_KEY_3 ((uint16_t)(1 << 2))
-#define ARCIN_BUTTON_KEY_4 ((uint16_t)(1 << 3))
-#define ARCIN_BUTTON_KEY_5 ((uint16_t)(1 << 4))
-#define ARCIN_BUTTON_KEY_6 ((uint16_t)(1 << 5))
-#define ARCIN_BUTTON_KEY_7 ((uint16_t)(1 << 6))
+//
+// Pin out on arcin board
+//
+
+#define ARCIN_BUTTON_KEY_1 	      ((uint16_t)(1 << 0))
+#define ARCIN_BUTTON_KEY_2        ((uint16_t)(1 << 1))
+#define ARCIN_BUTTON_KEY_3        ((uint16_t)(1 << 2))
+#define ARCIN_BUTTON_KEY_4        ((uint16_t)(1 << 3))
+#define ARCIN_BUTTON_KEY_5        ((uint16_t)(1 << 4))
+#define ARCIN_BUTTON_KEY_6        ((uint16_t)(1 << 5))
+#define ARCIN_BUTTON_KEY_7        ((uint16_t)(1 << 6))
 
 #define ARCIN_BUTTON_KEY_ALL_MAIN ((uint16_t)(0x7F))
 
-#define ARCIN_BUTTON_EXTRA_8 ((uint16_t)(1 << 7))
-#define ARCIN_BUTTON_EXTRA_9 ((uint16_t)(1 << 8))
+#define ARCIN_BUTTON_EXTRA_8      ((uint16_t)(1 << 7))
+#define ARCIN_BUTTON_EXTRA_9      ((uint16_t)(1 << 8))
 
-#define ARCIN_BUTTON_START ((uint16_t)(1 << 9)) // button 10
-#define ARCIN_BUTTON_SEL   ((uint16_t)(1 << 10)) // button 11
+#define ARCIN_BUTTON_START        ((uint16_t)(1 << 9))  // button 10
+#define ARCIN_BUTTON_SEL   	      ((uint16_t)(1 << 10)) // button 11
 
-#define INFINITAS_BUTTON_E1 ((uint16_t)(1 << 8)) // E1
-#define INFINITAS_BUTTON_E2 ((uint16_t)(1 << 9)) // E2
-#define INFINITAS_BUTTON_E3 ((uint16_t)(1 << 10)) // E3
-#define INFINITAS_BUTTON_E4 ((uint16_t)(1 << 11)) // E4
+//
+// Remapped values for Windows
+//
+
+#define INFINITAS_DIGITAL_TT_CW   ((uint16_t)(1 << 12))  // button 13
+#define INFINITAS_DIGITAL_TT_CCW  ((uint16_t)(1 << 13))  // button 14
+
+#define INFINITAS_BUTTON_E1       ((uint16_t)(1 << 8))  // E1
+#define INFINITAS_BUTTON_E2       ((uint16_t)(1 << 9))  // E2
+#define INFINITAS_BUTTON_E3       ((uint16_t)(1 << 10)) // E3
+#define INFINITAS_BUTTON_E4       ((uint16_t)(1 << 11)) // E4
 
 static uint32_t& reset_reason = *(uint32_t*)0x10000000;
 
@@ -199,6 +210,10 @@ uint32_t e2_falling_edge_count;
 
 uint16_t multitap_active_frames;
 uint16_t multitap_buttons_to_assert;
+
+
+#define DIGITAL_TT_HOLD_DURATION_MS 100
+#define DIGITAL_TT_IGNORE_SAME_DIRECTION_MS 400
 
 void e2_update(bool pressed) {
 	// falling edge (detect on-on-off-off-off sequence)
@@ -406,7 +421,11 @@ int main() {
 	qe2b.set_af(2);
 	qe2a.set_mode(Pin::AF);
 	qe2b.set_mode(Pin::AF);	
-	
+
+	// For LR2 mode digital turntable
+	uint8_t last_x = 0;
+	int16_t state_x = 0;
+
 	while(1) {
 		usb.process();
 		
@@ -470,10 +489,39 @@ int main() {
 
 					e2_falling_edge_count = 0;
 				}
-			}			
+			}
 
-			input_report_t report = {1, remapped, uint8_t(qe1_count), uint8_t(0)};
-			
+			// digital turntable
+			int8_t rx = qe1_count - last_x;
+			if(rx > 1) {
+				state_x = DIGITAL_TT_HOLD_DURATION_MS;
+				last_x = qe1_count;
+			} else if(rx < -1) {
+				state_x = -DIGITAL_TT_HOLD_DURATION_MS;
+				last_x = qe1_count;
+			} else if(state_x > 0) {
+				state_x--;
+				last_x = qe1_count;
+			} else if(state_x < 0) {
+				state_x++;
+				last_x = qe1_count;
+			}
+
+			if(state_x > 0) {
+				remapped |= INFINITAS_DIGITAL_TT_CCW;
+			} else if(state_x < 0) {
+				remapped |= INFINITAS_DIGITAL_TT_CW;
+			}
+
+			input_report_t report;
+			report.report_id = 1;
+			report.buttons = remapped;
+			if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
+				report.axis_x = uint8_t(127);
+			} else {
+				report.axis_x = uint8_t(qe1_count);
+			}
+			report.axis_y = 127;
 			usb.write(1, (uint32_t*)&report, sizeof(report));
 		}
 	}
