@@ -15,7 +15,7 @@
 // Pin out on arcin board
 //
 
-#define ARCIN_BUTTON_KEY_1           ((uint16_t)(1 << 0))
+#define ARCIN_BUTTON_KEY_1        ((uint16_t)(1 << 0))
 #define ARCIN_BUTTON_KEY_2        ((uint16_t)(1 << 1))
 #define ARCIN_BUTTON_KEY_3        ((uint16_t)(1 << 2))
 #define ARCIN_BUTTON_KEY_4        ((uint16_t)(1 << 3))
@@ -29,14 +29,14 @@
 #define ARCIN_BUTTON_EXTRA_9      ((uint16_t)(1 << 8))
 
 #define ARCIN_BUTTON_START        ((uint16_t)(1 << 9))  // button 10
-#define ARCIN_BUTTON_SEL             ((uint16_t)(1 << 10)) // button 11
+#define ARCIN_BUTTON_SEL          ((uint16_t)(1 << 10)) // button 11
 
 //
 // Remapped values for Windows
 //
 
-#define INFINITAS_DIGITAL_TT_CW   ((uint16_t)(1 << 12))  // button 13
-#define INFINITAS_DIGITAL_TT_CCW  ((uint16_t)(1 << 13))  // button 14
+#define JOY_BUTTON_13              ((uint16_t)(1 << 12))  // button 13
+#define JOY_BUTTON_14             ((uint16_t)(1 << 13))  // button 14
 
 #define INFINITAS_BUTTON_E1       ((uint16_t)(1 << 8))  // E1
 #define INFINITAS_BUTTON_E2       ((uint16_t)(1 << 9))  // E2
@@ -346,10 +346,6 @@ uint16_t remap_buttons(uint16_t buttons) {
     return remapped;
 }
 
-HID_arcin usb_hid(usb, report_desc_p);
-
-USB_strings usb_strings(usb, config.label);
-
 #define DEBOUNCE_TIME_MS 5
 
 uint16_t debounce_state = 0;
@@ -365,99 +361,90 @@ int debounce_index = 0;
  * We use update to sync to the USB polls; this helps avoid additional latency when
  * debounce samples just after the USB poll.
  */
-void debounce(uint16_t &buttons) {
-	if (Time::time() == debounce_sample_time) {
-		buttons = debounce_state;
-        return;
-	}
+uint16_t debounce(uint16_t buttons) {
+    if (Time::time() == debounce_sample_time) {
+        return debounce_state;
+    }
 
     debounce_sample_time = Time::time();
+    debounce_history[debounce_index] = buttons;
+    debounce_index = (debounce_index + 1) % DEBOUNCE_TIME_MS;
 
-	debounce_history[debounce_index] = buttons;
-	debounce_index = (debounce_index + 1) % DEBOUNCE_TIME_MS;
+    uint16_t has_ones = 0, has_zeroes = 0;
+    for (int i = 0; i < DEBOUNCE_TIME_MS; i++) {
+        has_ones |= debounce_history[i];
+        has_zeroes |= ~debounce_history[i];
+    }
 
-    uint16_t dbg = 0;
-
-	uint16_t has_ones = 0, has_zeroes = 0;
-	for (int i = 0; i < DEBOUNCE_TIME_MS; i++) {
-		has_ones |= debounce_history[i];
-		has_zeroes |= ~debounce_history[i];
-
-        dbg |= (debounce_history[i] & 1) ? (1 << i) : 0;
-	}
-
-	uint16_t stable = has_ones ^ has_zeroes;
-    dbg |= (stable & 1) ? (1 << 5) : 0;
-
-	debounce_state = (debounce_state & ~stable) | (has_ones & stable);
-    dbg |= (debounce_state & 1) ? (1 << 6) : 0;
-
-    dbg |= (buttons & 1) ? (1 << 10) : 0;
-
-	buttons = debounce_state;
-//    button_leds.set(dbg);
+    uint16_t stable = has_ones ^ has_zeroes;
+    debounce_state = (debounce_state & ~stable) | (has_ones & stable);
+    return debounce_state;
 }
 
 class analog_button {
-	public:
-		// config
+public:
+    // config
 
-		// Number of ticks we need to advance before recognizing an input
-		uint32_t deadzone;
-		// How long to sustain the input before clearing it (if opposite direction is input, we'll release immediately)
-		uint32_t sustain_ms;
-		// Always provide a zero-input for one poll before reversing?
-		bool clear;
+    // Number of ticks we need to advance before recognizing an input
+    uint32_t deadzone;
+    // How long to sustain the input before clearing it (if opposite direction is input, we'll release immediately)
+    uint32_t sustain_ms;
+    // Always provide a zero-input for one poll before reversing?
+    bool clear;
 
-		const volatile uint32_t &counter;
+    const volatile uint32_t &counter;
 
-		// State: Center of deadzone
-		uint32_t center;
-		// times to: reset to zero, reset center to counter
-		uint32_t t_timeout;
+    // State: Center of deadzone
+    uint32_t center;
+    // times to: reset to zero, reset center to counter
+    uint32_t t_timeout;
 
-		int8_t state; // -1, 0, 1
-		int8_t last_delta;
-	public:
-		analog_button(volatile uint32_t &counter, uint32_t deadzone, uint32_t sustain_ms, bool clear)
-			: deadzone(deadzone), sustain_ms(sustain_ms), clear(clear), counter(counter)
-		{
-			center = counter;
-			t_timeout = 0;
-			state = 0;
-		}
+    int8_t state; // -1, 0, 1
+    int8_t last_delta;
+public:
+    analog_button(volatile uint32_t &counter, uint32_t deadzone, uint32_t sustain_ms, bool clear)
+        : deadzone(deadzone), sustain_ms(sustain_ms), clear(clear), counter(counter)
+    {
+        center = counter;
+        t_timeout = 0;
+        state = 0;
+    }
 
-		int8_t poll() {
-			uint8_t observed = counter;
-			int8_t delta = observed - center;
-			last_delta = delta;
+    int8_t poll() {
+        uint8_t observed = counter;
+        int8_t delta = observed - center;
+        last_delta = delta;
 
-			uint8_t direction = 0;
-			if (delta >= (int32_t)deadzone) {
-				direction = 1;
-			} else if (delta <= -(int32_t)deadzone) {
-				direction = -1;
-			}
+        uint8_t direction = 0;
+        if (delta >= (int32_t)deadzone) {
+            direction = 1;
+        } else if (delta <= -(int32_t)deadzone) {
+            direction = -1;
+        }
 
-			if (direction != 0) {
-				center = observed;
-				t_timeout = Time::time() + sustain_ms;
-			} else if (t_timeout != 0 && Time::time() >= t_timeout) {
-				state = 0;
-				center = observed;
-				t_timeout = 0;
-			}
+        if (direction != 0) {
+            center = observed;
+            t_timeout = Time::time() + sustain_ms;
+        } else if (t_timeout != 0 && Time::time() >= t_timeout) {
+            state = 0;
+            center = observed;
+            t_timeout = 0;
+        }
 
-			if (direction == -state && clear) {
-				state = direction;
-				return 0;
-			} else if (direction != 0) {
-				state = direction;
-			}
+        if (direction == -state && clear) {
+            state = direction;
+            return 0;
+        } else if (direction != 0) {
+            state = direction;
+        }
 
-			return state;
-		}
+        return state;
+    }
 };
+
+HID_arcin usb_hid(usb, report_desc_p);
+
+USB_strings usb_strings(usb, config.label);
 
 int main() {
     rcc_init();
@@ -533,6 +520,8 @@ int main() {
     qe2a.set_mode(Pin::AF);
     qe2b.set_mode(Pin::AF);    
 
+    analog_button tt1(TIM2.CNT, 4, 100, true);
+
     while(1) {
         usb.process();
 
@@ -561,6 +550,33 @@ int main() {
             uint32_t qe1_count = TIM2.CNT;
             uint16_t remapped = remap_buttons(buttons);
 
+            // Digital turntable for LR2.
+            if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
+                switch (tt1.poll()) {
+                case -1:
+                    remapped |= JOY_BUTTON_13;
+                    break;
+                case 1:
+                    remapped |= JOY_BUTTON_14;
+                    break;
+                default:
+                    break;
+                }
+            }
+
+            // Apply debounce...
+            uint16_t debounce_mask = 0;
+            // If multi-tap on E2 is enabled, debounce E2 beforehand
+            if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
+                debounce_mask |= INFINITAS_BUTTON_E2;
+            }
+
+            if (debounce_mask != 0) {
+                remapped = (remapped & ~debounce_mask) |
+                           (debounce(remapped) & debounce_mask);
+            }
+
+            // Multi-tap processing of E2. Must be done after debounce.
             if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
                 if (multitap_active_frames == 0) {
                     // Make a note of its current state
@@ -593,30 +609,7 @@ int main() {
                 }
             }
 
-            // digital turntable
-            if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
-                int8_t rx = qe1_count - last_x;
-                if(rx > 1) {
-                    state_x = DIGITAL_TT_HOLD_DURATION_MS;
-                    last_x = qe1_count;
-                } else if(rx < -1) {
-                    state_x = -DIGITAL_TT_HOLD_DURATION_MS;
-                    last_x = qe1_count;
-                } else if(state_x > 0) {
-                    state_x--;
-                    last_x = qe1_count;
-                } else if(state_x < 0) {
-                    state_x++;
-                    last_x = qe1_count;
-                }
-
-                if(state_x > 0) {
-                    remapped |= INFINITAS_DIGITAL_TT_CCW;
-                } else if(state_x < 0) {
-                    remapped |= INFINITAS_DIGITAL_TT_CW;
-                }
-            }
-
+            // Finally - adjust turntable sensitivity before reporting it
             if(config.qe1_sens < 0) {
                 qe1_count /= -config.qe1_sens;
             } else if(config.qe1_sens > 0) {
