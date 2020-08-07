@@ -1,10 +1,10 @@
 # arcin-infinitas
 arcin firmware and configuration tool for beatmania IIDX Infinitas (2020 ver)
 
-![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas/2791e94bf152bbd36e8ab20424a4a11679cceb8f/res/conf_screenshot.png)
+![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas/7a6bab2475e741a532487686e32e7d89d3d0fed6/res/conf_screenshot.png)
 
 ## What is this?
-A custom arcin firmware, mainly written for best experience playing new infinitas 120hz version. No key config or joy2key needed, everything will work with the game out of the gate. It is also suitable for HID-light and beatoraja. You can use the configuration tool to adjust options like turntable sensitivity. Does not work with LR2.
+A custom arcin firmware, mainly written for best experience playing new infinitas 120hz version. No key config or joy2key needed, everything will work with the game out of the gate. It is also suitable for HID-light, LR2, and beatoraja! You can use the configuration tool to adjust options like turntable sensitivity.
 
 ## Where do I download?
 
@@ -34,14 +34,12 @@ On existing infinitas firmware that people use, some people reported that their 
 On top of the "arcin_flash_config_alpha5" firmware, the following changes are made:
 
 * Changes the hardware ID (USB VID / PID) to be the same as Konami infinitas controller. This allows the game to automatically detect it & use the analog turntable.
-* Removes input elements that the game does not expect:
-   * Digital turntable
-   * Analog Y-axis
 * Remaps E1-E4 buttons correctly (customizable in the configuration tool)
+* Optional analog / digital turntable switch
 * Optional double-click / triple-click select button feature (like DJ DAO)
    * Single click E2 for E2, double-click E2 for E3, triple-click E2 for E2+E3
 
-In addition to Infinitas, this firmware should be perfectly fine with HID-light and beatoraja (analog turntable) configurations. It will not work with LR2 because it lacks a digital turntable - this is by design.
+In addition to Infinitas, this firmware should be perfectly fine with HID-light and beatoraja (analog turntable) configurations. If you enable digital turntable in the configuration tool, it will also work in LR2 for playing BMS.
 
 This firmware is also technically compatible with the flashing tools, but the flashing tools are unable to automatically discover the controller becuase the USB IDs will be different from what they expect. To work around this, unplug the USB cable, hold down 1+2, plug in the USB cable, this will enter flashing mode and you will be able to proceed as normal.
 
