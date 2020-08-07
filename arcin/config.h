@@ -12,9 +12,11 @@ struct config_t {
 	uint8_t ws2812b_mode;  // unused
 };
 
-#define ARCIN_CONFIG_FLAG_QE1_FLIP  (1 << 1)
-#define ARCIN_CONFIG_FLAG_SEL_MULTI_TAP (1 << 2)
-#define ARCIN_CONFIG_FLAG_SWAP_8_9 (1 << 3)
+#define ARCIN_CONFIG_FLAG_SEL_MULTI_TAP        (1 << 0)
+#define ARCIN_CONFIG_FLAG_INVERT_QE1           (1 << 1)
+#define ARCIN_CONFIG_FLAG_SWAP_8_9 	           (1 << 2)
+#define ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE    (1 << 3)
+#define ARCIN_CONFIG_FLAG_RESERVED             (1 << 4)
 
 typedef enum _effector_mode_option {
 	START_E1_SEL_E2 = 0,

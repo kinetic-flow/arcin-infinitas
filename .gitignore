@@ -4,6 +4,7 @@
 *.swp
 .sconsign.dblite
 bin
+bin_dbg
 pkg
 dist
 conf
