@@ -62,7 +62,7 @@ Press "Read" to load settings from your controller. Press "Write" to save your s
 # More implementation details
 
 * This firmware is configured to run at 1000hz, not 250hz. In the past running with 1000hz mode was a problem with Infinitas, but that does not seem to be the case for the new version.
-* No debouncing is performed for 1-7 keys. IIDX and beatoraja already do some debouncing in the game so this is usually not a problem (although LR2 might cause you some problems)
+* Debounce option is for LR2 users with jittery switches; only when a switch is reported to be ON or OFF for 5 consecutive polls (5 milliseconds) it will register. If you are playing IIDX or beatoraja, you should leave this disabled, as those games already do software debouncing in the game.
 * When multi-tap is on, it is possible to press and hold the E2 button. If you press-hold, it's a long press E2 until you release, if you press-release-press-hold, it's a long press E3.
 * When in LR2 digital turntable mode, the jitter is compensated by enforcing a small deadzone, which means you must move the turntable a pre-defined angle before it registers a direction. It is not delay-based like it is in some firmware. The deadzone is hardcoded and not configurable.
 
