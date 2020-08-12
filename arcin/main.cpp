@@ -552,6 +552,19 @@ int main() {
             uint32_t qe1_count = TIM2.CNT;
             uint16_t remapped = remap_buttons(buttons);
 
+            // Apply debounce...
+            uint16_t debounce_mask = 0;
+            if (config.flags & ARCIN_CONFIG_FLAG_DEBOUNCE) {
+                debounce_mask |= 0xffff;
+            }
+            if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
+                debounce_mask |= INFINITAS_BUTTON_E2;
+            }
+            if (debounce_mask != 0) {
+                remapped = (remapped & ~debounce_mask) |
+                           (debounce(remapped) & debounce_mask);
+            }
+
             // Digital turntable for LR2.
             if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
                 switch (tt1.poll()) {
@@ -564,18 +577,6 @@ int main() {
                 default:
                     break;
                 }
-            }
-
-            // Apply debounce...
-            uint16_t debounce_mask = 0;
-            // If multi-tap on E2 is enabled, debounce E2 beforehand
-            if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
-                debounce_mask |= INFINITAS_BUTTON_E2;
-            }
-
-            if (debounce_mask != 0) {
-                remapped = (remapped & ~debounce_mask) |
-                           (debounce(remapped) & debounce_mask);
             }
 
             // Multi-tap processing of E2. Must be done after debounce.
