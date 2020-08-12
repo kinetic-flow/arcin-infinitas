@@ -57,6 +57,7 @@ Press "Read" to load settings from your controller. Press "Write" to save your s
 |Swap 8/9        | If you have buttons connected to button 8 and button 9 pins on arcin, enabling this will swap them around. These always map to E3 and E4 in infinitas. |
 |LR2 Digital TT  | When disabled, analog turntable is used (Infinitas, HID-light, beatoraja). When enabled, digital turntable is used (LR2). You can't have both, sorry. |
 |QE1 sensitivity | Adjust turntable sensitivity. Experiment with various settings! Keep in mind that 120hz Infinitas requires higher sensitivty settings than other games for some reason. |
+|Debounce (5ms)  | Enables debounce logic. Useful for LR2 if you have bad switches.
 |Effector        | Configure what your Start and Select buttons will do in Infinitas. You probably want the first or the second option (E1 and E2). |
 
 # More implementation details
