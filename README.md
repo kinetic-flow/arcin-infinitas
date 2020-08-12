@@ -59,9 +59,16 @@ Press "Read" to load settings from your controller. Press "Write" to save your s
 |QE1 sensitivity | Adjust turntable sensitivity. Experiment with various settings! Keep in mind that 120hz Infinitas requires higher sensitivty settings than other games for some reason. |
 |Effector        | Configure what your Start and Select buttons will do in Infinitas. You probably want the first or the second option (E1 and E2). |
 
+# More implementation details
+
+* This firmware is configured to run at 1000hz, not 250hz. In the past running with 1000hz mode was a problem with Infinitas, but that does not seem to be the case for the new version.
+* No debouncing is performed for 1-7 keys. IIDX and beatoraja already do some debouncing in the game so this is usually not a problem (although LR2 might cause you some problems)
+* When multi-tap is on, it is possible to press and hold the E2 button. If you press-hold, it's a long press E2 until you release, if you press-release-press-hold, it's a long press E3.
+* When in LR2 digital turntable mode, the jitter is compensated by enforcing a small deadzone, which means you must move the turntable a pre-defined angle before it registers a direction. It is not delay-based like it is in some firmware. The deadzone is hardcoded and not configurable.
+
 ## Building
 
-This section is for developers only.
+This section is for developers only. If you're just looking to run this on your board, download the [latest release].(https://github.com/minsang-github/arcin-infinitas/releases/latest).
 
 This is the hard part... components required to are not included in this repository, so you need to shop around.
 
