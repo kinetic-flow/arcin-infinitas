@@ -69,7 +69,7 @@ Press "Read" to load settings from your controller. Press "Write" to save your s
 
 ## Building
 
-This section is for developers only. If you're just looking to run this on your board, download the [latest release].(https://github.com/minsang-github/arcin-infinitas/releases/latest).
+This section is for developers only. If you're just looking to run this on your board, download the [latest release](https://github.com/minsang-github/arcin-infinitas/releases/latest).
 
 This is the hard part... components required to are not included in this repository, so you need to shop around.
 
