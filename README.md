@@ -1,7 +1,7 @@
 # arcin-infinitas
 arcin firmware and configuration tool for multiple games, including beatmania IIDX Infinitas (2020 ver)
 
-![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas/cde9b9b7ea2a651dcf5be98cbe151fd627ea0ec8/res/conf_screenshot.png)
+![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas/13ad88f18002d67e9706a8a7302dfbd7f8393525/res/conf_screenshot.png)
 
 ## What is this?
 A custom arcin firmware, written for broad compatibility with various games, including the new infinitas 120hz version. No key config or joy2key needed - everything will work with the game out of the gate. It is **compatible with Infinitas, HID-light, LR2, and beatoraja!** You can use the configuration tool to adjust options like turntable sensitivity.
@@ -46,19 +46,19 @@ This firmware is also technically compatible with the flashing tools, but the fl
 
 # Configuration tool
 
-![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas/cde9b9b7ea2a651dcf5be98cbe151fd627ea0ec8/res/conf_screenshot.png)
+![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas/13ad88f18002d67e9706a8a7302dfbd7f8393525/res/conf_screenshot.png)
 
-Press "Read" to load settings from your controller. Press "Write" to save your settings to your controller.
+Press "Refresh" to update the list of devices. Press "Load" to load settings from your controller. Press "Save" to save your settings to your controller.
 
 |Option            |Description  |
 | :--------------- | :---------- |
 |Label           | Set custom name to be used as an identifer for your controller (useful if you have more than one controller) |
-|E2 multi-tap    | Enables multi-tap mode - single click E2 for E2, double-click E2 for E3, triple-click E2 for E2+E3. If this feature is disabled, E2 is just E2. |
+|E2 multi-function | Enables multi-function mode - single click E2 for E2, double-click E2 for E3, triple-click E2 for E2+E3. If this feature is disabled, E2 is just E2. |
 |Swap 8/9        | If you have buttons connected to button 8 and button 9 pins on arcin, enabling this will swap them around. These always map to E3 and E4 in infinitas. |
 |LR2 Digital TT  | When disabled, analog turntable is used (Infinitas, HID-light, beatoraja). When enabled, digital turntable is used (LR2). You can't have both, sorry. |
 |Debounce (5ms)  | Enables debounce logic. Useful for LR2 if you have bad switches.
 |QE1 sensitivity | Adjust turntable sensitivity. Experiment with various settings! Keep in mind that 120hz Infinitas requires higher sensitivty settings than other games for some reason. |
-|Effector        | Configure what your Start and Select buttons will do in Infinitas. You probably want the first or the second option (E1 and E2). |
+|Start and Select | Configure what your Start and Select buttons will do in Infinitas. You probably want the first or the second option (E1 and E2). |
 
 # More implementation details
 
@@ -93,6 +93,8 @@ To create an executable for easily flashing the ELF file, grab https://github.co
     ./hidloader_append.py arcin.elf hidloader_v2.exe arcin_flash_custom.exe
 
 I had success with Ubuntu 20.04 LTS on WSL2 (Windows Subsystem for Linux). Mind that ARM toolchian will not work in WSL1!
+
+The configuration is hosted at https://github.com/minsang-github/arcin-infinitas-conf and that one is a pure python project.
 
 ## Disclaimer
 
