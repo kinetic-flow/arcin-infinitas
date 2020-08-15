@@ -214,16 +214,19 @@ uint32_t e2_rising_edge_count;
 // begin to assert.
 // i.e., any multi-taps must be done within this window in order to count
 #define MULTITAP_DETECTION_WINDOW_MS           400
-#define MULTITAP_RESULT_HOLD_MS   100
+
+#if ARCIN_INFINITAS_250HZ_MODE
+
+#define MULTITAP_RESULT_HOLD_TICKS 25
+
+#else
+
+#define MULTITAP_RESULT_HOLD_TICKS 100
+
+#endif
 
 uint16_t multitap_active_frames;
 uint16_t multitap_buttons_to_assert;
-
-// For LR2 mode digital turntable
-#define DIGITAL_TT_HOLD_DURATION_MS 100
-
-uint8_t last_x = 0;
-int16_t state_x = 0;
 
 void e2_update(bool pressed) {
     // rising edge (detect off-off-on-on sequence)
@@ -571,9 +574,15 @@ int main() {
             if (config.flags & ARCIN_CONFIG_FLAG_DEBOUNCE) {
                 debounce_mask |= 0xffff;
             }
+
+#if !ARCIN_INFINITAS_250HZ_MODE
+
             if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
                 debounce_mask |= INFINITAS_BUTTON_E2;
             }
+
+#endif
+
             if (debounce_mask != 0) {
                 remapped = (remapped & ~debounce_mask) |
                            (debounce(remapped) & debounce_mask);
@@ -609,7 +618,7 @@ int main() {
                 if (multitap_active_frames > 0) {                    
                     remapped |= multitap_buttons_to_assert;
                 } else if (is_multitap_window_closed()) {
-                    multitap_active_frames = MULTITAP_RESULT_HOLD_MS;
+                    multitap_active_frames = MULTITAP_RESULT_HOLD_TICKS;
                     first_e2_rising_edge_time = 0;
                     multitap_buttons_to_assert =
                         get_multitap_output(e2_rising_edge_count);
