@@ -354,17 +354,18 @@ uint16_t remap_buttons(uint16_t buttons) {
     return remapped;
 }
 
-#define DEBOUNCE_TIME_MS 5
+#define DEBOUNCE_FRAME_MAX 255
 
+uint8_t debounce_window = 2;
 uint16_t debounce_state = 0;
-uint16_t debounce_history[DEBOUNCE_TIME_MS] = { 0 };
+uint16_t debounce_history[DEBOUNCE_FRAME_MAX] = { 0 };
 uint32_t debounce_sample_time = 0;
 int debounce_index = 0;
 
 /* 
  * Perform debounce processing. The buttons input is sampled at most once per ms
  * (when update is true); buttons is then set to the last stable state for each
- * bit (i.e., the last state maintained for DEBOUNCE_TIME_MS consequetive samples
+ * bit (i.e., the last state maintained for DEBOUNCE_FRAME_MAX consequetive samples
  *
  * We use update to sync to the USB polls; this helps avoid additional latency when
  * debounce samples just after the USB poll.
@@ -376,10 +377,10 @@ uint16_t debounce(uint16_t buttons) {
 
     debounce_sample_time = Time::time();
     debounce_history[debounce_index] = buttons;
-    debounce_index = (debounce_index + 1) % DEBOUNCE_TIME_MS;
+    debounce_index = (debounce_index + 1) % debounce_window;
 
     uint16_t has_ones = 0, has_zeroes = 0;
-    for (int i = 0; i < DEBOUNCE_TIME_MS; i++) {
+    for (int i = 0; i < debounce_window; i++) {
         has_ones |= debounce_history[i];
         has_zeroes |= ~debounce_history[i];
     }
@@ -533,6 +534,14 @@ int main() {
     qe2b.set_mode(Pin::AF);    
 
     analog_button tt1(TIM2.CNT, 4, 100, true);
+
+    if (config.flags & ARCIN_CONFIG_FLAG_DEBOUNCE) {
+        if ((2 <= config.debounce_ticks) && (config.debounce_ticks <= 255)) {
+            debounce_window = config.debounce_ticks;
+        } else {
+            debounce_window = 2;
+        }
+    }
 
     uint32_t boot_time = Time::time();
 

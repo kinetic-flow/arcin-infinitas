@@ -8,8 +8,8 @@ struct config_t {
     uint32_t flags;
     int8_t qe1_sens;
     int8_t qe2_sens;
-    uint8_t effector_mode; // called ps2_mode in original arcin firmware
-    uint8_t ws2812b_mode;  // unused
+    uint8_t effector_mode;
+    uint8_t debounce_ticks;
 };
 
 #define ARCIN_CONFIG_FLAG_SEL_MULTI_TAP        (1 << 0)
