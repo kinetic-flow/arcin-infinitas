@@ -58,17 +58,17 @@ The following configurations are recommended:
     * 1000hz, but some have reported 250hz being better for Infinitas
     * No debouncing
     * Analog turntable ONLY (leaving digital turntable on will confuse the game)
-    * Turntable sensitivity 1/3 - 1/4    
+    * Turntable sensitivity 1:3 for 250hz, 1:4 for 1000hz
 * LR2
     * 1000hz firmware
     * 4-5 frames of debouncing
     * Digital turntable
-    * Turntable sensitivity 1/3 - 1/4
+    * Turntable sensitivity 1:3 or 1:4
 * HID-light
     * 1000hz firmware
     * No debouncing
     * Analog turntable
-    * Turntable sensitivity 1/3 - 1/4
+    * Turntable sensitivity 1:4
    
 # More implementation details
 
