@@ -7,13 +7,20 @@ rm -rf ./arcin.elf
 
 mkdir -p ./bin
 rm -rf ./bin/*
-
-scons
-./arcin-utils/hidloader_append.py ./arcin.elf arcin-utils/hidloader_v2.exe ./bin/arcin_infinitas_new.exe
-
 mkdir -p ./bin_dbg
 rm -rf ./bin_dbg/*
-./arcin-utils/hidloader_append_dev.py ./arcin.elf arcin-utils/hidloader_v2.exe ./bin_dbg/arcin_infinitas_new_upgrade.exe
+
+export ARCIN_INFINITAS_250HZ_MODE=0
+
+scons
+./arcin-utils/hidloader_append.py ./arcin.elf arcin-utils/hidloader_v2.exe ./bin/arcin_infinitas_new_1000hz.exe
+./arcin-utils/hidloader_append_dev.py ./arcin.elf arcin-utils/hidloader_v2.exe ./bin_dbg/arcin_infinitas_new_1000hz_upgrade.exe
+
+export ARCIN_INFINITAS_250HZ_MODE=1
+
+scons
+./arcin-utils/hidloader_append.py ./arcin.elf arcin-utils/hidloader_v2.exe ./bin/arcin_infinitas_new_250hz.exe
+./arcin-utils/hidloader_append_dev.py ./arcin.elf arcin-utils/hidloader_v2.exe ./bin_dbg/arcin_infinitas_new_250hz_upgrade.exe
 
 mkdir -p ./pkg
 rm -rf ./pkg/*

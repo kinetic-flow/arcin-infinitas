@@ -72,11 +72,21 @@ auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6080, 0x110, 1, 2, 3, 
 // overridng any user settings in the launcher
 auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1CCF, 0x8048, 0x110, 1, 2, 3, 1);
 
+#if ARCIN_INFINITAS_250HZ_MODE
+
+uint8_t bSynchAddress = 4;
+
+#else
+
+uint8_t bSynchAddress = 1;
+
+#endif
+
 auto conf_desc = configuration_desc(1, 1, 0, 0xc0, 0,
     // HID interface.
     interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
         hid_desc(0x111, 0, 1, 0x22, sizeof(report_desc)),
-        endpoint_desc(0x81, 0x03, 16, 1)
+        endpoint_desc(0x81, 0x03, 16, bSynchAddress)
     )
 );
 
@@ -137,7 +147,7 @@ class HID_arcin : public USB_HID {
             config_report_t report = {0xc0, 0, sizeof(config)};
             
             memcpy(report.data, &config, sizeof(config));
-            
+
             usb.write(0, (uint32_t*)&report, sizeof(report));
             
             return true;
@@ -450,6 +460,10 @@ int main() {
     
     // Load config.
     configloader.read(sizeof(config), &config);
+
+#if ARCIN_INFINITAS_250HZ_MODE
+    config.flags |= ARCIN_CONFIG_FLAG_250HZ_READ_ONLY;
+#endif
 
     RCC.enable(RCC.GPIOA);
     RCC.enable(RCC.GPIOB);
