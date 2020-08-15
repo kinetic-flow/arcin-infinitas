@@ -72,11 +72,21 @@ auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6080, 0x110, 1, 2, 3, 
 // overridng any user settings in the launcher
 auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1CCF, 0x8048, 0x110, 1, 2, 3, 1);
 
+#if ARCIN_INFINITAS_250HZ_MODE
+
+uint8_t bSynchAddress = 4;
+
+#else
+
+uint8_t bSynchAddress = 1;
+
+#endif
+
 auto conf_desc = configuration_desc(1, 1, 0, 0xc0, 0,
     // HID interface.
     interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
         hid_desc(0x111, 0, 1, 0x22, sizeof(report_desc)),
-        endpoint_desc(0x81, 0x03, 16, 1)
+        endpoint_desc(0x81, 0x03, 16, bSynchAddress)
     )
 );
 
@@ -137,7 +147,7 @@ class HID_arcin : public USB_HID {
             config_report_t report = {0xc0, 0, sizeof(config)};
             
             memcpy(report.data, &config, sizeof(config));
-            
+
             usb.write(0, (uint32_t*)&report, sizeof(report));
             
             return true;
@@ -204,16 +214,19 @@ uint32_t e2_rising_edge_count;
 // begin to assert.
 // i.e., any multi-taps must be done within this window in order to count
 #define MULTITAP_DETECTION_WINDOW_MS           400
-#define MULTITAP_RESULT_HOLD_MS   100
+
+#if ARCIN_INFINITAS_250HZ_MODE
+
+#define MULTITAP_RESULT_HOLD_TICKS 25
+
+#else
+
+#define MULTITAP_RESULT_HOLD_TICKS 100
+
+#endif
 
 uint16_t multitap_active_frames;
 uint16_t multitap_buttons_to_assert;
-
-// For LR2 mode digital turntable
-#define DIGITAL_TT_HOLD_DURATION_MS 100
-
-uint8_t last_x = 0;
-int16_t state_x = 0;
 
 void e2_update(bool pressed) {
     // rising edge (detect off-off-on-on sequence)
@@ -341,17 +354,18 @@ uint16_t remap_buttons(uint16_t buttons) {
     return remapped;
 }
 
-#define DEBOUNCE_TIME_MS 5
+#define DEBOUNCE_FRAME_MAX 255
 
+uint8_t debounce_window = 2;
 uint16_t debounce_state = 0;
-uint16_t debounce_history[DEBOUNCE_TIME_MS] = { 0 };
+uint16_t debounce_history[DEBOUNCE_FRAME_MAX] = { 0 };
 uint32_t debounce_sample_time = 0;
 int debounce_index = 0;
 
 /* 
  * Perform debounce processing. The buttons input is sampled at most once per ms
  * (when update is true); buttons is then set to the last stable state for each
- * bit (i.e., the last state maintained for DEBOUNCE_TIME_MS consequetive samples
+ * bit (i.e., the last state maintained for DEBOUNCE_FRAME_MAX consequetive samples
  *
  * We use update to sync to the USB polls; this helps avoid additional latency when
  * debounce samples just after the USB poll.
@@ -363,10 +377,10 @@ uint16_t debounce(uint16_t buttons) {
 
     debounce_sample_time = Time::time();
     debounce_history[debounce_index] = buttons;
-    debounce_index = (debounce_index + 1) % DEBOUNCE_TIME_MS;
+    debounce_index = (debounce_index + 1) % debounce_window;
 
     uint16_t has_ones = 0, has_zeroes = 0;
-    for (int i = 0; i < DEBOUNCE_TIME_MS; i++) {
+    for (int i = 0; i < debounce_window; i++) {
         has_ones |= debounce_history[i];
         has_zeroes |= ~debounce_history[i];
     }
@@ -387,26 +401,31 @@ public:
     // Always provide a zero-input for one poll before reversing?
     bool clear;
 
-    const volatile uint32_t &counter;
-
     // State: Center of deadzone
     uint32_t center;
+    bool center_valid;
     // times to: reset to zero, reset center to counter
     uint32_t t_timeout;
 
     int8_t state; // -1, 0, 1
     int8_t last_delta;
 public:
-    analog_button(volatile uint32_t &counter, uint32_t deadzone, uint32_t sustain_ms, bool clear)
-        : deadzone(deadzone), sustain_ms(sustain_ms), clear(clear), counter(counter)
+    analog_button(uint32_t deadzone, uint32_t sustain_ms, bool clear)
+        : deadzone(deadzone), sustain_ms(sustain_ms), clear(clear)
     {
-        center = counter;
+        center = 0;
+        center_valid = false;
         t_timeout = 0;
         state = 0;
     }
 
-    int8_t poll() {
-        uint8_t observed = counter;
+    int8_t poll(uint32_t current_value) {
+        if (!center_valid) {
+            center_valid = true;
+            center = current_value;
+        }
+
+        uint8_t observed = current_value;
         int8_t delta = observed - center;
         last_delta = delta;
 
@@ -450,6 +469,10 @@ int main() {
     
     // Load config.
     configloader.read(sizeof(config), &config);
+
+#if ARCIN_INFINITAS_250HZ_MODE
+    config.flags |= ARCIN_CONFIG_FLAG_250HZ_READ_ONLY;
+#endif
 
     RCC.enable(RCC.GPIOA);
     RCC.enable(RCC.GPIOB);
@@ -515,7 +538,15 @@ int main() {
     qe2a.set_mode(Pin::AF);
     qe2b.set_mode(Pin::AF);    
 
-    analog_button tt1(TIM2.CNT, 4, 100, true);
+    analog_button tt1(4, 200, true);
+
+    if (config.flags & ARCIN_CONFIG_FLAG_DEBOUNCE) {
+        if ((2 <= config.debounce_ticks) && (config.debounce_ticks <= 255)) {
+            debounce_window = config.debounce_ticks;
+        } else {
+            debounce_window = 2;
+        }
+    }
 
     uint32_t boot_time = Time::time();
 
@@ -557,9 +588,15 @@ int main() {
             if (config.flags & ARCIN_CONFIG_FLAG_DEBOUNCE) {
                 debounce_mask |= 0xffff;
             }
+
+#if !ARCIN_INFINITAS_250HZ_MODE
+
             if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
                 debounce_mask |= INFINITAS_BUTTON_E2;
             }
+
+#endif
+
             if (debounce_mask != 0) {
                 remapped = (remapped & ~debounce_mask) |
                            (debounce(remapped) & debounce_mask);
@@ -567,7 +604,7 @@ int main() {
 
             // Digital turntable for LR2.
             if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
-                switch (tt1.poll()) {
+                switch (tt1.poll(qe1_count)) {
                 case -1:
                     remapped |= JOY_BUTTON_13;
                     break;
@@ -577,6 +614,14 @@ int main() {
                 default:
                     break;
                 }
+            }
+
+            // Adjust turntable sensitivity. Must be done AFTER digital TT
+            // processing.
+            if (config.qe1_sens < 0) {
+                qe1_count /= -config.qe1_sens;
+            } else if (config.qe1_sens > 0) {
+                qe1_count *= config.qe1_sens;
             }
 
             // Multi-tap processing of E2. Must be done after debounce.
@@ -595,7 +640,7 @@ int main() {
                 if (multitap_active_frames > 0) {                    
                     remapped |= multitap_buttons_to_assert;
                 } else if (is_multitap_window_closed()) {
-                    multitap_active_frames = MULTITAP_RESULT_HOLD_MS;
+                    multitap_active_frames = MULTITAP_RESULT_HOLD_TICKS;
                     first_e2_rising_edge_time = 0;
                     multitap_buttons_to_assert =
                         get_multitap_output(e2_rising_edge_count);
@@ -604,17 +649,11 @@ int main() {
                 }
             }
 
-            // Finally - adjust turntable sensitivity before reporting it
-            if(config.qe1_sens < 0) {
-                qe1_count /= -config.qe1_sens;
-            } else if(config.qe1_sens > 0) {
-                qe1_count *= config.qe1_sens;
-            }
-
             input_report_t report;
             report.report_id = 1;
             report.buttons = remapped;
-            if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
+            if (((config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) != 0) &&
+                ((config.flags & ARCIN_CONFIG_FLAG_ANALOG_TT_FORCE_ENABLE) == 0))  {
                 report.axis_x = uint8_t(127);
             } else {
                 report.axis_x = uint8_t(qe1_count);
