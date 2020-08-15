@@ -602,13 +602,6 @@ int main() {
                            (debounce(remapped) & debounce_mask);
             }
 
-            // adjust turntable sensitivity
-            if (config.qe1_sens < 0) {
-                qe1_count /= -config.qe1_sens;
-            } else if (config.qe1_sens > 0) {
-                qe1_count *= config.qe1_sens;
-            }
-
             // Digital turntable for LR2.
             if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
                 switch (tt1.poll(qe1_count)) {
@@ -621,6 +614,14 @@ int main() {
                 default:
                     break;
                 }
+            }
+
+            // Adjust turntable sensitivity. Must be done AFTER digital TT
+            // processing.
+            if (config.qe1_sens < 0) {
+                qe1_count /= -config.qe1_sens;
+            } else if (config.qe1_sens > 0) {
+                qe1_count *= config.qe1_sens;
             }
 
             // Multi-tap processing of E2. Must be done after debounce.
