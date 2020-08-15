@@ -401,26 +401,31 @@ public:
     // Always provide a zero-input for one poll before reversing?
     bool clear;
 
-    const volatile uint32_t &counter;
-
     // State: Center of deadzone
     uint32_t center;
+    bool center_valid;
     // times to: reset to zero, reset center to counter
     uint32_t t_timeout;
 
     int8_t state; // -1, 0, 1
     int8_t last_delta;
 public:
-    analog_button(volatile uint32_t &counter, uint32_t deadzone, uint32_t sustain_ms, bool clear)
-        : deadzone(deadzone), sustain_ms(sustain_ms), clear(clear), counter(counter)
+    analog_button(uint32_t deadzone, uint32_t sustain_ms, bool clear)
+        : deadzone(deadzone), sustain_ms(sustain_ms), clear(clear)
     {
-        center = counter;
+        center = 0;
+        center_valid = false;
         t_timeout = 0;
         state = 0;
     }
 
-    int8_t poll() {
-        uint8_t observed = counter;
+    int8_t poll(uint32_t current_value) {
+        if (!center_valid) {
+            center_valid = true;
+            center = current_value;
+        }
+
+        uint8_t observed = current_value;
         int8_t delta = observed - center;
         last_delta = delta;
 
@@ -533,7 +538,7 @@ int main() {
     qe2a.set_mode(Pin::AF);
     qe2b.set_mode(Pin::AF);    
 
-    analog_button tt1(TIM2.CNT, 4, 100, true);
+    analog_button tt1(4, 200, true);
 
     if (config.flags & ARCIN_CONFIG_FLAG_DEBOUNCE) {
         if ((2 <= config.debounce_ticks) && (config.debounce_ticks <= 255)) {
@@ -597,9 +602,16 @@ int main() {
                            (debounce(remapped) & debounce_mask);
             }
 
+            // adjust turntable sensitivity
+            if (config.qe1_sens < 0) {
+                qe1_count /= -config.qe1_sens;
+            } else if (config.qe1_sens > 0) {
+                qe1_count *= config.qe1_sens;
+            }
+
             // Digital turntable for LR2.
             if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
-                switch (tt1.poll()) {
+                switch (tt1.poll(qe1_count)) {
                 case -1:
                     remapped |= JOY_BUTTON_13;
                     break;
@@ -636,17 +648,11 @@ int main() {
                 }
             }
 
-            // Finally - adjust turntable sensitivity before reporting it
-            if(config.qe1_sens < 0) {
-                qe1_count /= -config.qe1_sens;
-            } else if(config.qe1_sens > 0) {
-                qe1_count *= config.qe1_sens;
-            }
-
             input_report_t report;
             report.report_id = 1;
             report.buttons = remapped;
-            if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
+            if (((config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) != 0) &&
+                ((config.flags & ARCIN_CONFIG_FLAG_ANALOG_TT_FORCE_ENABLE) == 0))  {
                 report.axis_x = uint8_t(127);
             } else {
                 report.axis_x = uint8_t(qe1_count);

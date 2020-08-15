@@ -12,12 +12,18 @@ struct config_t {
     uint8_t debounce_ticks;
 };
 
-#define ARCIN_CONFIG_FLAG_SEL_MULTI_TAP        (1 << 0)
-#define ARCIN_CONFIG_FLAG_INVERT_QE1           (1 << 1)
-#define ARCIN_CONFIG_FLAG_SWAP_8_9             (1 << 2)
-#define ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE    (1 << 3)
-#define ARCIN_CONFIG_FLAG_DEBOUNCE             (1 << 4)
-#define ARCIN_CONFIG_FLAG_250HZ_READ_ONLY      (1 << 5)
+#define ARCIN_CONFIG_FLAG_SEL_MULTI_TAP          (1 << 0)
+#define ARCIN_CONFIG_FLAG_INVERT_QE1             (1 << 1)
+#define ARCIN_CONFIG_FLAG_SWAP_8_9               (1 << 2)
+#define ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE      (1 << 3)
+#define ARCIN_CONFIG_FLAG_DEBOUNCE               (1 << 4)
+#define ARCIN_CONFIG_FLAG_250HZ_READ_ONLY        (1 << 5)
+
+// Normally, ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE causes the analog turntable
+// to be disabled. With this flag, analog can also be enabled.
+// This is obtuse on purpose to keep binary compatibility with configuration
+// saved by older firmware!
+#define ARCIN_CONFIG_FLAG_ANALOG_TT_FORCE_ENABLE (1 << 6)
 
 typedef enum _effector_mode_option {
     START_E1_SEL_E2 = 0,
