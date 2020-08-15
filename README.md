@@ -56,7 +56,7 @@ The following configurations are recommended:
 
 * Infinitas, beatoraja    
     * 1000hz, but some have reported 250hz being better for Infinitas
-    * No debouncing, or low debouncing
+    * No debouncing
     * Analog turntable ONLY (leaving digital turntable on will confuse the game)
     * Turntable sensitivity 1/3 - 1/4    
 * LR2
