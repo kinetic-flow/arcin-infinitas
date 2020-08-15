@@ -12,9 +12,9 @@ A custom arcin firmware, written for broad compatibility with various games, inc
 
 ## How do I flash the firmware?
 
-Run the executable (arcin_infinitas_new.exe) in Windows. You might need to do it a few times until it works.
+Unplug your controller. Hold down buttons 1 and 2 while you plug it back in. If you see button 1 flashing - you are now in flashing mode.
 
-If it does not detect your controller, unplug, hold down 1+2, plug back in - you are now in flashing mode. Try running the executable again.
+Run the executable (arcin_infinitas_new_1000hz.exe or arcin_infinitas_new_250hz.exe) in Windows. You might need to do it a few times until it works.
 
 ## How do I use it with Infinitas?
 * Ensure your turntable is connected to QE1, buttons to b1-b7, start and select to b10 or b11.
