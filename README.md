@@ -52,6 +52,24 @@ Press "Refresh" to update the list of devices. Press "Load" to load settings fro
 
 Hovering over some of the options will show you a tooltip with helpful text.
 
+The following configurations are recommended:
+
+* Infinitas, beatoraja    
+    * 1000hz, but some have reported 250hz being better for Infinitas
+    * Analog turntable ONLY (leaving digital turntable on will confuse the game)
+    * Turntable sensitivity 1/3 - 1/4
+    * No debouncing
+* LR2
+    * 1000hz firmware
+    * 4-5 frames of debouncing
+    * Digital turntable
+    * Turntable sensitivity 1/3 - 1/4
+* HID-light
+    * 1000hz firmware
+    * No debouncing
+    * Analog turntable
+    * Turntable sensitivity 1/3 - 1/4
+   
 # More implementation details
 
 * This firmware is configured to run at 1000hz, not 250hz. In the past running with 1000hz mode was a problem with Infinitas, but that does not seem to be the case for the new version.
