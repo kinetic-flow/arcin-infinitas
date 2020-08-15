@@ -50,16 +50,7 @@ This firmware is also technically compatible with the flashing tools, but the fl
 
 Press "Refresh" to update the list of devices. Press "Load" to load settings from your controller. Press "Save" to save your settings to your controller.
 
-|Option            |Description  |
-| :--------------- | :---------- |
-|Label           | Set custom name to be used as an identifer for your controller (useful if you have more than one controller) |
-|E2 multi-function | Enables multi-function mode - single click E2 for E2, double-click E2 for E3, triple-click E2 for E2+E3. If this feature is disabled, E2 is just E2. |
-|Invert QE1 | Inverts the direction of the turntable. Infinitas expects clockwise motion of the turntable to be negative x direction (to the left). If you check this, it will be flipped. |
-|Swap 8/9        | If you have buttons connected to button 8 and button 9 pins on arcin, enabling this will swap them around. These always map to E3 and E4 in infinitas. |
-|LR2 Digital TT  | When disabled, analog turntable is used (Infinitas, HID-light, beatoraja). When enabled, digital turntable is used (LR2). You can't have both, sorry. |
-|Debounce (5ms)  | Enables debounce logic. Useful for LR2 if you have bad switches.
-|QE1 sensitivity | Adjust turntable sensitivity. Experiment with various settings! Keep in mind that 120hz Infinitas requires higher sensitivty settings than other games for some reason. |
-|Start and Select | Configure what your Start and Select buttons will do in Infinitas. You probably want the first or the second option (E1 and E2). |
+Hovering over some of the options will show you a tooltip with helpful text.
 
 # More implementation details
 
