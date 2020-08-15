@@ -21,9 +21,7 @@ rm -rf ./pkg/*
 cp COPYING ./pkg/license.txt
 cp readme.txt ./pkg
 cp ./bin/* ./pkg
-
-mkdir -p ./conf
-cp ./conf/* ./pkg
+cp ../arcin-conf/arcin-infinitas-conf/dist/arcin_conf_infinitas.exe ./pkg
 
 mkdir -p ./dist
 
