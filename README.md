@@ -19,7 +19,7 @@ Run the executable (arcin_infinitas_new_1000hz.exe or arcin_infinitas_new_250hz.
 ## How do I use it with Infinitas?
 * Ensure your turntable is connected to QE1, buttons to b1-b7, start and select to b10 or b11.
 * Launch the configuration tool (arcin_conf_infinitas.exe)
-    * Ensure "LR2 Digital TT" is OFF.
+    * Set turntable mode to Analog only.
     * Adjust turntable sensitity as needed.
     * Change E-button layout as needed.
 * Start the Infinitas launcher, enter Settings
