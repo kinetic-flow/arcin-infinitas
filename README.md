@@ -99,7 +99,7 @@ To create an executable for easily flashing the ELF file, grab https://github.co
 
 I had success with Ubuntu 20.04 LTS on WSL2 (Windows Subsystem for Linux). Mind that ARM toolchian will not work in WSL1!
 
-The configuration is hosted at https://github.com/minsang-github/arcin-infinitas-conf and that one is a pure python project.
+Source for GUI configuration tool is hosted at https://github.com/minsang-github/arcin-infinitas-conf and that one is a pure python project.
 
 ## Disclaimer
 
