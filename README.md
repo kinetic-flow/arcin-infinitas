@@ -62,12 +62,12 @@ The following configurations are recommended:
     * Analog turntable ONLY (leaving digital turntable on will confuse the game)
     * Turntable sensitivity 1:3 for 250hz, 1:4 for 1000hz
 * LR2
-    * 1000hz firmware
+    * 1000hz polling rate
     * 4-5 frames of debouncing
     * Digital turntable
     * Turntable sensitivity 1:3 or 1:4
 * HID-light
-    * 1000hz firmware
+    * 1000hz polling rate
     * No debouncing
     * Analog turntable
     * Turntable sensitivity 1:4
