@@ -14,7 +14,7 @@ A custom arcin firmware, written for broad compatibility with various games, inc
 
 Unplug your controller. Hold down buttons 1 and 2 while you plug it back in. If you see button 1 flashing - you are now in flashing mode.
 
-Run the executable (arcin_infinitas_new_1000hz.exe or arcin_infinitas_new_250hz.exe) in Windows. You might need to do it a few times until it works.
+Run the executable (arcin_infinitas_new.exe or arcin_infinitas_new.exe) in Windows. You might need to do it a few times until it works.
 
 ## How do I use it with Infinitas?
 * Ensure your turntable is connected to QE1, buttons to b1-b7, start and select to b10 or b11.
@@ -37,8 +37,10 @@ On top of the "arcin_flash_config_alpha5" firmware, the following changes are ma
 
 * Changes the hardware ID (USB VID / PID) to be the same as Konami infinitas controller. This allows the game to automatically detect it & use the analog turntable.
 * Remaps E1-E4 buttons correctly (customizable in the configuration tool)
-* Optional analog / digital turntable switch
+* Optional analog / digital turntable modes
 * Optional double-click / triple-click select button feature (like DJ DAO)
+* Optional button debouncing
+* Freely switch between 1000hz / 250hz polling mode
 
 In addition to Infinitas, this firmware should be perfectly fine with HID-light and beatoraja (analog turntable) configurations. If you enable digital turntable in the configuration tool, it will also work in LR2 for playing BMS.
 
