@@ -72,13 +72,6 @@ The following configurations are recommended:
     * Analog turntable
     * Turntable sensitivity 1:4
    
-# More implementation details
-
-* This firmware is configured to run at 1000hz, not 250hz. In the past running with 1000hz mode was a problem with Infinitas, but that does not seem to be the case for the new version.
-* Debounce option is for LR2 users with bad switches; only when a switch is reported to be ON or OFF for 5 consecutive polls (5 milliseconds) it will register. If you are playing IIDX or beatoraja, you should leave this disabled, as those games already do software debouncing in the game.
-* When multi-tap is on, it is possible to press and hold the E2 button. If you press-hold, it's a long press E2 until you release, if you press-release-press-hold, it's a long press E3.
-* When in LR2 digital turntable mode, the chatter (bounce) is compensated by enforcing a small deadzone, which means you must move the turntable a pre-defined angle before it registers a direction. It is not delay-based like it is in some firmware. The deadzone is hardcoded and not configurable.
-
 ## Building
 
 This section is for developers only. If you're just looking to run this on your board, download the [latest release](https://github.com/minsang-github/arcin-infinitas/releases/latest).
