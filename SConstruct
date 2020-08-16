@@ -4,16 +4,6 @@ env = Environment(
 	ENV = os.environ,
 )
 
-if os.environ.get('ARCIN_INFINITAS_250HZ_MODE') == '1':
-	print("* * * Modified 250hz mode * * *")
-	env.Append(
-		CPPDEFINES = {
-			'ARCIN_INFINITAS_250HZ_MODE': 1
-		}
-	)
-else:
-	print("* * * Default 1000hz mode * * *")
-
 SConscript('laks/build_rules')
 
 env.SelectMCU('stm32f303rc')

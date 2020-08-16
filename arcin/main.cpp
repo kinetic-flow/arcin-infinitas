@@ -72,26 +72,27 @@ auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6080, 0x110, 1, 2, 3, 
 // overridng any user settings in the launcher
 auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1CCF, 0x8048, 0x110, 1, 2, 3, 1);
 
-#if ARCIN_INFINITAS_250HZ_MODE
-
-uint8_t bSynchAddress = 4;
-
-#else
-
-uint8_t bSynchAddress = 1;
-
-#endif
-
-auto conf_desc = configuration_desc(1, 1, 0, 0xc0, 0,
+auto conf_desc_1000hz = configuration_desc(1, 1, 0, 0xc0, 0,
     // HID interface.
     interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
         hid_desc(0x111, 0, 1, 0x22, sizeof(report_desc)),
-        endpoint_desc(0x81, 0x03, 16, bSynchAddress)
+        endpoint_desc(0x81, 0x03, 16, 1)
+    )
+);
+
+auto conf_desc_250hz = configuration_desc(1, 1, 0, 0xc0, 0,
+    // HID interface.
+    interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
+        hid_desc(0x111, 0, 1, 0x22, sizeof(report_desc)),
+        endpoint_desc(0x81, 0x03, 16, 4)
     )
 );
 
 desc_t dev_desc_p = {sizeof(dev_desc), (void*)&dev_desc};
-desc_t conf_desc_p = {sizeof(conf_desc), (void*)&conf_desc};
+
+desc_t conf_desc_p_1000hz = {sizeof(conf_desc_1000hz), (void*)&conf_desc_1000hz};
+desc_t conf_desc_p_250hz = {sizeof(conf_desc_250hz), (void*)&conf_desc_250hz};
+
 desc_t report_desc_p = {sizeof(report_desc), (void*)&report_desc};
 
 static Pin usb_dm = GPIOA[11];
@@ -109,7 +110,8 @@ static Pin qe2b = GPIOA[7];
 static Pin led1 = GPIOA[8];
 static Pin led2 = GPIOA[9];
 
-USB_f1 usb(USB, dev_desc_p, conf_desc_p);
+USB_f1 usb_1000hz(USB, dev_desc_p, conf_desc_p_1000hz);
+USB_f1 usb_250hz(USB, dev_desc_p, conf_desc_p_250hz);
 
 uint32_t last_led_time;
 
@@ -214,16 +216,6 @@ uint32_t e2_rising_edge_count;
 // begin to assert.
 // i.e., any multi-taps must be done within this window in order to count
 #define MULTITAP_DETECTION_WINDOW_MS           400
-
-#if ARCIN_INFINITAS_250HZ_MODE
-
-#define MULTITAP_RESULT_HOLD_TICKS 25
-
-#else
-
-#define MULTITAP_RESULT_HOLD_TICKS 100
-
-#endif
 
 uint16_t multitap_active_frames;
 uint16_t multitap_buttons_to_assert;
@@ -456,9 +448,11 @@ public:
     }
 };
 
-HID_arcin usb_hid(usb, report_desc_p);
+HID_arcin usb_hid_1000hz(usb_1000hz, report_desc_p);
+HID_arcin usb_hid_250hz(usb_250hz, report_desc_p);
 
-USB_strings usb_strings(usb, config.label);
+USB_strings usb_strings_1000hz(usb_1000hz, config.label);
+USB_strings usb_strings_250hz(usb_250hz, config.label);
 
 int main() {
     rcc_init();
@@ -469,10 +463,6 @@ int main() {
     
     // Load config.
     configloader.read(sizeof(config), &config);
-
-#if ARCIN_INFINITAS_250HZ_MODE
-    config.flags |= ARCIN_CONFIG_FLAG_250HZ_READ_ONLY;
-#endif
 
     RCC.enable(RCC.GPIOA);
     RCC.enable(RCC.GPIOB);
@@ -485,7 +475,14 @@ int main() {
     
     RCC.enable(RCC.USB);
     
-    usb.init();
+    USB_f1* usb;
+    if (config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) {
+        usb = &usb_250hz;
+    } else {
+        usb = &usb_1000hz;
+    }
+
+    usb->init();
     
     usb_pu.set_mode(Pin::Output);
     usb_pu.on();
@@ -551,7 +548,7 @@ int main() {
     uint32_t boot_time = Time::time();
 
     while(1) {
-        usb.process();
+        usb->process();
 
         uint32_t now = Time::time();
         uint16_t buttons = button_inputs.get() ^ 0x7ff;
@@ -569,7 +566,15 @@ int main() {
         if (now - last_led_time > 1000) {
             if (now - boot_time < 2000) {
                 if (((now - boot_time) / 400) % 2 == 0) {
-                    button_leds.set(ARCIN_BUTTON_KEY_ALL_MAIN);
+                    if (config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) {
+                        button_leds.set(
+                            ARCIN_BUTTON_KEY_2 | ARCIN_BUTTON_KEY_4 | ARCIN_BUTTON_KEY_6);
+
+                    } else {
+                        button_leds.set(
+                            ARCIN_BUTTON_KEY_1 | ARCIN_BUTTON_KEY_3 |
+                            ARCIN_BUTTON_KEY_5 | ARCIN_BUTTON_KEY_7);
+                    }
                 } else {
                     button_leds.set(0);
                 }
@@ -579,7 +584,7 @@ int main() {
             }
         }
 
-        if(usb.ep_ready(1)) {
+        if(usb->ep_ready(1)) {
             uint32_t qe1_count = TIM2.CNT;
             uint16_t remapped = remap_buttons(buttons);
 
@@ -589,13 +594,10 @@ int main() {
                 debounce_mask |= 0xffff;
             }
 
-#if !ARCIN_INFINITAS_250HZ_MODE
-
-            if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
+            if (((config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) == 0) &&
+                ((config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) != 0)) {
                 debounce_mask |= INFINITAS_BUTTON_E2;
             }
-
-#endif
 
             if (debounce_mask != 0) {
                 remapped = (remapped & ~debounce_mask) |
@@ -640,7 +642,13 @@ int main() {
                 if (multitap_active_frames > 0) {                    
                     remapped |= multitap_buttons_to_assert;
                 } else if (is_multitap_window_closed()) {
-                    multitap_active_frames = MULTITAP_RESULT_HOLD_TICKS;
+                    
+                    if (config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) {
+                        multitap_active_frames = 25;
+                    } else {
+                        multitap_active_frames = 100;
+                    }                    
+
                     first_e2_rising_edge_time = 0;
                     multitap_buttons_to_assert =
                         get_multitap_output(e2_rising_edge_count);
@@ -659,7 +667,7 @@ int main() {
                 report.axis_x = uint8_t(qe1_count);
             }
             report.axis_y = 127;
-            usb.write(1, (uint32_t*)&report, sizeof(report));
+            usb->write(1, (uint32_t*)&report, sizeof(report));
         }
     }
 }
