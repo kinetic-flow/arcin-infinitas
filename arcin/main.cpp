@@ -10,50 +10,19 @@
 #include "usb_strings.h"
 #include "configloader.h"
 #include "config.h"
+#include "inf_defines.h"
 
 #define ARRAY_SIZE(x) \
     ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
-//
-// Pin out on arcin board
-//
-
-#define ARCIN_BUTTON_KEY_1        ((uint16_t)(1 << 0))
-#define ARCIN_BUTTON_KEY_2        ((uint16_t)(1 << 1))
-#define ARCIN_BUTTON_KEY_3        ((uint16_t)(1 << 2))
-#define ARCIN_BUTTON_KEY_4        ((uint16_t)(1 << 3))
-#define ARCIN_BUTTON_KEY_5        ((uint16_t)(1 << 4))
-#define ARCIN_BUTTON_KEY_6        ((uint16_t)(1 << 5))
-#define ARCIN_BUTTON_KEY_7        ((uint16_t)(1 << 6))
-
-#define ARCIN_BUTTON_KEY_ALL_MAIN ((uint16_t)(0x7F))
-
-#define ARCIN_BUTTON_EXTRA_8      ((uint16_t)(1 << 7))
-#define ARCIN_BUTTON_EXTRA_9      ((uint16_t)(1 << 8))
-
-#define ARCIN_BUTTON_START        ((uint16_t)(1 << 9))
-#define ARCIN_BUTTON_SEL          ((uint16_t)(1 << 10))
-
-//
-// Remapped values for Windows
-//
-
-#define JOY_BUTTON_13             ((uint16_t)(1 << 12))
-#define JOY_BUTTON_14             ((uint16_t)(1 << 13))
-
-#define INFINITAS_BUTTON_E1       ((uint16_t)(1 << 8))
-#define INFINITAS_BUTTON_E2       ((uint16_t)(1 << 9))
-#define INFINITAS_BUTTON_E3       ((uint16_t)(1 << 10))
-#define INFINITAS_BUTTON_E4       ((uint16_t)(1 << 11))
-
 static const uint16_t infinitas_keys[] = {
-    ARCIN_BUTTON_KEY_1,
-    ARCIN_BUTTON_KEY_2,
-    ARCIN_BUTTON_KEY_3,
-    ARCIN_BUTTON_KEY_4,
-    ARCIN_BUTTON_KEY_5,
-    ARCIN_BUTTON_KEY_6,
-    ARCIN_BUTTON_KEY_7,
+    INFINITAS_BUTTON_1,
+    INFINITAS_BUTTON_2,
+    INFINITAS_BUTTON_3,
+    INFINITAS_BUTTON_4,
+    INFINITAS_BUTTON_5,
+    INFINITAS_BUTTON_6,
+    INFINITAS_BUTTON_7,
     INFINITAS_BUTTON_E1,
     INFINITAS_BUTTON_E2,
     INFINITAS_BUTTON_E3,
@@ -325,10 +294,11 @@ uint16_t remap_buttons(uint16_t buttons) {
     uint16_t remapped;
 
     // Grab the first 7 buttons (keys)
-    remapped = buttons & ARCIN_BUTTON_KEY_ALL_MAIN;
+    // The keys have the same values across raw input and infinitas input
+    remapped = buttons & ARCIN_PIN_BUTTON_ALL_KEYS;
 
     // Remap start button
-    if (buttons & ARCIN_BUTTON_START) {
+    if (buttons & ARCIN_PIN_BUTTON_START) {
         switch(config.effector_mode) {
         case START_E1_SEL_E2:
         default:
@@ -350,7 +320,7 @@ uint16_t remap_buttons(uint16_t buttons) {
     }
 
     // Remap select button
-    if (buttons & ARCIN_BUTTON_SEL) {
+    if (buttons & ARCIN_PIN_BUTTON_SELECT) {
         switch(config.effector_mode) {
         case START_E1_SEL_E2:
         default:
@@ -372,7 +342,7 @@ uint16_t remap_buttons(uint16_t buttons) {
     }
 
     // Button 8 is normally E3, unless flipped
-    if (buttons & ARCIN_BUTTON_EXTRA_8) {
+    if (buttons & ARCIN_PIN_BUTTON_8) {
         if (config.flags & ARCIN_CONFIG_FLAG_SWAP_8_9) {
             remapped |= INFINITAS_BUTTON_E4;
         } else {
@@ -381,7 +351,7 @@ uint16_t remap_buttons(uint16_t buttons) {
     }
 
     // Button 9 is normally E4, unless flipped
-    if (buttons & ARCIN_BUTTON_EXTRA_9) {
+    if (buttons & ARCIN_PIN_BUTTON_9) {
         if (config.flags & ARCIN_CONFIG_FLAG_SWAP_8_9) {
             remapped |= INFINITAS_BUTTON_E3;
         } else {
@@ -619,12 +589,12 @@ int main() {
                 if (((now - boot_time) / 400) % 2 == 0) {
                     if (config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) {
                         button_leds.set(
-                            ARCIN_BUTTON_KEY_2 | ARCIN_BUTTON_KEY_4 | ARCIN_BUTTON_KEY_6);
+                            ARCIN_PIN_BUTTON_2 | ARCIN_PIN_BUTTON_4 | ARCIN_PIN_BUTTON_6);
 
                     } else {
                         button_leds.set(
-                            ARCIN_BUTTON_KEY_1 | ARCIN_BUTTON_KEY_3 |
-                            ARCIN_BUTTON_KEY_5 | ARCIN_BUTTON_KEY_7);
+                            ARCIN_PIN_BUTTON_1 | ARCIN_PIN_BUTTON_3 |
+                            ARCIN_PIN_BUTTON_5 | ARCIN_PIN_BUTTON_7);
                     }
                 } else {
                     button_leds.set(0);
