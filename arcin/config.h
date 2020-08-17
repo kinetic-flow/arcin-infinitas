@@ -10,7 +10,15 @@ struct config_t {
     int8_t qe2_sens;
     uint8_t effector_mode;
     uint8_t debounce_ticks;
+
+    // [Buttons 1-7] + [E1-E4] + [TT Up] + [TT Down] = 13 + 3pad
+    char keycodes[16];
+
+    uint8_t reserved[24];
 };
+
+// From config_report_t.data[60]
+static_assert(sizeof(config_t) == 60, "config size mismatch");
 
 #define ARCIN_CONFIG_FLAG_SEL_MULTI_TAP          (1 << 0)
 #define ARCIN_CONFIG_FLAG_INVERT_QE1             (1 << 1)
@@ -24,6 +32,8 @@ struct config_t {
 // This is obtuse on purpose to keep binary compatibility with configuration
 // saved by older firmware!
 #define ARCIN_CONFIG_FLAG_ANALOG_TT_FORCE_ENABLE (1 << 6)
+#define ARCIN_CONFIG_FLAG_KEYBOARD_ENABLE        (1 << 7)
+#define ARCIN_CONFIG_FLAG_JOYINPUT_DISABLE       (1 << 8)
 
 typedef enum _effector_mode_option {
     START_E1_SEL_E2 = 0,

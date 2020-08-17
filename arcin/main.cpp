@@ -11,6 +11,9 @@
 #include "configloader.h"
 #include "config.h"
 
+#define ARRAY_SIZE(x) \
+    ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
+
 //
 // Pin out on arcin board
 //
@@ -43,6 +46,23 @@
 #define INFINITAS_BUTTON_E3       ((uint16_t)(1 << 10))
 #define INFINITAS_BUTTON_E4       ((uint16_t)(1 << 11))
 
+static const uint16_t infinitas_keys[] = {
+    ARCIN_BUTTON_KEY_1,
+    ARCIN_BUTTON_KEY_2,
+    ARCIN_BUTTON_KEY_3,
+    ARCIN_BUTTON_KEY_4,
+    ARCIN_BUTTON_KEY_5,
+    ARCIN_BUTTON_KEY_6,
+    ARCIN_BUTTON_KEY_7,
+    INFINITAS_BUTTON_E1,
+    INFINITAS_BUTTON_E2,
+    INFINITAS_BUTTON_E3,
+    INFINITAS_BUTTON_E4
+
+    // [11] = digital tt CW
+    // [12] = digital tt CCW
+};
+
 static uint32_t& reset_reason = *(uint32_t*)0x10000000;
 
 static bool do_reset_bootloader;
@@ -72,19 +92,27 @@ auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6080, 0x110, 1, 2, 3, 
 // overridng any user settings in the launcher
 auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1CCF, 0x8048, 0x110, 1, 2, 3, 1);
 
-auto conf_desc_1000hz = configuration_desc(1, 1, 0, 0xc0, 0,
+auto conf_desc_1000hz = configuration_desc(2, 1, 0, 0xc0, 0,
     // HID interface.
     interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
         hid_desc(0x111, 0, 1, 0x22, sizeof(report_desc)),
         endpoint_desc(0x81, 0x03, 16, 1)
+    ),
+    interface_desc(1, 0, 1, 0x03, 0x00, 0x00, 0,
+        hid_desc(0x111, 0, 1, 0x22, sizeof(keyb_report_desc)),
+        endpoint_desc(0x82, 0x03, 16, 1)
     )
 );
 
-auto conf_desc_250hz = configuration_desc(1, 1, 0, 0xc0, 0,
+auto conf_desc_250hz = configuration_desc(2, 1, 0, 0xc0, 0,
     // HID interface.
     interface_desc(0, 0, 1, 0x03, 0x00, 0x00, 0,
         hid_desc(0x111, 0, 1, 0x22, sizeof(report_desc)),
         endpoint_desc(0x81, 0x03, 16, 4)
+    ),
+    interface_desc(1, 0, 1, 0x03, 0x00, 0x00, 0,
+        hid_desc(0x111, 0, 1, 0x22, sizeof(keyb_report_desc)),
+        endpoint_desc(0x82, 0x03, 16, 4)
     )
 );
 
@@ -94,6 +122,8 @@ desc_t conf_desc_p_1000hz = {sizeof(conf_desc_1000hz), (void*)&conf_desc_1000hz}
 desc_t conf_desc_p_250hz = {sizeof(conf_desc_250hz), (void*)&conf_desc_250hz};
 
 desc_t report_desc_p = {sizeof(report_desc), (void*)&report_desc};
+desc_t keyb_report_desc_p =
+    {sizeof(keyb_report_desc), (void*)&keyb_report_desc};
 
 static Pin usb_dm = GPIOA[11];
 static Pin usb_dp = GPIOA[12];
@@ -200,6 +230,22 @@ class HID_arcin : public USB_HID {
                 default:
                     return false;
             }
+        }
+};
+
+class HID_keyb : public USB_HID {
+    public:
+        HID_keyb(USB_generic& usbd, desc_t rdesc) : USB_HID(usbd, rdesc, 1, 2, 64) {}
+
+    protected:
+        virtual bool set_output_report(uint32_t* buf, uint32_t len) {
+            // ignore
+            return true;
+        }
+
+        virtual bool set_feature_report(uint32_t* buf, uint32_t len) {
+            // ignore
+            return false;
         }
 };
 
@@ -346,7 +392,7 @@ uint16_t remap_buttons(uint16_t buttons) {
     return remapped;
 }
 
-#define DEBOUNCE_FRAME_MAX 255
+#define DEBOUNCE_FRAME_MAX 10
 
 uint8_t debounce_window = 2;
 uint16_t debounce_state = 0;
@@ -451,6 +497,9 @@ public:
 HID_arcin usb_hid_1000hz(usb_1000hz, report_desc_p);
 HID_arcin usb_hid_250hz(usb_250hz, report_desc_p);
 
+HID_keyb usb_hid_keyb_1000hz(usb_1000hz, keyb_report_desc_p);
+HID_keyb usb_hid_keyb_250hz(usb_250hz, keyb_report_desc_p);
+
 USB_strings usb_strings_1000hz(usb_1000hz, config.label);
 USB_strings usb_strings_250hz(usb_250hz, config.label);
 
@@ -538,10 +587,12 @@ int main() {
     analog_button tt1(4, 200, true);
 
     if (config.flags & ARCIN_CONFIG_FLAG_DEBOUNCE) {
-        if ((2 <= config.debounce_ticks) && (config.debounce_ticks <= 255)) {
-            debounce_window = config.debounce_ticks;
-        } else {
+        if (2 < config.debounce_ticks) {
             debounce_window = 2;
+        } else if (10 < config.debounce_ticks) {
+            debounce_window = 10;
+        } else {
+            debounce_window = config.debounce_ticks;
         }
     }
 
@@ -584,29 +635,72 @@ int main() {
             }
         }
 
-        if(usb->ep_ready(1)) {
-            uint32_t qe1_count = TIM2.CNT;
-            uint16_t remapped = remap_buttons(buttons);
+        // [READ QE1]
+        uint32_t qe1_count = TIM2.CNT;
 
-            // Apply debounce...
-            uint16_t debounce_mask = 0;
-            if (config.flags & ARCIN_CONFIG_FLAG_DEBOUNCE) {
-                debounce_mask |= 0xffff;
+        // [REMAP]
+        uint16_t remapped = remap_buttons(buttons);
+
+        // [DEBOUNCE] Apply debounce...
+        uint16_t debounce_mask = 0;
+        if (config.flags & ARCIN_CONFIG_FLAG_DEBOUNCE) {
+            debounce_mask |= 0xffff;
+        }
+
+        if (((config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) == 0) &&
+            ((config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) != 0)) {
+            debounce_mask |= INFINITAS_BUTTON_E2;
+        }
+
+        if (debounce_mask != 0) {
+            remapped = (remapped & ~debounce_mask) |
+                        (debounce(remapped) & debounce_mask);
+        }
+
+        // [DIGITAL QE1]
+        int8_t tt1_report = 0;
+        if ((config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) ||
+            (config.flags & ARCIN_CONFIG_FLAG_KEYBOARD_ENABLE)) {
+            tt1_report = tt1.poll(qe1_count);
+        }
+
+        // [E2 MULTI-TAP]
+        // Multi-tap processing of E2. Must be done after debounce.
+        if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
+            if (multitap_active_frames == 0) {
+                // Make a note of its current state
+                e2_update((remapped & INFINITAS_BUTTON_E2) != 0);
+            } else if ((remapped & INFINITAS_BUTTON_E2) == 0) {
+                // if the button is no longer being held, count down
+                multitap_active_frames -= 1;
             }
 
-            if (((config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) == 0) &&
-                ((config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) != 0)) {
-                debounce_mask |= INFINITAS_BUTTON_E2;
-            }
+            // Always clear E2 since it should not be asserted directly
+            remapped &= ~(INFINITAS_BUTTON_E2);
 
-            if (debounce_mask != 0) {
-                remapped = (remapped & ~debounce_mask) |
-                           (debounce(remapped) & debounce_mask);
-            }
+            if (multitap_active_frames > 0) {                    
+                remapped |= multitap_buttons_to_assert;
+            } else if (is_multitap_window_closed()) {
+                
+                if (config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) {
+                    multitap_active_frames = 25;
+                } else {
+                    multitap_active_frames = 100;
+                }                    
 
-            // Digital turntable for LR2.
+                first_e2_rising_edge_time = 0;
+                multitap_buttons_to_assert =
+                    get_multitap_output(e2_rising_edge_count);
+
+                e2_rising_edge_count = 0;
+            }
+        }
+
+        // [GAMEPAD]]
+        if (usb->ep_ready(1)) {
+            // [DIGITAL TT -> BUTTONS]
             if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
-                switch (tt1.poll(qe1_count)) {
+                switch (tt1_report) {
                 case -1:
                     remapped |= JOY_BUTTON_13;
                     break;
@@ -618,6 +712,7 @@ int main() {
                 }
             }
 
+            // [ANALOG TT -> SENSITIVITY]
             // Adjust turntable sensitivity. Must be done AFTER digital TT
             // processing.
             if (config.qe1_sens < 0) {
@@ -626,48 +721,55 @@ int main() {
                 qe1_count *= config.qe1_sens;
             }
 
-            // Multi-tap processing of E2. Must be done after debounce.
-            if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
-                if (multitap_active_frames == 0) {
-                    // Make a note of its current state
-                    e2_update((remapped & INFINITAS_BUTTON_E2) != 0);
-                } else if ((remapped & INFINITAS_BUTTON_E2) == 0) {
-                    // if the button is no longer being held, count down
-                    multitap_active_frames -= 1;
-                }
-
-                // Always clear E2 since it should not be asserted directly
-                remapped &= ~(INFINITAS_BUTTON_E2);
-
-                if (multitap_active_frames > 0) {                    
-                    remapped |= multitap_buttons_to_assert;
-                } else if (is_multitap_window_closed()) {
-                    
-                    if (config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) {
-                        multitap_active_frames = 25;
-                    } else {
-                        multitap_active_frames = 100;
-                    }                    
-
-                    first_e2_rising_edge_time = 0;
-                    multitap_buttons_to_assert =
-                        get_multitap_output(e2_rising_edge_count);
-
-                    e2_rising_edge_count = 0;
-                }
-            }
-
             input_report_t report;
             report.report_id = 1;
-            report.buttons = remapped;
-            if (((config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) != 0) &&
-                ((config.flags & ARCIN_CONFIG_FLAG_ANALOG_TT_FORCE_ENABLE) == 0))  {
+            if (config.flags & ARCIN_CONFIG_FLAG_KEYBOARD_ENABLE) {
+                report.buttons = 0;
+            } else {
+                report.buttons = remapped;
+            }
+
+            if (((config.flags & ARCIN_CONFIG_FLAG_KEYBOARD_ENABLE) != 0) ||
+                 (((config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) != 0) &&
+                  ((config.flags & ARCIN_CONFIG_FLAG_ANALOG_TT_FORCE_ENABLE) == 0))) {
                 report.axis_x = uint8_t(127);
             } else {
                 report.axis_x = uint8_t(qe1_count);
             }
             report.axis_y = 127;
             usb->write(1, (uint32_t*)&report, sizeof(report));
+        }
+        
+        // [KEYBOARD]]
+        if ((config.flags & ARCIN_CONFIG_FLAG_KEYBOARD_ENABLE) &&
+            (usb->ep_ready(2))) {
+            unsigned char scancodes[13] = { 0 };
+
+            static_assert(
+                ARRAY_SIZE(infinitas_keys) + 1 <=
+                ARRAY_SIZE(scancodes),
+                "keycode array too small");
+
+            uint8_t nextscan = 0;
+
+            for (uint8_t i = 0; i < ARRAY_SIZE(infinitas_keys); i++) {
+                if (remapped & infinitas_keys[i]) {
+                    scancodes[nextscan++] = config.keycodes[i];
+                }
+            }
+
+            switch (tt1_report) {
+            case -1:
+                scancodes[nextscan++] = config.keycodes[11];
+                break;
+            case 1:
+                scancodes[nextscan++] = config.keycodes[12];
+                break;
+            default:
+                break;
+            }
+
+            usb->write(2, (uint32_t*)scancodes, sizeof(scancodes));
         }
     }
 }
