@@ -4,10 +4,6 @@
 #include <stdint.h>
 #include "config.h"
 
-void e2_update(bool pressed);
-
-uint16_t get_multitap_output();
-
-bool is_multitap_window_closed();
+uint16_t get_multi_function_keys(bool is_e2_pressed);
 
 #endif

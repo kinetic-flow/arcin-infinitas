@@ -299,12 +299,14 @@ HID_keyb usb_hid_keyb_250hz(usb_250hz, keyb_report_desc_p);
 USB_strings usb_strings_1000hz(usb_1000hz, config.label);
 USB_strings usb_strings_250hz(usb_250hz, config.label);
 
-static uint16_t multitap_active_frames;
-static uint16_t multitap_buttons_to_assert;
-
 debounce_state debounce_state_keys;
 debounce_state debounce_state_effectors;
 uint8_t debounce_window_effectors;
+
+uint16_t debug_leds = 0;
+void debug_set_led(uint16_t leds) {
+    debug_leds = leds;
+}
 
 int main() {
     rcc_init();
@@ -394,11 +396,7 @@ int main() {
     }
 
     // effectors always have a little bit of debouncing enabled
-    if (config.flags.PollAt250Hz) {
-        debounce_window_effectors = 2;
-    } else {
-        debounce_window_effectors = 8;
-    }
+    debounce_window_effectors = 4;
 
     // Take the higher value if user has debouncing enabled
     if (config.flags.DebounceEnable) {
@@ -442,6 +440,8 @@ int main() {
                     button_leds.set(0);
                 }
                 
+            } else if (debug_leds){
+                button_leds.set(debug_leds);
             } else {
                 button_leds.set(buttons);
             }
@@ -478,30 +478,10 @@ int main() {
         // [E2 MULTI-TAP]
         // Multi-tap processing of E2. Must be done after debounce.
         if (config.flags.SelectMultiFunction) {
-            if (multitap_active_frames == 0) {
-                // Make a note of its current state
-                e2_update((remapped & INFINITAS_BUTTON_E2) != 0);
-            } else if ((remapped & INFINITAS_BUTTON_E2) == 0) {
-                // if the button is no longer being held, count down
-                multitap_active_frames -= 1;
-            }
-
             // Always clear E2 since it should not be asserted directly
+            bool is_e2_pressed = (remapped & INFINITAS_BUTTON_E2) != 0;
             remapped &= ~(INFINITAS_BUTTON_E2);
-
-            if (multitap_active_frames > 0) {                    
-                remapped |= multitap_buttons_to_assert;
-            } else if (is_multitap_window_closed()) {
-                
-                if (config.flags.PollAt250Hz) {
-                    multitap_active_frames = 50;
-                } else {
-                    multitap_active_frames = 200;
-                }                    
-
-                multitap_buttons_to_assert = get_multitap_output();
-                remapped |= multitap_buttons_to_assert;
-            }
+            remapped |= get_multi_function_keys(is_e2_pressed);
         }
 
         // [GAMEPAD]]

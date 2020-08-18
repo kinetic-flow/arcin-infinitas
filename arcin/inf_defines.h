@@ -43,4 +43,6 @@
 #define JOY_BUTTON_13             ((uint16_t)(1 << 12))
 #define JOY_BUTTON_14             ((uint16_t)(1 << 13))
 
+void debug_set_led(uint16_t leds);
+
 #endif
