@@ -11,6 +11,11 @@
 #define ARCIN_PIN_BUTTON_6        ((uint16_t)(1 << 5))
 #define ARCIN_PIN_BUTTON_7        ((uint16_t)(1 << 6))
 
+#define ARCIN_PIN_BUTTON_WHITE    ((uint16_t)(0x55))
+#define ARCIN_PIN_BUTTON_BLACK    ((uint16_t)(0x2A))
+
+#define ARCIN_PIN_BUTTON_ALL      ((uint16_t)(0x7F))
+
 #define ARCIN_PIN_BUTTON_8        ((uint16_t)(1 << 7))
 #define ARCIN_PIN_BUTTON_9        ((uint16_t)(1 << 8))
 
@@ -27,7 +32,7 @@
 #define INFINITAS_BUTTON_6        ARCIN_PIN_BUTTON_6
 #define INFINITAS_BUTTON_7        ARCIN_PIN_BUTTON_7
 
-#define INFINITAS_BUTTON_ALL      ((uint16_t)(0x7F))
+#define INFINITAS_BUTTON_ALL      ARCIN_PIN_BUTTON_ALL
 
 #define INFINITAS_BUTTON_E1       ((uint16_t)(1 << 8))
 #define INFINITAS_BUTTON_E2       ((uint16_t)(1 << 9))
@@ -43,6 +48,7 @@
 #define JOY_BUTTON_13             ((uint16_t)(1 << 12))
 #define JOY_BUTTON_14             ((uint16_t)(1 << 13))
 
-void debug_set_led(uint16_t leds);
+void set_hid_lights(uint16_t leds);
+void schedule_led(uint32_t end_time, uint16_t leds_a, uint16_t leds_b);
 
 #endif

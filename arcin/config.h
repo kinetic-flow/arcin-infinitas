@@ -21,7 +21,8 @@ typedef union _config_flags {
         uint32_t AnalogTTForceEnable: 1;
         uint32_t KeyboardEnable: 1;
         uint32_t JoyInputForceDisable: 1;
-        uint32_t Reserved: 23;
+        uint32_t ModeSwitchEnable: 1;
+        uint32_t Reserved: 22;
     };
 
     uint32_t AsUINT32;
