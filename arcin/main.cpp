@@ -343,7 +343,7 @@ uint16_t remap_buttons(uint16_t buttons) {
 
     // Button 8 is normally E3, unless flipped
     if (buttons & ARCIN_PIN_BUTTON_8) {
-        if (config.flags & ARCIN_CONFIG_FLAG_SWAP_8_9) {
+        if (config.flags.Swap89) {
             remapped |= INFINITAS_BUTTON_E4;
         } else {
             remapped |= INFINITAS_BUTTON_E3;
@@ -352,7 +352,7 @@ uint16_t remap_buttons(uint16_t buttons) {
 
     // Button 9 is normally E4, unless flipped
     if (buttons & ARCIN_PIN_BUTTON_9) {
-        if (config.flags & ARCIN_CONFIG_FLAG_SWAP_8_9) {
+        if (config.flags.Swap89) {
             remapped |= INFINITAS_BUTTON_E3;
         } else {
             remapped |= INFINITAS_BUTTON_E4;
@@ -495,7 +495,7 @@ int main() {
     RCC.enable(RCC.USB);
     
     USB_f1* usb;
-    if (config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) {
+    if (config.flags.PollAt250Hz) {
         usb = &usb_250hz;
     } else {
         usb = &usb_1000hz;
@@ -520,7 +520,7 @@ int main() {
     RCC.enable(RCC.TIM2);
     RCC.enable(RCC.TIM3);
     
-    if(!(config.flags & ARCIN_CONFIG_FLAG_INVERT_QE1)) {
+    if(!(config.flags.InvertQE1)) {
         TIM2.CCER = 1 << 1;
     }
     
@@ -556,7 +556,7 @@ int main() {
 
     analog_button tt1(4, 200, true);
 
-    if (config.flags & ARCIN_CONFIG_FLAG_DEBOUNCE) {
+    if (config.flags.DebounceEnable) {
         if (2 < config.debounce_ticks) {
             debounce_window = 2;
         } else if (10 < config.debounce_ticks) {
@@ -587,7 +587,7 @@ int main() {
         if (now - last_led_time > 1000) {
             if (now - boot_time < 2000) {
                 if (((now - boot_time) / 400) % 2 == 0) {
-                    if (config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) {
+                    if (config.flags.PollAt250Hz) {
                         button_leds.set(
                             ARCIN_PIN_BUTTON_2 | ARCIN_PIN_BUTTON_4 | ARCIN_PIN_BUTTON_6);
 
@@ -613,12 +613,11 @@ int main() {
 
         // [DEBOUNCE] Apply debounce...
         uint16_t debounce_mask = 0;
-        if (config.flags & ARCIN_CONFIG_FLAG_DEBOUNCE) {
+        if (config.flags.DebounceEnable) {
             debounce_mask |= 0xffff;
         }
 
-        if (((config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) == 0) &&
-            ((config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) != 0)) {
+        if (!config.flags.PollAt250Hz && config.flags.SelectMultiFunction) {
             debounce_mask |= INFINITAS_BUTTON_E2;
         }
 
@@ -629,14 +628,13 @@ int main() {
 
         // [DIGITAL QE1]
         int8_t tt1_report = 0;
-        if ((config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) ||
-            (config.flags & ARCIN_CONFIG_FLAG_KEYBOARD_ENABLE)) {
+        if (config.flags.DigitalTTEnable || config.flags.KeyboardEnable) {
             tt1_report = tt1.poll(qe1_count);
         }
 
         // [E2 MULTI-TAP]
         // Multi-tap processing of E2. Must be done after debounce.
-        if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
+        if (config.flags.SelectMultiFunction) {
             if (multitap_active_frames == 0) {
                 // Make a note of its current state
                 e2_update((remapped & INFINITAS_BUTTON_E2) != 0);
@@ -652,7 +650,7 @@ int main() {
                 remapped |= multitap_buttons_to_assert;
             } else if (is_multitap_window_closed()) {
                 
-                if (config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) {
+                if (config.flags.PollAt250Hz) {
                     multitap_active_frames = 25;
                 } else {
                     multitap_active_frames = 100;
@@ -669,7 +667,7 @@ int main() {
         // [GAMEPAD]]
         if (usb->ep_ready(1)) {
             // [DIGITAL TT -> BUTTONS]
-            if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
+            if (config.flags.DigitalTTEnable) {
                 switch (tt1_report) {
                 case -1:
                     remapped |= JOY_BUTTON_13;
@@ -693,15 +691,14 @@ int main() {
 
             input_report_t report;
             report.report_id = 1;
-            if (config.flags & ARCIN_CONFIG_FLAG_KEYBOARD_ENABLE) {
+            if (config.flags.KeyboardEnable) {
                 report.buttons = 0;
             } else {
                 report.buttons = remapped;
             }
 
-            if (((config.flags & ARCIN_CONFIG_FLAG_KEYBOARD_ENABLE) != 0) ||
-                 (((config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) != 0) &&
-                  ((config.flags & ARCIN_CONFIG_FLAG_ANALOG_TT_FORCE_ENABLE) == 0))) {
+            if (config.flags.KeyboardEnable ||
+                (config.flags.DigitalTTEnable && !config.flags.AnalogTTForceEnable)) {
                 report.axis_x = uint8_t(127);
             } else {
                 report.axis_x = uint8_t(qe1_count);
@@ -711,7 +708,7 @@ int main() {
         }
         
         // [KEYBOARD]]
-        if ((config.flags & ARCIN_CONFIG_FLAG_KEYBOARD_ENABLE) &&
+        if ((config.flags.KeyboardEnable) &&
             (usb->ep_ready(2))) {
             unsigned char scancodes[13] = { 0 };
 
