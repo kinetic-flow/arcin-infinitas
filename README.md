@@ -42,6 +42,7 @@ On top of the "arcin_flash_config_alpha5" firmware, the following changes are ma
 * Optional button debouncing
 * Freely switch between 1000hz / 250hz polling mode
 * Keyboard mode for games without proper gamepad support
+* Runtime mode switching via button combinations (hold start+select+button)
 
 In addition to Infinitas, this firmware should be perfectly fine with HID-light and beatoraja (analog turntable) configurations. If you enable digital turntable in the configuration tool, it will also work in LR2 for playing BMS. Keyboard mode can be used for any games that do not have full support for gamepads (DJMAX Respect V, Muse Dash...).
 
