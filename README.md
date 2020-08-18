@@ -71,7 +71,11 @@ The following configurations are recommended:
     * No debouncing
     * Analog turntable
     * Turntable sensitivity 1:4
-   
+    
+![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/master/res/keyboard.png)
+
+When keyboard mode is enabled, button pressees will register as keystrokes. Configure each key codes in the menu as shown above.
+
 ## Building
 
 This section is for developers only. If you're just looking to run this on your board, download the [latest release](https://github.com/minsang-github/arcin-infinitas/releases/latest).
