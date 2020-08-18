@@ -1,7 +1,7 @@
 # arcin-infinitas
 arcin firmware and configuration tool for multiple games, including beatmania IIDX Infinitas (2020 ver)
 
-![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/master/res/screenshot.png)
+![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/4837cf7ef25819882d576659b3b52ac2f6f5a5b2/res/screenshot.png)
 
 ## What is this?
 A custom arcin firmware, written for broad compatibility with various games, including the new infinitas 120hz version. No key config or joy2key needed - everything will work with the game out of the gate. It is natively compatible with Infinitas, HID-light, LR2, and beatoraja. Additional games can be played using keyboard mode, with fully customizable keyboard input.
@@ -49,7 +49,7 @@ This firmware is also technically compatible with the flashing tools, but the fl
 
 # Configuration tool
 
-![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/master/res/screenshot.png)
+![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/4837cf7ef25819882d576659b3b52ac2f6f5a5b2/res/screenshot.png)
 
 Press "Refresh" to update the list of devices. Press "Load" to load settings from your controller. Press "Save" to save your settings to your controller.
 
