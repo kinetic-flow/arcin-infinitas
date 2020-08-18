@@ -469,8 +469,8 @@ int main() {
         uint32_t qe1_count = TIM2.CNT;
 
         // [MODE] Apply debounce to raw input & process runtime mode switching
-        uint16_t raw_debounced = buttons;
-        {
+        if (runtime_flags.ModeSwitchEnable) {
+            uint16_t raw_debounced = buttons;
             uint16_t debounce_mask =
                 (INFINITAS_BUTTON_ALL | INFINITAS_EFFECTORS_ALL);
             raw_debounced =
