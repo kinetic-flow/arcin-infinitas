@@ -3,9 +3,35 @@
 
 #include <stdint.h>
 
+// Assumes little-endian bit ordering (first bit is LSB)
+typedef union _config_flags {
+    struct {
+        uint32_t SelectMultiFunction: 1;
+        uint32_t InvertQE1: 1;
+        uint32_t Swap89: 1;
+        uint32_t DigitalTTEnable: 1;
+        uint32_t DebounceEnable: 1;
+        uint32_t PollAt250Hz: 1;
+        
+        // Normally, DigitalTTEnable causes the analog turntable to be disabled.
+        // With this flag, analog can also be enabled.
+        // This is obtuse on purpose to keep binary compatibility with
+        // configuration saved by older firmware!
+
+        uint32_t AnalogTTForceEnable: 1;
+        uint32_t KeyboardEnable: 1;
+        uint32_t JoyInputForceDisable: 1;
+        uint32_t Reserved: 23;
+    };
+
+    uint32_t AsUINT32;
+} config_flags, *pconfig_flags;
+
+static_assert(sizeof(config_flags) == sizeof(uint32_t), "size mismatch");
+
 struct config_t {
     uint8_t label[12];
-    uint32_t flags;
+    config_flags flags;
     int8_t qe1_sens;
     int8_t qe2_sens;
     uint8_t effector_mode;
@@ -19,21 +45,6 @@ struct config_t {
 
 // From config_report_t.data[60]
 static_assert(sizeof(config_t) == 60, "config size mismatch");
-
-#define ARCIN_CONFIG_FLAG_SEL_MULTI_TAP          (1 << 0)
-#define ARCIN_CONFIG_FLAG_INVERT_QE1             (1 << 1)
-#define ARCIN_CONFIG_FLAG_SWAP_8_9               (1 << 2)
-#define ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE      (1 << 3)
-#define ARCIN_CONFIG_FLAG_DEBOUNCE               (1 << 4)
-#define ARCIN_CONFIG_FLAG_250HZ_MODE             (1 << 5)
-
-// Normally, ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE causes the analog turntable
-// to be disabled. With this flag, analog can also be enabled.
-// This is obtuse on purpose to keep binary compatibility with configuration
-// saved by older firmware!
-#define ARCIN_CONFIG_FLAG_ANALOG_TT_FORCE_ENABLE (1 << 6)
-#define ARCIN_CONFIG_FLAG_KEYBOARD_ENABLE        (1 << 7)
-#define ARCIN_CONFIG_FLAG_JOYINPUT_DISABLE       (1 << 8)
 
 typedef enum _effector_mode_option {
     START_E1_SEL_E2 = 0,

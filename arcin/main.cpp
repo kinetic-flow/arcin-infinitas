@@ -11,49 +11,24 @@
 #include "configloader.h"
 #include "config.h"
 
+#include "inf_defines.h"
+#include "remap.h"
+#include "multifunc.h"
+#include "debounce.h"
+
 #define ARRAY_SIZE(x) \
     ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
-//
-// Pin out on arcin board
-//
-
-#define ARCIN_BUTTON_KEY_1        ((uint16_t)(1 << 0))
-#define ARCIN_BUTTON_KEY_2        ((uint16_t)(1 << 1))
-#define ARCIN_BUTTON_KEY_3        ((uint16_t)(1 << 2))
-#define ARCIN_BUTTON_KEY_4        ((uint16_t)(1 << 3))
-#define ARCIN_BUTTON_KEY_5        ((uint16_t)(1 << 4))
-#define ARCIN_BUTTON_KEY_6        ((uint16_t)(1 << 5))
-#define ARCIN_BUTTON_KEY_7        ((uint16_t)(1 << 6))
-
-#define ARCIN_BUTTON_KEY_ALL_MAIN ((uint16_t)(0x7F))
-
-#define ARCIN_BUTTON_EXTRA_8      ((uint16_t)(1 << 7))
-#define ARCIN_BUTTON_EXTRA_9      ((uint16_t)(1 << 8))
-
-#define ARCIN_BUTTON_START        ((uint16_t)(1 << 9))
-#define ARCIN_BUTTON_SEL          ((uint16_t)(1 << 10))
-
-//
-// Remapped values for Windows
-//
-
-#define JOY_BUTTON_13             ((uint16_t)(1 << 12))
-#define JOY_BUTTON_14             ((uint16_t)(1 << 13))
-
-#define INFINITAS_BUTTON_E1       ((uint16_t)(1 << 8))
-#define INFINITAS_BUTTON_E2       ((uint16_t)(1 << 9))
-#define INFINITAS_BUTTON_E3       ((uint16_t)(1 << 10))
-#define INFINITAS_BUTTON_E4       ((uint16_t)(1 << 11))
+#define max(a,b) (((a) > (b)) ? (a) : (b))
 
 static const uint16_t infinitas_keys[] = {
-    ARCIN_BUTTON_KEY_1,
-    ARCIN_BUTTON_KEY_2,
-    ARCIN_BUTTON_KEY_3,
-    ARCIN_BUTTON_KEY_4,
-    ARCIN_BUTTON_KEY_5,
-    ARCIN_BUTTON_KEY_6,
-    ARCIN_BUTTON_KEY_7,
+    INFINITAS_BUTTON_1,
+    INFINITAS_BUTTON_2,
+    INFINITAS_BUTTON_3,
+    INFINITAS_BUTTON_4,
+    INFINITAS_BUTTON_5,
+    INFINITAS_BUTTON_6,
+    INFINITAS_BUTTON_7,
     INFINITAS_BUTTON_E1,
     INFINITAS_BUTTON_E2,
     INFINITAS_BUTTON_E3,
@@ -249,185 +224,6 @@ class HID_keyb : public USB_HID {
         }
 };
 
-uint32_t first_e2_rising_edge_time;
-
-#define LAST_E2_STATUS_SIZE 3
-
-// [0] is most recent, [1] is one before that, and so on
-bool last_e2_status[LAST_E2_STATUS_SIZE];
-uint32_t e2_rising_edge_count;
-
-// Window that begins on the first falling edge of E2. At the end of the window
-// the number of taps is calculated and the resulting button combination will
-// begin to assert.
-// i.e., any multi-taps must be done within this window in order to count
-#define MULTITAP_DETECTION_WINDOW_MS           400
-
-uint16_t multitap_active_frames;
-uint16_t multitap_buttons_to_assert;
-
-void e2_update(bool pressed) {
-    // rising edge (detect off-off-on-on sequence)
-    if (pressed && last_e2_status[0] &&
-        !last_e2_status[1] && !last_e2_status[2]) {
-
-        // start counting on the first falling edge
-        if (first_e2_rising_edge_time == 0) {
-            first_e2_rising_edge_time = Time::time();
-        }
-
-        e2_rising_edge_count += 1;
-    }
-
-    for (int i = (LAST_E2_STATUS_SIZE - 1); i >= 1; i -= 1) {
-        last_e2_status[i] = last_e2_status[i-1];
-    }
-
-    last_e2_status[0] = pressed;
-}
-
-uint16_t get_multitap_output(uint32_t tap_count) {
-    uint16_t button;
-    switch (tap_count) {
-    case 1:
-        button = INFINITAS_BUTTON_E2;
-        break;
-
-    case 2:
-        button = INFINITAS_BUTTON_E3;
-        break;
-
-    case 3:
-        button = (INFINITAS_BUTTON_E2 | INFINITAS_BUTTON_E3);
-        break;
-
-    case 0:
-    default:
-        button = 0;
-        break;
-    }
-
-    return button;
-}
-
-bool is_multitap_window_closed() {
-    uint32_t diff;
-
-    if (first_e2_rising_edge_time == 0) {
-        return false;
-    }
-
-    diff = Time::time() - first_e2_rising_edge_time;
-    return diff > MULTITAP_DETECTION_WINDOW_MS;
-}
-
-uint16_t remap_buttons(uint16_t buttons) {
-    uint16_t remapped;
-
-    // Grab the first 7 buttons (keys)
-    remapped = buttons & ARCIN_BUTTON_KEY_ALL_MAIN;
-
-    // Remap start button
-    if (buttons & ARCIN_BUTTON_START) {
-        switch(config.effector_mode) {
-        case START_E1_SEL_E2:
-        default:
-            remapped |= INFINITAS_BUTTON_E1;
-            break;
-
-        case START_E2_SEL_E1:
-            remapped |= INFINITAS_BUTTON_E2;
-            break;
-
-        case START_E3_SEL_E4:
-            remapped |= INFINITAS_BUTTON_E3;
-            break;
-
-        case START_E4_SEL_E3:
-            remapped |= INFINITAS_BUTTON_E4;
-            break;
-        }
-    }
-
-    // Remap select button
-    if (buttons & ARCIN_BUTTON_SEL) {
-        switch(config.effector_mode) {
-        case START_E1_SEL_E2:
-        default:
-            remapped |= INFINITAS_BUTTON_E2;
-            break;
-
-        case START_E2_SEL_E1:
-            remapped |= INFINITAS_BUTTON_E1;
-            break;
-
-        case START_E3_SEL_E4:
-            remapped |= INFINITAS_BUTTON_E4;
-            break;
-
-        case START_E4_SEL_E3:
-            remapped |= INFINITAS_BUTTON_E3;
-            break;
-        }
-    }
-
-    // Button 8 is normally E3, unless flipped
-    if (buttons & ARCIN_BUTTON_EXTRA_8) {
-        if (config.flags & ARCIN_CONFIG_FLAG_SWAP_8_9) {
-            remapped |= INFINITAS_BUTTON_E4;
-        } else {
-            remapped |= INFINITAS_BUTTON_E3;
-        }
-    }
-
-    // Button 9 is normally E4, unless flipped
-    if (buttons & ARCIN_BUTTON_EXTRA_9) {
-        if (config.flags & ARCIN_CONFIG_FLAG_SWAP_8_9) {
-            remapped |= INFINITAS_BUTTON_E3;
-        } else {
-            remapped |= INFINITAS_BUTTON_E4;
-        }
-    }
-
-    return remapped;
-}
-
-#define DEBOUNCE_FRAME_MAX 10
-
-uint8_t debounce_window = 2;
-uint16_t debounce_state = 0;
-uint16_t debounce_history[DEBOUNCE_FRAME_MAX] = { 0 };
-uint32_t debounce_sample_time = 0;
-int debounce_index = 0;
-
-/* 
- * Perform debounce processing. The buttons input is sampled at most once per ms
- * (when update is true); buttons is then set to the last stable state for each
- * bit (i.e., the last state maintained for DEBOUNCE_FRAME_MAX consequetive samples
- *
- * We use update to sync to the USB polls; this helps avoid additional latency when
- * debounce samples just after the USB poll.
- */
-uint16_t debounce(uint16_t buttons) {
-    if (Time::time() == debounce_sample_time) {
-        return debounce_state;
-    }
-
-    debounce_sample_time = Time::time();
-    debounce_history[debounce_index] = buttons;
-    debounce_index = (debounce_index + 1) % debounce_window;
-
-    uint16_t has_ones = 0, has_zeroes = 0;
-    for (int i = 0; i < debounce_window; i++) {
-        has_ones |= debounce_history[i];
-        has_zeroes |= ~debounce_history[i];
-    }
-
-    uint16_t stable = has_ones ^ has_zeroes;
-    debounce_state = (debounce_state & ~stable) | (has_ones & stable);
-    return debounce_state;
-}
-
 class analog_button {
 public:
     // config
@@ -503,6 +299,15 @@ HID_keyb usb_hid_keyb_250hz(usb_250hz, keyb_report_desc_p);
 USB_strings usb_strings_1000hz(usb_1000hz, config.label);
 USB_strings usb_strings_250hz(usb_250hz, config.label);
 
+debounce_state debounce_state_keys;
+debounce_state debounce_state_effectors;
+uint8_t debounce_window_effectors;
+
+uint16_t debug_leds = 0;
+void debug_set_led(uint16_t leds) {
+    debug_leds = leds;
+}
+
 int main() {
     rcc_init();
     
@@ -525,7 +330,7 @@ int main() {
     RCC.enable(RCC.USB);
     
     USB_f1* usb;
-    if (config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) {
+    if (config.flags.PollAt250Hz) {
         usb = &usb_250hz;
     } else {
         usb = &usb_1000hz;
@@ -550,7 +355,7 @@ int main() {
     RCC.enable(RCC.TIM2);
     RCC.enable(RCC.TIM3);
     
-    if(!(config.flags & ARCIN_CONFIG_FLAG_INVERT_QE1)) {
+    if(!(config.flags.InvertQE1)) {
         TIM2.CCER = 1 << 1;
     }
     
@@ -586,15 +391,20 @@ int main() {
 
     analog_button tt1(4, 200, true);
 
-    if (config.flags & ARCIN_CONFIG_FLAG_DEBOUNCE) {
-        if (2 < config.debounce_ticks) {
-            debounce_window = 2;
-        } else if (10 < config.debounce_ticks) {
-            debounce_window = 10;
-        } else {
-            debounce_window = config.debounce_ticks;
-        }
+    if (config.flags.DebounceEnable) {
+        debounce_init(&debounce_state_keys, config.debounce_ticks);
     }
+
+    // effectors always have a little bit of debouncing enabled
+    debounce_window_effectors = 4;
+
+    // Take the higher value if user has debouncing enabled
+    if (config.flags.DebounceEnable) {
+        debounce_window_effectors =
+            max(debounce_window_effectors, config.debounce_ticks);
+    }
+
+    debounce_init(&debounce_state_effectors, debounce_window_effectors);
 
     uint32_t boot_time = Time::time();
 
@@ -617,19 +427,21 @@ int main() {
         if (now - last_led_time > 1000) {
             if (now - boot_time < 2000) {
                 if (((now - boot_time) / 400) % 2 == 0) {
-                    if (config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) {
+                    if (config.flags.PollAt250Hz) {
                         button_leds.set(
-                            ARCIN_BUTTON_KEY_2 | ARCIN_BUTTON_KEY_4 | ARCIN_BUTTON_KEY_6);
+                            ARCIN_PIN_BUTTON_2 | ARCIN_PIN_BUTTON_4 | ARCIN_PIN_BUTTON_6);
 
                     } else {
                         button_leds.set(
-                            ARCIN_BUTTON_KEY_1 | ARCIN_BUTTON_KEY_3 |
-                            ARCIN_BUTTON_KEY_5 | ARCIN_BUTTON_KEY_7);
+                            ARCIN_PIN_BUTTON_1 | ARCIN_PIN_BUTTON_3 |
+                            ARCIN_PIN_BUTTON_5 | ARCIN_PIN_BUTTON_7);
                     }
                 } else {
                     button_leds.set(0);
                 }
                 
+            } else if (debug_leds){
+                button_leds.set(debug_leds);
             } else {
                 button_leds.set(buttons);
             }
@@ -639,67 +451,43 @@ int main() {
         uint32_t qe1_count = TIM2.CNT;
 
         // [REMAP]
-        uint16_t remapped = remap_buttons(buttons);
+        uint16_t remapped = remap_buttons(config, buttons);
 
-        // [DEBOUNCE] Apply debounce...
-        uint16_t debounce_mask = 0;
-        if (config.flags & ARCIN_CONFIG_FLAG_DEBOUNCE) {
-            debounce_mask |= 0xffff;
+        // [DEBOUNCE] Apply debounce to keys
+        if (config.flags.DebounceEnable) {
+            uint16_t debounce_mask = INFINITAS_BUTTON_ALL;
+            remapped =
+                (remapped & ~debounce_mask) |
+                (debounce(&debounce_state_keys, remapped & debounce_mask));
         }
 
-        if (((config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) == 0) &&
-            ((config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) != 0)) {
-            debounce_mask |= INFINITAS_BUTTON_E2;
-        }
-
-        if (debounce_mask != 0) {
-            remapped = (remapped & ~debounce_mask) |
-                        (debounce(remapped) & debounce_mask);
+        // [DEBOUNCE] Apply debounce to effectors
+        {
+            uint16_t debounce_mask = INFINITAS_EFFECTORS_ALL;
+            remapped =
+                (remapped & ~debounce_mask) |
+                (debounce(&debounce_state_effectors, remapped & debounce_mask));
         }
 
         // [DIGITAL QE1]
         int8_t tt1_report = 0;
-        if ((config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) ||
-            (config.flags & ARCIN_CONFIG_FLAG_KEYBOARD_ENABLE)) {
+        if (config.flags.DigitalTTEnable || config.flags.KeyboardEnable) {
             tt1_report = tt1.poll(qe1_count);
         }
 
         // [E2 MULTI-TAP]
         // Multi-tap processing of E2. Must be done after debounce.
-        if (config.flags & ARCIN_CONFIG_FLAG_SEL_MULTI_TAP) {
-            if (multitap_active_frames == 0) {
-                // Make a note of its current state
-                e2_update((remapped & INFINITAS_BUTTON_E2) != 0);
-            } else if ((remapped & INFINITAS_BUTTON_E2) == 0) {
-                // if the button is no longer being held, count down
-                multitap_active_frames -= 1;
-            }
-
+        if (config.flags.SelectMultiFunction) {
             // Always clear E2 since it should not be asserted directly
+            bool is_e2_pressed = (remapped & INFINITAS_BUTTON_E2) != 0;
             remapped &= ~(INFINITAS_BUTTON_E2);
-
-            if (multitap_active_frames > 0) {                    
-                remapped |= multitap_buttons_to_assert;
-            } else if (is_multitap_window_closed()) {
-                
-                if (config.flags & ARCIN_CONFIG_FLAG_250HZ_MODE) {
-                    multitap_active_frames = 25;
-                } else {
-                    multitap_active_frames = 100;
-                }                    
-
-                first_e2_rising_edge_time = 0;
-                multitap_buttons_to_assert =
-                    get_multitap_output(e2_rising_edge_count);
-
-                e2_rising_edge_count = 0;
-            }
+            remapped |= get_multi_function_keys(is_e2_pressed);
         }
 
         // [GAMEPAD]]
         if (usb->ep_ready(1)) {
             // [DIGITAL TT -> BUTTONS]
-            if (config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) {
+            if (config.flags.DigitalTTEnable) {
                 switch (tt1_report) {
                 case -1:
                     remapped |= JOY_BUTTON_13;
@@ -723,15 +511,14 @@ int main() {
 
             input_report_t report;
             report.report_id = 1;
-            if (config.flags & ARCIN_CONFIG_FLAG_KEYBOARD_ENABLE) {
+            if (config.flags.JoyInputForceDisable) {
                 report.buttons = 0;
             } else {
                 report.buttons = remapped;
             }
 
-            if (((config.flags & ARCIN_CONFIG_FLAG_KEYBOARD_ENABLE) != 0) ||
-                 (((config.flags & ARCIN_CONFIG_FLAG_DIGITAL_TT_ENABLE) != 0) &&
-                  ((config.flags & ARCIN_CONFIG_FLAG_ANALOG_TT_FORCE_ENABLE) == 0))) {
+            if (config.flags.JoyInputForceDisable ||
+                (config.flags.DigitalTTEnable && !config.flags.AnalogTTForceEnable)) {
                 report.axis_x = uint8_t(127);
             } else {
                 report.axis_x = uint8_t(qe1_count);
@@ -741,7 +528,7 @@ int main() {
         }
         
         // [KEYBOARD]]
-        if ((config.flags & ARCIN_CONFIG_FLAG_KEYBOARD_ENABLE) &&
+        if ((config.flags.KeyboardEnable) &&
             (usb->ep_ready(2))) {
             unsigned char scancodes[13] = { 0 };
 
