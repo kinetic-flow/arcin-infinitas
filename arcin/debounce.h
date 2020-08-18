@@ -3,8 +3,16 @@
 
 #include <stdint.h>
 
-uint16_t debounce(uint16_t buttons);
+typedef struct _debounce_state {
+    uint16_t history[10];
+    uint8_t window;
+    uint16_t last_state;
+    uint32_t sample_time;
+    int current_index;
+} debounce_state, *pdebounce_state;
 
-void set_debounce_window(uint8_t new_window);
+void debounce_init(pdebounce_state state, uint8_t window);
+
+uint16_t debounce(pdebounce_state state, uint16_t buttons);
 
 #endif

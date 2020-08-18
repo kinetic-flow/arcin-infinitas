@@ -8,15 +8,24 @@
 // i.e., any multi-taps must be done within this window in order to count
 #define MULTITAP_DETECTION_WINDOW_MS           500
 
-static uint32_t first_e2_rising_edge_time;
+static uint32_t first_e2_rising_edge_time = 0;
 
-static bool last_e2_status;
-static uint32_t e2_rising_edge_count;
+static bool last_e2_status = 0;
+static uint32_t e2_rising_edge_count = 0;
+
+static uint32_t last_update_time = 0;
 
 void e2_update(bool pressed) {
+    if (Time::time() == last_update_time) {
+        return;
+    }
+
+    last_update_time = Time::time();
+
     // rising edge (detect off-on sequence)
     if (!last_e2_status && pressed) {
-        if (e2_rising_edge_count == 0) {
+        if (first_e2_rising_edge_time == 0) {
+            e2_rising_edge_count = 0;
             first_e2_rising_edge_time = Time::time();
         }
 
@@ -52,6 +61,7 @@ uint16_t get_multitap_output() {
     }
 
     // Reset
+    first_e2_rising_edge_time = 0;
     e2_rising_edge_count = 0;
     return button;
 }
@@ -59,7 +69,7 @@ uint16_t get_multitap_output() {
 bool is_multitap_window_closed() {
     uint32_t diff;
 
-    if (e2_rising_edge_count == 0) {
+    if (first_e2_rising_edge_time == 0) {
         return false;
     }
 

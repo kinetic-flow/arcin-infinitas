@@ -6,7 +6,7 @@ uint16_t remap_buttons(config_t &config, uint16_t buttons) {
 
     // Grab the first 7 buttons (keys)
     // The keys have the same values across raw input and infinitas input
-    remapped = buttons & ARCIN_PIN_BUTTON_ALL_KEYS;
+    remapped = buttons & INFINITAS_BUTTON_ALL;
 
     // Remap start button
     if (buttons & ARCIN_PIN_BUTTON_START) {

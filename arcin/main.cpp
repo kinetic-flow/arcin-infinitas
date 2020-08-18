@@ -19,6 +19,8 @@
 #define ARRAY_SIZE(x) \
     ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
+#define max(a,b) (((a) > (b)) ? (a) : (b))
+
 static const uint16_t infinitas_keys[] = {
     INFINITAS_BUTTON_1,
     INFINITAS_BUTTON_2,
@@ -300,6 +302,10 @@ USB_strings usb_strings_250hz(usb_250hz, config.label);
 static uint16_t multitap_active_frames;
 static uint16_t multitap_buttons_to_assert;
 
+debounce_state debounce_state_keys;
+debounce_state debounce_state_effectors;
+uint8_t debounce_window_effectors;
+
 int main() {
     rcc_init();
     
@@ -384,8 +390,23 @@ int main() {
     analog_button tt1(4, 200, true);
 
     if (config.flags.DebounceEnable) {
-        set_debounce_window(config.debounce_ticks);
+        debounce_init(&debounce_state_keys, config.debounce_ticks);
     }
+
+    // effectors always have a little bit of debouncing enabled
+    if (config.flags.PollAt250Hz) {
+        debounce_window_effectors = 2;
+    } else {
+        debounce_window_effectors = 8;
+    }
+
+    // Take the higher value if user has debouncing enabled
+    if (config.flags.DebounceEnable) {
+        debounce_window_effectors =
+            max(debounce_window_effectors, config.debounce_ticks);
+    }
+
+    debounce_init(&debounce_state_effectors, debounce_window_effectors);
 
     uint32_t boot_time = Time::time();
 
@@ -432,19 +453,20 @@ int main() {
         // [REMAP]
         uint16_t remapped = remap_buttons(config, buttons);
 
-        // [DEBOUNCE] Apply debounce...
-        uint16_t debounce_mask = 0;
+        // [DEBOUNCE] Apply debounce to keys
         if (config.flags.DebounceEnable) {
-            debounce_mask |= 0xffff;
+            uint16_t debounce_mask = INFINITAS_BUTTON_ALL;
+            remapped =
+                (remapped & ~debounce_mask) |
+                (debounce(&debounce_state_keys, remapped & debounce_mask));
         }
 
-        if (!config.flags.PollAt250Hz && config.flags.SelectMultiFunction) {
-            debounce_mask |= INFINITAS_BUTTON_E2;
-        }
-
-        if (debounce_mask != 0) {
-            remapped = (remapped & ~debounce_mask) |
-                        (debounce(remapped) & debounce_mask);
+        // [DEBOUNCE] Apply debounce to effectors
+        {
+            uint16_t debounce_mask = INFINITAS_EFFECTORS_ALL;
+            remapped =
+                (remapped & ~debounce_mask) |
+                (debounce(&debounce_state_effectors, remapped & debounce_mask));
         }
 
         // [DIGITAL QE1]
@@ -478,6 +500,7 @@ int main() {
                 }                    
 
                 multitap_buttons_to_assert = get_multitap_output();
+                remapped |= multitap_buttons_to_assert;
             }
         }
 

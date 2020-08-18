@@ -11,8 +11,6 @@
 #define ARCIN_PIN_BUTTON_6        ((uint16_t)(1 << 5))
 #define ARCIN_PIN_BUTTON_7        ((uint16_t)(1 << 6))
 
-#define ARCIN_PIN_BUTTON_ALL_KEYS ((uint16_t)(0x7F))
-
 #define ARCIN_PIN_BUTTON_8        ((uint16_t)(1 << 7))
 #define ARCIN_PIN_BUTTON_9        ((uint16_t)(1 << 8))
 
@@ -29,10 +27,15 @@
 #define INFINITAS_BUTTON_6        ARCIN_PIN_BUTTON_6
 #define INFINITAS_BUTTON_7        ARCIN_PIN_BUTTON_7
 
+#define INFINITAS_BUTTON_ALL      ((uint16_t)(0x7F))
+
 #define INFINITAS_BUTTON_E1       ((uint16_t)(1 << 8))
 #define INFINITAS_BUTTON_E2       ((uint16_t)(1 << 9))
 #define INFINITAS_BUTTON_E3       ((uint16_t)(1 << 10))
 #define INFINITAS_BUTTON_E4       ((uint16_t)(1 << 11))
+
+#define INFINITAS_EFFECTORS_ALL   (INFINITAS_BUTTON_E1 | INFINITAS_BUTTON_E2 | \
+                                   INFINITAS_BUTTON_E3 | INFINITAS_BUTTON_E4)
 
 // These are not part of Infinitas controller, but extra generic buttons used
 // for digital TT
