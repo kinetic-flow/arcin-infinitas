@@ -305,8 +305,9 @@ debounce_state debounce_state_effectors;
 uint8_t debounce_window_effectors;
 
 uint32_t scheduled_led_time = 0;
-uint16_t scheduled_leds = 0;
-void schedule_led(uint32_t end_time, uint16_t leds) {
+uint16_t scheduled_leds_aside = 0;
+uint16_t scheduled_leds_bside = 0;
+void schedule_led(uint32_t end_time, uint16_t leds_a, uint16_t leds_b) {
     // If scheduling in the past, nothing to do
     // This also guards against wallclock rollover
     if (end_time < Time::time()) {
@@ -314,7 +315,8 @@ void schedule_led(uint32_t end_time, uint16_t leds) {
     }
 
     scheduled_led_time = end_time;
-    scheduled_leds = leds;
+    scheduled_leds_aside = leds_a;
+    scheduled_leds_bside = leds_b;
 }
 
 void set_hid_lights(uint16_t leds) {
@@ -432,7 +434,7 @@ int main() {
 
     // Init done, flash some lights for 2 seconds
     schedule_led(
-        Time::time() + 2000, ARCIN_PIN_BUTTON_START | ARCIN_PIN_BUTTON_SELECT);
+        Time::time() + 1000, ARCIN_PIN_BUTTON_WHITE, ARCIN_PIN_BUTTON_WHITE);
 
     while(1) {
         usb->process();
@@ -453,9 +455,9 @@ int main() {
         if (now < scheduled_led_time) {
             uint16_t diff = now - scheduled_led_time;
             if ((diff / 200) % 2 == 0) {
-                button_leds.set(scheduled_leds);
+                button_leds.set(scheduled_leds_aside);
             } else {
-                button_leds.set(0);
+                button_leds.set(scheduled_leds_bside);
             }
         } else if (now - last_led_time > 1000) {
             // If it's been a while since the last HID lights, use the raw

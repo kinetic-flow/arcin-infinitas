@@ -28,7 +28,7 @@ config_flags process_mode_switch(uint16_t raw_input) {
         (raw_input & ARCIN_PIN_BUTTON_SELECT)) {
 
         // start+sel+2 => input mode switch (controller, keyboard, both)
-        if (raw_input & ARCIN_PIN_BUTTON_2) {
+        if (raw_input & ARCIN_PIN_BUTTON_1) {
             input_mode_switch_request += 1;
         }
 
@@ -53,9 +53,9 @@ void process_input_mode_switch() {
         current_flags.JoyInputForceDisable = 1;
         
         schedule_led(
-            Time::time() + 2000,
-            (ARCIN_PIN_BUTTON_START | ARCIN_PIN_BUTTON_SELECT |
-             ARCIN_PIN_BUTTON_2 | ARCIN_PIN_BUTTON_3));
+            Time::time() + 2500,
+            (ARCIN_PIN_BUTTON_START | ARCIN_PIN_BUTTON_SELECT | ARCIN_PIN_BUTTON_1 | ARCIN_PIN_BUTTON_4),
+            (ARCIN_PIN_BUTTON_START | ARCIN_PIN_BUTTON_SELECT | ARCIN_PIN_BUTTON_1));
 
         return;
     }
@@ -66,9 +66,9 @@ void process_input_mode_switch() {
         current_flags.JoyInputForceDisable = 0;
 
         schedule_led(
-            Time::time() + 2000,
-            (ARCIN_PIN_BUTTON_START | ARCIN_PIN_BUTTON_SELECT |
-             ARCIN_PIN_BUTTON_2 | ARCIN_PIN_BUTTON_1));
+            Time::time() + 2500,
+            (ARCIN_PIN_BUTTON_START | ARCIN_PIN_BUTTON_SELECT | ARCIN_PIN_BUTTON_1 | ARCIN_PIN_BUTTON_2),
+            (ARCIN_PIN_BUTTON_START | ARCIN_PIN_BUTTON_SELECT | ARCIN_PIN_BUTTON_1));
 
         return;
     }
