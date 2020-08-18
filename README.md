@@ -4,7 +4,7 @@ arcin firmware and configuration tool for multiple games, including beatmania II
 ![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/master/res/screenshot.png)
 
 ## What is this?
-A custom arcin firmware, written for broad compatibility with various games, including the new infinitas 120hz version. No key config or joy2key needed - everything will work with the game out of the gate. It is **compatible with Infinitas, HID-light, LR2, and beatoraja!** You can use the configuration tool to adjust options like turntable sensitivity.
+A custom arcin firmware, written for broad compatibility with various games, including the new infinitas 120hz version. No key config or joy2key needed - everything will work with the game out of the gate. It is natively compatible with Infinitas, HID-light, LR2, and beatoraja. Additional games can be played using keyboard mode, with fully customizable keyboard input.
 
 ## Where do I download?
 
@@ -41,8 +41,9 @@ On top of the "arcin_flash_config_alpha5" firmware, the following changes are ma
 * Optional double-click / triple-click select button feature (like DJ DAO)
 * Optional button debouncing
 * Freely switch between 1000hz / 250hz polling mode
+* Keyboard mode for games without proper gamepad support
 
-In addition to Infinitas, this firmware should be perfectly fine with HID-light and beatoraja (analog turntable) configurations. If you enable digital turntable in the configuration tool, it will also work in LR2 for playing BMS.
+In addition to Infinitas, this firmware should be perfectly fine with HID-light and beatoraja (analog turntable) configurations. If you enable digital turntable in the configuration tool, it will also work in LR2 for playing BMS. Keyboard mode can be used for any games that do not have full support for gamepads (DJMAX Respect V, Muse Dash...).
 
 This firmware is also technically compatible with the flashing tools, but the flashing tools are unable to automatically discover the controller becuase the USB IDs will be different from what they expect. To work around this, unplug the USB cable, hold down 1+2, plug in the USB cable, this will enter flashing mode and you will be able to proceed as normal.
 
@@ -71,6 +72,10 @@ The following configurations are recommended:
     * No debouncing
     * Analog turntable
     * Turntable sensitivity 1:4
+* DJMAX Respect V
+    * 1000hz polling rate
+    * Keyboard ONLY (game has poor gamepad support)
+    * Use one of the DJMAX presets in the keyboard settings.
     
 ![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/master/res/keyboard.png)
 
