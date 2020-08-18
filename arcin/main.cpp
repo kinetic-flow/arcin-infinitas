@@ -15,6 +15,7 @@
 #include "remap.h"
 #include "multifunc.h"
 #include "debounce.h"
+#include "modeswitch.h"
 
 #define ARRAY_SIZE(x) \
     ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
@@ -299,6 +300,7 @@ HID_keyb usb_hid_keyb_250hz(usb_250hz, keyb_report_desc_p);
 USB_strings usb_strings_1000hz(usb_1000hz, config.label);
 USB_strings usb_strings_250hz(usb_250hz, config.label);
 
+debounce_state debounce_state_raw;
 debounce_state debounce_state_keys;
 debounce_state debounce_state_effectors;
 uint8_t debounce_window_effectors;
@@ -318,6 +320,8 @@ int main() {
     // Load config.
     configloader.read(sizeof(config), &config);
 
+    config_flags runtime_flags = initialize_mode_switch(config.flags);
+
     RCC.enable(RCC.GPIOA);
     RCC.enable(RCC.GPIOB);
     RCC.enable(RCC.GPIOC);
@@ -330,7 +334,7 @@ int main() {
     RCC.enable(RCC.USB);
     
     USB_f1* usb;
-    if (config.flags.PollAt250Hz) {
+    if (runtime_flags.PollAt250Hz) {
         usb = &usb_250hz;
     } else {
         usb = &usb_1000hz;
@@ -355,7 +359,7 @@ int main() {
     RCC.enable(RCC.TIM2);
     RCC.enable(RCC.TIM3);
     
-    if(!(config.flags.InvertQE1)) {
+    if(!(runtime_flags.InvertQE1)) {
         TIM2.CCER = 1 << 1;
     }
     
@@ -391,7 +395,7 @@ int main() {
 
     analog_button tt1(4, 200, true);
 
-    if (config.flags.DebounceEnable) {
+    if (runtime_flags.DebounceEnable) {
         debounce_init(&debounce_state_keys, config.debounce_ticks);
     }
 
@@ -399,12 +403,15 @@ int main() {
     debounce_window_effectors = 4;
 
     // Take the higher value if user has debouncing enabled
-    if (config.flags.DebounceEnable) {
+    if (runtime_flags.DebounceEnable) {
         debounce_window_effectors =
             max(debounce_window_effectors, config.debounce_ticks);
     }
 
     debounce_init(&debounce_state_effectors, debounce_window_effectors);
+
+    // debounce for raw input
+    debounce_init(&debounce_state_raw, 4);
 
     uint32_t boot_time = Time::time();
 
@@ -427,7 +434,7 @@ int main() {
         if (now - last_led_time > 1000) {
             if (now - boot_time < 2000) {
                 if (((now - boot_time) / 400) % 2 == 0) {
-                    if (config.flags.PollAt250Hz) {
+                    if (runtime_flags.PollAt250Hz) {
                         button_leds.set(
                             ARCIN_PIN_BUTTON_2 | ARCIN_PIN_BUTTON_4 | ARCIN_PIN_BUTTON_6);
 
@@ -450,18 +457,30 @@ int main() {
         // [READ QE1]
         uint32_t qe1_count = TIM2.CNT;
 
+        // [MODE] Apply debounce to raw input & process runtime mode switching
+        uint16_t raw_debounced = buttons;
+        {
+            uint16_t debounce_mask =
+                (INFINITAS_BUTTON_ALL | INFINITAS_EFFECTORS_ALL);
+            raw_debounced =
+                (buttons & ~debounce_mask) |
+                (debounce(&debounce_state_raw, buttons & debounce_mask));
+
+            runtime_flags = process_mode_switch(raw_debounced);
+        }
+
         // [REMAP]
         uint16_t remapped = remap_buttons(config, buttons);
 
-        // [DEBOUNCE] Apply debounce to keys
-        if (config.flags.DebounceEnable) {
+        // [DEBOUNCE] Apply debounce to remapped keys
+        if (runtime_flags.DebounceEnable) {
             uint16_t debounce_mask = INFINITAS_BUTTON_ALL;
             remapped =
                 (remapped & ~debounce_mask) |
                 (debounce(&debounce_state_keys, remapped & debounce_mask));
         }
 
-        // [DEBOUNCE] Apply debounce to effectors
+        // [DEBOUNCE] Apply debounce to remapped effectors
         {
             uint16_t debounce_mask = INFINITAS_EFFECTORS_ALL;
             remapped =
@@ -471,13 +490,13 @@ int main() {
 
         // [DIGITAL QE1]
         int8_t tt1_report = 0;
-        if (config.flags.DigitalTTEnable || config.flags.KeyboardEnable) {
+        if (runtime_flags.DigitalTTEnable || runtime_flags.KeyboardEnable) {
             tt1_report = tt1.poll(qe1_count);
         }
 
         // [E2 MULTI-TAP]
         // Multi-tap processing of E2. Must be done after debounce.
-        if (config.flags.SelectMultiFunction) {
+        if (runtime_flags.SelectMultiFunction) {
             // Always clear E2 since it should not be asserted directly
             bool is_e2_pressed = (remapped & INFINITAS_BUTTON_E2) != 0;
             remapped &= ~(INFINITAS_BUTTON_E2);
@@ -486,50 +505,52 @@ int main() {
 
         // [GAMEPAD]]
         if (usb->ep_ready(1)) {
-            // [DIGITAL TT -> BUTTONS]
-            if (config.flags.DigitalTTEnable) {
-                switch (tt1_report) {
-                case -1:
-                    remapped |= JOY_BUTTON_13;
-                    break;
-                case 1:
-                    remapped |= JOY_BUTTON_14;
-                    break;
-                default:
-                    break;
-                }
-            }
-
-            // [ANALOG TT -> SENSITIVITY]
-            // Adjust turntable sensitivity. Must be done AFTER digital TT
-            // processing.
-            if (config.qe1_sens < 0) {
-                qe1_count /= -config.qe1_sens;
-            } else if (config.qe1_sens > 0) {
-                qe1_count *= config.qe1_sens;
-            }
-
             input_report_t report;
             report.report_id = 1;
-            if (config.flags.JoyInputForceDisable) {
+
+            // [Joy Buttons report]
+            if (runtime_flags.JoyInputForceDisable) {
                 report.buttons = 0;
             } else {
+                // [DIGITAL TT -> BUTTONS]
+                if (runtime_flags.DigitalTTEnable) {
+                    switch (tt1_report) {
+                    case -1:
+                        remapped |= JOY_BUTTON_13;
+                        break;
+                    case 1:
+                        remapped |= JOY_BUTTON_14;
+                        break;
+                    default:
+                        break;
+                    }
+                }
+
                 report.buttons = remapped;
             }
 
-            if (config.flags.JoyInputForceDisable ||
-                (config.flags.DigitalTTEnable && !config.flags.AnalogTTForceEnable)) {
+            // [X-axis report]
+            if (runtime_flags.JoyInputForceDisable ||
+                (runtime_flags.DigitalTTEnable && !runtime_flags.AnalogTTForceEnable)) {
                 report.axis_x = uint8_t(127);
             } else {
+                // [ANALOG TT -> SENSITIVITY]
+                // Adjust turntable sensitivity. Must be done AFTER digital TT
+                // processing.
+                if (config.qe1_sens < 0) {
+                    qe1_count /= -config.qe1_sens;
+                } else if (config.qe1_sens > 0) {
+                    qe1_count *= config.qe1_sens;
+                }
                 report.axis_x = uint8_t(qe1_count);
             }
+
             report.axis_y = 127;
             usb->write(1, (uint32_t*)&report, sizeof(report));
         }
         
         // [KEYBOARD]]
-        if ((config.flags.KeyboardEnable) &&
-            (usb->ep_ready(2))) {
+        if (usb->ep_ready(2)) {
             unsigned char scancodes[13] = { 0 };
 
             static_assert(
@@ -539,21 +560,23 @@ int main() {
 
             uint8_t nextscan = 0;
 
-            for (uint8_t i = 0; i < ARRAY_SIZE(infinitas_keys); i++) {
-                if (remapped & infinitas_keys[i]) {
-                    scancodes[nextscan++] = config.keycodes[i];
+            if (runtime_flags.KeyboardEnable) {
+                for (uint8_t i = 0; i < ARRAY_SIZE(infinitas_keys); i++) {
+                    if (remapped & infinitas_keys[i]) {
+                        scancodes[nextscan++] = config.keycodes[i];
+                    }
                 }
-            }
 
-            switch (tt1_report) {
-            case -1:
-                scancodes[nextscan++] = config.keycodes[11];
-                break;
-            case 1:
-                scancodes[nextscan++] = config.keycodes[12];
-                break;
-            default:
-                break;
+                switch (tt1_report) {
+                case -1:
+                    scancodes[nextscan++] = config.keycodes[11];
+                    break;
+                case 1:
+                    scancodes[nextscan++] = config.keycodes[12];
+                    break;
+                default:
+                    break;
+                }
             }
 
             usb->write(2, (uint32_t*)scancodes, sizeof(scancodes));
