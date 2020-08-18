@@ -51,7 +51,7 @@ config_flags process_mode_switch(uint16_t raw_input) {
 
     if (tt_mode_switch_request == MODE_SWITCH_THRESHOLD_MS) {
         process_tt_mode_switch();
-        input_mode_switch_request = 0;
+        tt_mode_switch_request = 0;
     }
     
     return current_flags;
@@ -60,19 +60,6 @@ config_flags process_mode_switch(uint16_t raw_input) {
 void process_input_mode_switch() {
     uint16_t mode_lights =
         (ARCIN_PIN_BUTTON_START | ARCIN_PIN_BUTTON_SELECT | ARCIN_PIN_BUTTON_1);
-
-    // both => controller only
-    if (current_flags.KeyboardEnable && current_flags.JoyInputForceDisable) {
-        current_flags.KeyboardEnable = 0;
-        current_flags.JoyInputForceDisable = 0;
-        
-        schedule_led(
-            Time::time() + 2500,
-            (mode_lights | ARCIN_PIN_BUTTON_2),
-            mode_lights);
-
-        return;
-    }
 
     // Controller only => Keyboard only
     if (!current_flags.KeyboardEnable && !current_flags.JoyInputForceDisable) {
@@ -86,39 +73,24 @@ void process_input_mode_switch() {
 
         return;
     }
+    
+    // all modes others => controller only
+    current_flags.KeyboardEnable = 0;
+    current_flags.JoyInputForceDisable = 0;
+    schedule_led(
+        Time::time() + 2500,
+        (mode_lights | ARCIN_PIN_BUTTON_2),
+        mode_lights);
 
-    // Keyboard only => Controller only
-    if (current_flags.KeyboardEnable && current_flags.JoyInputForceDisable) {
-        current_flags.KeyboardEnable = 0;
-        current_flags.JoyInputForceDisable = 0;
-
-        schedule_led(
-            Time::time() + 2500,
-            (mode_lights | ARCIN_PIN_BUTTON_2),
-            mode_lights);
-
-        return;
-    }
+    return;
 }
 
 void process_tt_mode_switch() {
     uint16_t mode_lights =
         (ARCIN_PIN_BUTTON_START | ARCIN_PIN_BUTTON_SELECT | ARCIN_PIN_BUTTON_3);
 
-    // both -> analog only
-    if (current_flags.AnalogTTForceEnable) {
-        current_flags.DigitalTTEnable = 0;
-        current_flags.AnalogTTForceEnable = 0;
-        schedule_led(
-            Time::time() + 2500,
-            (mode_lights | ARCIN_PIN_BUTTON_2),
-            mode_lights);
-
-        return;
-    }
-
     // analog only -> digital only
-    if (!current_flags.DigitalTTEnable) {
+    if (!current_flags.DigitalTTEnable && !current_flags.AnalogTTForceEnable) {
         current_flags.DigitalTTEnable = 1;
         current_flags.AnalogTTForceEnable = 0;
         schedule_led(
@@ -129,15 +101,13 @@ void process_tt_mode_switch() {
         return;
     }
 
-    // digital only -> analog only
-    if (current_flags.DigitalTTEnable) {
-        current_flags.DigitalTTEnable = 0;
-        current_flags.AnalogTTForceEnable = 0;
-        schedule_led(
-            Time::time() + 2500,
-            (mode_lights | ARCIN_PIN_BUTTON_2),
-            mode_lights);
+    // all others -> analog only
+    current_flags.DigitalTTEnable = 0;
+    current_flags.AnalogTTForceEnable = 0;
+    schedule_led(
+        Time::time() + 2500,
+        (mode_lights | ARCIN_PIN_BUTTON_2),
+        mode_lights);
 
-        return;
-    }
+    return;
 }
