@@ -172,8 +172,7 @@ class HID_arcin : public USB_HID {
             
             output_report_t* report = (output_report_t*)buf;
             
-            last_led_time = Time::time();
-            button_leds.set(report->leds);
+            set_hid_lights(report->leds);
             return true;
         }
         
@@ -305,9 +304,27 @@ debounce_state debounce_state_keys;
 debounce_state debounce_state_effectors;
 uint8_t debounce_window_effectors;
 
-uint16_t debug_leds = 0;
-void debug_set_led(uint16_t leds) {
-    debug_leds = leds;
+uint32_t scheduled_led_time = 0;
+uint16_t scheduled_leds = 0;
+void schedule_led(uint32_t end_time, uint16_t leds) {
+    // If scheduling in the past, nothing to do
+    // This also guards against wallclock rollover
+    if (end_time < Time::time()) {
+        return;
+    }
+
+    scheduled_led_time = end_time;
+    scheduled_leds = leds;
+}
+
+void set_hid_lights(uint16_t leds) {
+    // if LED overrides are in effect, ignore HID lights
+    if (Time::time() < scheduled_led_time) {
+        return;
+    }
+
+    last_led_time = Time::time();
+    button_leds.set(leds);
 }
 
 int main() {
@@ -413,7 +430,9 @@ int main() {
     // debounce for raw input
     debounce_init(&debounce_state_raw, 4);
 
-    uint32_t boot_time = Time::time();
+    // Init done, flash some lights for 2 seconds
+    schedule_led(
+        Time::time() + 2000, ARCIN_PIN_BUTTON_START | ARCIN_PIN_BUTTON_SELECT);
 
     while(1) {
         usb->process();
@@ -431,27 +450,17 @@ int main() {
             reset();
         }
         
-        if (now - last_led_time > 1000) {
-            if (now - boot_time < 2000) {
-                if (((now - boot_time) / 400) % 2 == 0) {
-                    if (runtime_flags.PollAt250Hz) {
-                        button_leds.set(
-                            ARCIN_PIN_BUTTON_2 | ARCIN_PIN_BUTTON_4 | ARCIN_PIN_BUTTON_6);
-
-                    } else {
-                        button_leds.set(
-                            ARCIN_PIN_BUTTON_1 | ARCIN_PIN_BUTTON_3 |
-                            ARCIN_PIN_BUTTON_5 | ARCIN_PIN_BUTTON_7);
-                    }
-                } else {
-                    button_leds.set(0);
-                }
-                
-            } else if (debug_leds){
-                button_leds.set(debug_leds);
+        if (now < scheduled_led_time) {
+            uint16_t diff = now - scheduled_led_time;
+            if ((diff / 200) % 2 == 0) {
+                button_leds.set(scheduled_leds);
             } else {
-                button_leds.set(buttons);
+                button_leds.set(0);
             }
+        } else if (now - last_led_time > 1000) {
+            // If it's been a while since the last HID lights, use the raw
+            // button input for lights
+            button_leds.set(buttons);
         }
 
         // [READ QE1]

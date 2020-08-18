@@ -33,23 +33,30 @@ config_flags process_mode_switch(uint16_t raw_input) {
         }
 
     } else {
-        // start and select are not being held
         input_mode_switch_request = 0;
     }
 
-    if (input_mode_switch_request >= 3000) {
-        input_mode_switch_request = 0;
+    // start and select are not being held
+    if (input_mode_switch_request == 3000) {
         process_input_mode_switch();
+        input_mode_switch_request = 0;
     }
     
     return current_flags;
 }
 
 void process_input_mode_switch() {
+
     // Controller only => Keyboard only
     if (!current_flags.KeyboardEnable && !current_flags.JoyInputForceDisable) {
         current_flags.KeyboardEnable = 1;
         current_flags.JoyInputForceDisable = 1;
+        
+        schedule_led(
+            Time::time() + 2000,
+            (ARCIN_PIN_BUTTON_START | ARCIN_PIN_BUTTON_SELECT |
+             ARCIN_PIN_BUTTON_2 | ARCIN_PIN_BUTTON_3));
+
         return;
     }
 
@@ -57,8 +64,15 @@ void process_input_mode_switch() {
     if (current_flags.KeyboardEnable && current_flags.JoyInputForceDisable) {
         current_flags.KeyboardEnable = 0;
         current_flags.JoyInputForceDisable = 0;
+
+        schedule_led(
+            Time::time() + 2000,
+            (ARCIN_PIN_BUTTON_START | ARCIN_PIN_BUTTON_SELECT |
+             ARCIN_PIN_BUTTON_2 | ARCIN_PIN_BUTTON_1));
+
         return;
     }
 
     // "Both" state is not used here; I doubt many people actually use it.
+
 }
