@@ -10,7 +10,11 @@
 #include "usb_strings.h"
 #include "configloader.h"
 #include "config.h"
+
 #include "inf_defines.h"
+#include "remap.h"
+#include "multifunc.h"
+#include "debounce.h"
 
 #define ARRAY_SIZE(x) \
     ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
@@ -218,186 +222,6 @@ class HID_keyb : public USB_HID {
         }
 };
 
-uint32_t first_e2_rising_edge_time;
-
-#define LAST_E2_STATUS_SIZE 3
-
-// [0] is most recent, [1] is one before that, and so on
-bool last_e2_status[LAST_E2_STATUS_SIZE];
-uint32_t e2_rising_edge_count;
-
-// Window that begins on the first falling edge of E2. At the end of the window
-// the number of taps is calculated and the resulting button combination will
-// begin to assert.
-// i.e., any multi-taps must be done within this window in order to count
-#define MULTITAP_DETECTION_WINDOW_MS           400
-
-uint16_t multitap_active_frames;
-uint16_t multitap_buttons_to_assert;
-
-void e2_update(bool pressed) {
-    // rising edge (detect off-off-on-on sequence)
-    if (pressed && last_e2_status[0] &&
-        !last_e2_status[1] && !last_e2_status[2]) {
-
-        // start counting on the first falling edge
-        if (first_e2_rising_edge_time == 0) {
-            first_e2_rising_edge_time = Time::time();
-        }
-
-        e2_rising_edge_count += 1;
-    }
-
-    for (int i = (LAST_E2_STATUS_SIZE - 1); i >= 1; i -= 1) {
-        last_e2_status[i] = last_e2_status[i-1];
-    }
-
-    last_e2_status[0] = pressed;
-}
-
-uint16_t get_multitap_output(uint32_t tap_count) {
-    uint16_t button;
-    switch (tap_count) {
-    case 1:
-        button = INFINITAS_BUTTON_E2;
-        break;
-
-    case 2:
-        button = INFINITAS_BUTTON_E3;
-        break;
-
-    case 3:
-        button = (INFINITAS_BUTTON_E2 | INFINITAS_BUTTON_E3);
-        break;
-
-    case 0:
-    default:
-        button = 0;
-        break;
-    }
-
-    return button;
-}
-
-bool is_multitap_window_closed() {
-    uint32_t diff;
-
-    if (first_e2_rising_edge_time == 0) {
-        return false;
-    }
-
-    diff = Time::time() - first_e2_rising_edge_time;
-    return diff > MULTITAP_DETECTION_WINDOW_MS;
-}
-
-uint16_t remap_buttons(uint16_t buttons) {
-    uint16_t remapped;
-
-    // Grab the first 7 buttons (keys)
-    // The keys have the same values across raw input and infinitas input
-    remapped = buttons & ARCIN_PIN_BUTTON_ALL_KEYS;
-
-    // Remap start button
-    if (buttons & ARCIN_PIN_BUTTON_START) {
-        switch(config.effector_mode) {
-        case START_E1_SEL_E2:
-        default:
-            remapped |= INFINITAS_BUTTON_E1;
-            break;
-
-        case START_E2_SEL_E1:
-            remapped |= INFINITAS_BUTTON_E2;
-            break;
-
-        case START_E3_SEL_E4:
-            remapped |= INFINITAS_BUTTON_E3;
-            break;
-
-        case START_E4_SEL_E3:
-            remapped |= INFINITAS_BUTTON_E4;
-            break;
-        }
-    }
-
-    // Remap select button
-    if (buttons & ARCIN_PIN_BUTTON_SELECT) {
-        switch(config.effector_mode) {
-        case START_E1_SEL_E2:
-        default:
-            remapped |= INFINITAS_BUTTON_E2;
-            break;
-
-        case START_E2_SEL_E1:
-            remapped |= INFINITAS_BUTTON_E1;
-            break;
-
-        case START_E3_SEL_E4:
-            remapped |= INFINITAS_BUTTON_E4;
-            break;
-
-        case START_E4_SEL_E3:
-            remapped |= INFINITAS_BUTTON_E3;
-            break;
-        }
-    }
-
-    // Button 8 is normally E3, unless flipped
-    if (buttons & ARCIN_PIN_BUTTON_8) {
-        if (config.flags.Swap89) {
-            remapped |= INFINITAS_BUTTON_E4;
-        } else {
-            remapped |= INFINITAS_BUTTON_E3;
-        }
-    }
-
-    // Button 9 is normally E4, unless flipped
-    if (buttons & ARCIN_PIN_BUTTON_9) {
-        if (config.flags.Swap89) {
-            remapped |= INFINITAS_BUTTON_E3;
-        } else {
-            remapped |= INFINITAS_BUTTON_E4;
-        }
-    }
-
-    return remapped;
-}
-
-#define DEBOUNCE_FRAME_MAX 10
-
-uint8_t debounce_window = 2;
-uint16_t debounce_state = 0;
-uint16_t debounce_history[DEBOUNCE_FRAME_MAX] = { 0 };
-uint32_t debounce_sample_time = 0;
-int debounce_index = 0;
-
-/* 
- * Perform debounce processing. The buttons input is sampled at most once per ms
- * (when update is true); buttons is then set to the last stable state for each
- * bit (i.e., the last state maintained for DEBOUNCE_FRAME_MAX consequetive samples
- *
- * We use update to sync to the USB polls; this helps avoid additional latency when
- * debounce samples just after the USB poll.
- */
-uint16_t debounce(uint16_t buttons) {
-    if (Time::time() == debounce_sample_time) {
-        return debounce_state;
-    }
-
-    debounce_sample_time = Time::time();
-    debounce_history[debounce_index] = buttons;
-    debounce_index = (debounce_index + 1) % debounce_window;
-
-    uint16_t has_ones = 0, has_zeroes = 0;
-    for (int i = 0; i < debounce_window; i++) {
-        has_ones |= debounce_history[i];
-        has_zeroes |= ~debounce_history[i];
-    }
-
-    uint16_t stable = has_ones ^ has_zeroes;
-    debounce_state = (debounce_state & ~stable) | (has_ones & stable);
-    return debounce_state;
-}
-
 class analog_button {
 public:
     // config
@@ -472,6 +296,9 @@ HID_keyb usb_hid_keyb_250hz(usb_250hz, keyb_report_desc_p);
 
 USB_strings usb_strings_1000hz(usb_1000hz, config.label);
 USB_strings usb_strings_250hz(usb_250hz, config.label);
+
+static uint16_t multitap_active_frames;
+static uint16_t multitap_buttons_to_assert;
 
 int main() {
     rcc_init();
@@ -557,13 +384,7 @@ int main() {
     analog_button tt1(4, 200, true);
 
     if (config.flags.DebounceEnable) {
-        if (2 < config.debounce_ticks) {
-            debounce_window = 2;
-        } else if (10 < config.debounce_ticks) {
-            debounce_window = 10;
-        } else {
-            debounce_window = config.debounce_ticks;
-        }
+        set_debounce_window(config.debounce_ticks);
     }
 
     uint32_t boot_time = Time::time();
@@ -609,7 +430,7 @@ int main() {
         uint32_t qe1_count = TIM2.CNT;
 
         // [REMAP]
-        uint16_t remapped = remap_buttons(buttons);
+        uint16_t remapped = remap_buttons(config, buttons);
 
         // [DEBOUNCE] Apply debounce...
         uint16_t debounce_mask = 0;
@@ -651,16 +472,12 @@ int main() {
             } else if (is_multitap_window_closed()) {
                 
                 if (config.flags.PollAt250Hz) {
-                    multitap_active_frames = 25;
+                    multitap_active_frames = 50;
                 } else {
-                    multitap_active_frames = 100;
+                    multitap_active_frames = 200;
                 }                    
 
-                first_e2_rising_edge_time = 0;
-                multitap_buttons_to_assert =
-                    get_multitap_output(e2_rising_edge_count);
-
-                e2_rising_edge_count = 0;
+                multitap_buttons_to_assert = get_multitap_output();
             }
         }
 
@@ -691,13 +508,13 @@ int main() {
 
             input_report_t report;
             report.report_id = 1;
-            if (config.flags.KeyboardEnable) {
+            if (config.flags.JoyInputForceDisable) {
                 report.buttons = 0;
             } else {
                 report.buttons = remapped;
             }
 
-            if (config.flags.KeyboardEnable ||
+            if (config.flags.JoyInputForceDisable ||
                 (config.flags.DigitalTTEnable && !config.flags.AnalogTTForceEnable)) {
                 report.axis_x = uint8_t(127);
             } else {
