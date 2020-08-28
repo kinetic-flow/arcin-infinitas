@@ -82,6 +82,17 @@ The following configurations are recommended:
 
 When keyboard mode is enabled, button pressees will register as keystrokes. Configure each key codes in the menu as shown above.
 
+## Mode switching
+
+First, turn on "Enable mode switching" in the config tool.
+
+Then:
+
+* Holding Start + Select + 1 for 3 seconds will switch between input modes (controller <=> keyboard). Key 2 or 4 will flash to indicate which mode you are in. 
+* Holding Start + Select + 3 for 3 seconds will switch between turntable modes (analog only <=> digital only). Key 2 or 4 will flash to indicate which mode you are in.
+
+Note that when you use the mode switching button combinations, the changes are not permanently saved; when the controller is unplugged, things will revert back to what was set in the configuration tool. This is intentional!
+
 ## Building
 
 This section is for developers only. If you're just looking to run this on your board, download the [latest release](https://github.com/minsang-github/arcin-infinitas/releases/latest).
