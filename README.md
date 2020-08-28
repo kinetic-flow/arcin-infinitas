@@ -29,9 +29,7 @@ Run the executable (arcin_infinitas_new.exe or arcin_infinitas_new.exe) in Windo
 
 # Details
 
-This is a custom arcin firmware, mainly for playing the new version of Infinitas.
-
-On existing infinitas firmware that people use, some people reported that their turntable is not sensitive enough in the new version of the game, as if the "deadzone" is too large. This is probably caused by the fact that the engine for Infinitas is now based on Heroic Verse to run at 120hz. This firmware aims to fix that.
+In the beginning, this firmware was set out to address the turntable sensitivy issues with Infinitas when running at 120hz. The game has since been patched. This project now aims to be a highly configurable firmware that is compatbile with a wide array of games.
 
 On top of the "arcin_flash_config_alpha5" firmware, the following changes are made:
 
