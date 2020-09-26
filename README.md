@@ -26,6 +26,7 @@ Run the executable (arcin_infinitas_new.exe or arcin_infinitas_new.exe) in Windo
 * **Press "デフォルトに戻す" to reset all keybinds. This is important and you MUST do this!!**
     * This firmware pretends to be the official infinitas controller, so the game detects this automatically and uses the correct key binds. Even if the key binds "seem" wrong in the UI, ignore it.
     * Do not change any key binds in the settings - it won't work.
+* If you have trouble with the game recognizing your controller, ensure all other game controllers are disconnected. If you ever installed third party software to make PS4 DualShock work, that might be interferring as well.
 
 # Details
 
