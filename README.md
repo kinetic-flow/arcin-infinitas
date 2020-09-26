@@ -16,8 +16,13 @@ Unplug your controller. Hold down buttons 1 and 2 while you plug it back in. If 
 
 Run the executable (arcin_infinitas_new.exe or arcin_infinitas_new.exe) in Windows. You might need to do it a few times until it works.
 
+## How do I set up the wiring?
+* Ensure your turntable is connected to QE1
+* IIDX keys must be wired to b1-b7. This will give you the most responsive input. Avoid b8 and b9 (they have extra debouncing enabled)
+* Start and select to b10 or b11
+* Other extra effectors can be wired to b8 and b9.
+
 ## How do I use it with Infinitas?
-* Ensure your turntable is connected to QE1, buttons to b1-b7, start and select to b10 or b11.
 * Launch the configuration tool (arcin_conf_infinitas.exe)
     * Set turntable mode to Analog only.
     * Adjust turntable sensitity as needed.
