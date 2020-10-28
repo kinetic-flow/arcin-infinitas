@@ -83,7 +83,9 @@ The following configurations are recommended:
     * 1000hz polling rate
     * Keyboard ONLY (game has poor gamepad support)
     * Use one of the DJMAX presets in the keyboard settings.
-    
+
+## Keyboard mode
+
 ![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/master/res/keyboard.png)
 
 When keyboard mode is enabled, button pressees will register as keystrokes. Configure each key codes in the menu as shown above.
@@ -110,7 +112,7 @@ Then:
 
 Note that when you use the mode switching button combinations, the changes are not permanently saved; when the controller is unplugged, things will revert back to what was set in the configuration tool. This is intentional!
 
-## Building
+# Building
 
 This section is for developers only. If you're just looking to run this on your board, download the [latest release](https://github.com/minsang-github/arcin-infinitas/releases/latest).
 
