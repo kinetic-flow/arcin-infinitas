@@ -99,7 +99,7 @@ Here is an explanation of the sensitivty options.
 
 N:1 means the rotary encoder counts from 0 and up to (but not including) 256, but the value reported to your computer will be amplified by a factor of N. 4:1 means it will move 4x as much, and so on. This comes at a loss of granularity (values will "jump" between each tick).
 
-For DAO turntables, it is recommended that you stick to values between 1:2 and 1:4, inclusive.
+For DAO turntables, it is recommended that you stick to values between 1:2 and 1:5, inclusive. 1:2 is super sensitive, 1:3 is sensitive, 1:4 and 1:5 are like stock DAO.
 
 ## Mode switching
 
