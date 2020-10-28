@@ -95,9 +95,9 @@ Here is an explanation of the sensitivty options.
 
 1:1 means the rotary encoder counts from 0 and up to (but not including) 256.
 
-1:2 means 0 to 512, 1:4 means 0 to 1024, etc. In other words, you are setting finer granularity for each tick as the second number increases. Effectively, going from 1:2 to 1:4 makes so that twice the amount of rotation of the encoder is required to input a full rotation.
+1:N increases the range in which the encoder counts up to at the hardware level. 1:2 means 0 to 512, 1:4 means 0 to 1024, etc. In other words, you are setting finer granularity for each tick as N increases. Effectively, going from 1:2 to 1:4 makes so that twice the amount of rotation of the encoder is required to input a full rotation.
 
-2:1 means every movement counts as double compared to 1:1. 4:1 means it will move 4x as much, and so on. This comes at a loss of granurality (values will "jump" between each tick)
+N:1 means the rotary encoder counts from 0 and up to (but not including) 256, but the value reported to your computer will be amplified by a factor of N. 4:1 means it will move 4x as much, and so on. This comes at a loss of granularity (values will "jump" between each tick).
 
 For DAO turntables, it is recommended that you stick to values between 1:2 and 1:4, inclusive.
 
