@@ -93,7 +93,7 @@ When keyboard mode is enabled, button pressees will register as keystrokes. Conf
 ## QE1 sensitivity
 Here is an explanation of the sensitivty options.
 
-1:1 means the rotary encoder counts from 0 and up to (but not including) 256.
+1:1 means the rotary encoder counts from 0 and up to (but not including) 256. This value is directly reported as the joystick X-axis.
 
 1:N increases the range in which the encoder counts up to at the hardware level. 1:2 means 0 to 512, 1:4 means 0 to 1024, etc. In other words, you are setting finer granularity for each tick as N increases. Effectively, going from 1:2 to 1:4 makes so that twice the amount of rotation of the encoder is required to input a full rotation.
 
