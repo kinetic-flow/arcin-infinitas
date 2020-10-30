@@ -327,12 +327,12 @@ void set_hid_lights(uint16_t leds) {
         return;
     }
 
-    if (!global_led_enable) {
-        return;
-    }
-
     last_led_time = Time::time();
-    button_leds.set(leds);
+    if (global_led_enable) {
+        button_leds.set(leds);
+    } else {
+        button_leds.set(0);
+    }    
 }
 
 void update_turntable_lights() {
@@ -477,10 +477,14 @@ int main() {
             } else {
                 button_leds.set(scheduled_leds_bside);
             }
-        } else if (global_led_enable && (now - last_led_time > 1000)) {
+        } else if (now - last_led_time > 1000) {
             // If it's been a while since the last HID lights, use the raw
             // button input for lights
-            button_leds.set(buttons);
+            if (global_led_enable) {
+                button_leds.set(buttons);
+            } else {
+                button_leds.set(0);
+            }
         }
 
         // [READ QE1]
