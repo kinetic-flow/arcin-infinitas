@@ -119,9 +119,7 @@ static Pin led2 = GPIOA[9];
 USB_f1 usb_1000hz(USB, dev_desc_p, conf_desc_p_1000hz);
 USB_f1 usb_250hz(USB, dev_desc_p, conf_desc_p_250hz);
 
-uint32_t last_button_led_time;
-uint32_t last_led1_time;
-uint32_t last_led2_time;
+uint32_t last_led_time;
 
 class HID_arcin : public USB_HID {
     private:
@@ -310,6 +308,7 @@ uint32_t scheduled_led_time = 0;
 uint16_t scheduled_leds_aside = 0;
 uint16_t scheduled_leds_bside = 0;
 bool global_led_enable = false;
+bool global_tt_hid_enable = false;
 void schedule_led(uint32_t end_time, uint16_t leds_a, uint16_t leds_b) {
     // If scheduling in the past, nothing to do
     // This also guards against wallclock rollover
@@ -327,33 +326,32 @@ void set_button_lights(uint16_t leds) {
 }
 
 void set_hid_lights(uint16_t leds) {
+    // if LED is globally disabled, ignore HID lights
+    if (!global_led_enable) {
+        return;
+    }
+
     // if LED overrides are in effect, ignore HID lights
     if (Time::time() < scheduled_led_time) {
         return;
     }
 
-    // buttons
-    last_button_led_time = Time::time();
-    if (global_led_enable) {
-        set_button_lights(leds);
-    } else {
-        set_button_lights(0);
-    }
+    last_led_time = Time::time();
+    set_button_lights(leds);
+    if (global_tt_hid_enable) {
+        // LED1
+        if (leds & 0x800) {
+            led1.on();
+        } else {
+            led1.off();
+        }
 
-    // LED1
-    last_led1_time = Time::time();
-    if (global_led_enable & leds & 0x800) {
-        led1.on();
-    } else {
-        led1.off();
-    }
-
-    // LED2
-    last_led2_time = Time::time();
-    if (global_led_enable & leds & 0x1000) {
-        led2.on();
-    } else {
-        led2.off();
+        // LED2
+        if (leds & 0x1000) {
+            led2.on();
+        } else {
+            led2.off();
+        }
     }
 }
 
@@ -401,6 +399,7 @@ int main() {
     led2.set_mode(Pin::Output);
     
     global_led_enable = !runtime_flags.LedOff;
+    global_tt_hid_enable = runtime_flags.TtLedHid;
     
     RCC.enable(RCC.TIM2);
     RCC.enable(RCC.TIM3);
@@ -487,7 +486,7 @@ int main() {
             } else {
                 set_button_lights(scheduled_leds_bside);
             }
-        } else if (now - last_button_led_time > 1000) {
+        } else if (now - last_led_time > 1000) {
             // If it's been a while since the last HID lights, use the raw
             // button input for lights
             if (global_led_enable) {
@@ -497,20 +496,14 @@ int main() {
             }
         }
 
-        // Non-HID controlled handling of LED1
-        if (now - last_led1_time > 1000) {
+        // Non-HID controlled handling of LED1 / LED2
+        if (!global_tt_hid_enable) {
+            // in "default" mode, follow the global LED on/off setting.
             if (global_led_enable) {
                 led1.on();
-            } else {
-                led1.off();
-            }
-        }
-
-        // Non-HID controlled handling of LED2
-        if (now - last_led2_time > 1000) {
-            if (global_led_enable) {
                 led2.on();
             } else {
+                led1.off();
                 led2.off();
             }
         }        
@@ -529,7 +522,7 @@ int main() {
 
             runtime_flags = process_mode_switch(raw_debounced);
 
-            // Update LED on/off state.
+            // Update LED options state.
             global_led_enable = !runtime_flags.LedOff;
         }
 
