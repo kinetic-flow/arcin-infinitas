@@ -119,7 +119,9 @@ static Pin led2 = GPIOA[9];
 USB_f1 usb_1000hz(USB, dev_desc_p, conf_desc_p_1000hz);
 USB_f1 usb_250hz(USB, dev_desc_p, conf_desc_p_250hz);
 
-uint32_t last_led_time;
+uint32_t last_button_led_time;
+uint32_t last_led1_time;
+uint32_t last_led2_time;
 
 class HID_arcin : public USB_HID {
     private:
@@ -308,7 +310,6 @@ uint32_t scheduled_led_time = 0;
 uint16_t scheduled_leds_aside = 0;
 uint16_t scheduled_leds_bside = 0;
 bool global_led_enable = false;
-bool last_turntable_led_state = false;
 void schedule_led(uint32_t end_time, uint16_t leds_a, uint16_t leds_b) {
     // If scheduling in the past, nothing to do
     // This also guards against wallclock rollover
@@ -321,29 +322,38 @@ void schedule_led(uint32_t end_time, uint16_t leds_a, uint16_t leds_b) {
     scheduled_leds_bside = leds_b;
 }
 
+void set_hid_lights_buttons(uint16_t leds) {
+    button_leds.set(leds & 0x7ff);
+}
+
 void set_hid_lights(uint16_t leds) {
     // if LED overrides are in effect, ignore HID lights
     if (Time::time() < scheduled_led_time) {
         return;
     }
 
-    last_led_time = Time::time();
+    // buttons
+    last_button_led_time = Time::time();
     if (global_led_enable) {
-        button_leds.set(leds);
+        set_hid_lights_buttons(leds);
     } else {
-        button_leds.set(0);
-    }    
-}
+        set_hid_lights_buttons(0);
+    }
 
-void update_turntable_lights() {
-    if (global_led_enable && !last_turntable_led_state) {
+    // LED1
+    last_led1_time = Time::time();
+    if (global_led_enable & leds & 0x800) {
         led1.on();
-        led2.on();
-        last_turntable_led_state = true;
-    } else if (!global_led_enable && last_turntable_led_state) {
+    } else {
         led1.off();
+    }
+
+    // LED2
+    last_led2_time = Time::time();
+    if (global_led_enable & leds & 0x1000) {
+        led2.on();
+    } else {
         led2.off();
-        last_turntable_led_state = false;
     }
 }
 
@@ -470,22 +480,41 @@ int main() {
             reset();
         }
         
+        // button LEDs
         if (now < scheduled_led_time) {
             uint16_t diff = now - scheduled_led_time;
             if ((diff / 200) % 2 == 0) {
-                button_leds.set(scheduled_leds_aside);
+                set_hid_lights_buttons(scheduled_leds_aside);
             } else {
-                button_leds.set(scheduled_leds_bside);
+                set_hid_lights_buttons(scheduled_leds_bside);
             }
-        } else if (now - last_led_time > 1000) {
+        } else if (now - last_button_led_time > 1000) {
             // If it's been a while since the last HID lights, use the raw
             // button input for lights
             if (global_led_enable) {
-                button_leds.set(buttons);
+                set_hid_lights_buttons(buttons);
             } else {
-                button_leds.set(0);
+                set_hid_lights_buttons(0);
             }
         }
+
+        // Non-HID controlled handling of LED1
+        if (now - last_led1_time > 1000) {
+            if (global_led_enable) {
+                led1.on();
+            } else {
+                led1.off();
+            }
+        }
+
+        // Non-HID controlled handling of LED2
+        if (now - last_led2_time > 1000) {
+            if (global_led_enable) {
+                led2.on();
+            } else {
+                led2.off();
+            }
+        }        
 
         // [READ QE1]
         uint32_t qe1_count = TIM2.CNT;
@@ -503,7 +532,6 @@ int main() {
 
             // Update LED on/off state.
             global_led_enable = !runtime_flags.LedOff;
-            update_turntable_lights();
         }
 
         // [REMAP]
