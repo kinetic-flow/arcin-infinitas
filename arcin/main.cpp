@@ -322,7 +322,7 @@ void schedule_led(uint32_t end_time, uint16_t leds_a, uint16_t leds_b) {
     scheduled_leds_bside = leds_b;
 }
 
-void set_hid_lights_buttons(uint16_t leds) {
+void set_button_lights(uint16_t leds) {
     button_leds.set(leds & 0x7ff);
 }
 
@@ -335,9 +335,9 @@ void set_hid_lights(uint16_t leds) {
     // buttons
     last_button_led_time = Time::time();
     if (global_led_enable) {
-        set_hid_lights_buttons(leds);
+        set_button_lights(leds);
     } else {
-        set_hid_lights_buttons(0);
+        set_button_lights(0);
     }
 
     // LED1
@@ -484,17 +484,17 @@ int main() {
         if (now < scheduled_led_time) {
             uint16_t diff = now - scheduled_led_time;
             if ((diff / 200) % 2 == 0) {
-                set_hid_lights_buttons(scheduled_leds_aside);
+                set_button_lights(scheduled_leds_aside);
             } else {
-                set_hid_lights_buttons(scheduled_leds_bside);
+                set_button_lights(scheduled_leds_bside);
             }
         } else if (now - last_button_led_time > 1000) {
             // If it's been a while since the last HID lights, use the raw
             // button input for lights
             if (global_led_enable) {
-                set_hid_lights_buttons(buttons);
+                set_button_lights(buttons);
             } else {
-                set_hid_lights_buttons(0);
+                set_button_lights(0);
             }
         }
 
