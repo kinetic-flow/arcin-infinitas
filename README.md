@@ -33,7 +33,7 @@ Run the executable (arcin_infinitas_new.exe or arcin_infinitas_new.exe) in Windo
     * Do not change any key binds in the settings - it won't work.
 * If you have trouble with the game recognizing your controller, ensure all other game controllers are disconnected. If you ever installed third party software to make PS4 DualShock work, that might be interferring as well.
 
-# Details
+# Features
 
 In the beginning, this firmware was set out to address the turntable sensitivy issues with Infinitas when running at 120hz. The game has since been patched. This project now aims to be a highly configurable firmware that is compatbile with a wide array of games.
 
@@ -47,6 +47,8 @@ On top of the "arcin_flash_config_alpha5" firmware, the following changes are ma
 * Freely switch between 1000hz / 250hz polling mode
 * Keyboard mode for games without proper gamepad support
 * Runtime mode switching via button combinations (hold start+select+button)
+* Reactive turntable LED (turntable lights up when you scratch)
+* HID-light control of turntable LED
 
 In addition to Infinitas, this firmware should be perfectly fine with HID-light and beatoraja (analog turntable) configurations. If you enable digital turntable in the configuration tool, it will also work in LR2 for playing BMS. Keyboard mode can be used for any games that do not have full support for gamepads (DJMAX Respect V, Muse Dash...).
 
