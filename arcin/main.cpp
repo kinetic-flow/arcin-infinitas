@@ -401,7 +401,6 @@ int main() {
     led2.set_mode(Pin::Output);
     
     global_led_enable = !runtime_flags.LedOff;
-    update_turntable_lights();
     
     RCC.enable(RCC.TIM2);
     RCC.enable(RCC.TIM3);
@@ -480,7 +479,7 @@ int main() {
             reset();
         }
         
-        // button LEDs
+        // Non-HID controlled handling of button LEDs
         if (now < scheduled_led_time) {
             uint16_t diff = now - scheduled_led_time;
             if ((diff / 200) % 2 == 0) {
