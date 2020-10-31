@@ -138,8 +138,28 @@ auto report_desc = gamepad(
 		report_count(1),
 		output(0x02)
 	),
+
+	usage_page(UsagePage::Ordinal),
+	usage(12),
+	collection(Collection::Logical, 
+		usage_page(UsagePage::LED),
+		usage(0x4b),
+		report_size(1),
+		report_count(1),
+		output(0x02)
+	),
+
+	usage_page(UsagePage::Ordinal),
+	usage(13),
+	collection(Collection::Logical, 
+		usage_page(UsagePage::LED),
+		usage(0x4b),
+		report_size(1),
+		report_count(1),
+		output(0x02)
+	),
 	
-	padding_out(5),
+	padding_out(3),
 	
 	// Bootloader
 	report_id(0xb0),

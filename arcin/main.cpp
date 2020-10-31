@@ -308,7 +308,7 @@ uint32_t scheduled_led_time = 0;
 uint16_t scheduled_leds_aside = 0;
 uint16_t scheduled_leds_bside = 0;
 bool global_led_enable = false;
-bool last_turntable_led_state = false;
+bool global_tt_hid_enable = false;
 void schedule_led(uint32_t end_time, uint16_t leds_a, uint16_t leds_b) {
     // If scheduling in the past, nothing to do
     // This also guards against wallclock rollover
@@ -321,29 +321,44 @@ void schedule_led(uint32_t end_time, uint16_t leds_a, uint16_t leds_b) {
     scheduled_leds_bside = leds_b;
 }
 
+void set_button_lights(uint16_t leds) {
+    button_leds.set(leds & 0x7ff);
+}
+
+bool led1_last_state = false;
+bool led2_last_state = false;
+void set_tt_led(bool led1_on, bool led2_on) {
+    if (!led1_last_state && led1_on) {
+        led1.on();
+    } else if (led1_last_state && !led1_on) {
+        led1.off();
+    }
+
+    if (!led2_last_state && led2_on) {
+        led2.on();
+    } else if (led2_last_state && !led2_on) {
+        led2.off();
+    }
+
+    led1_last_state = led1_on;
+    led2_last_state = led2_on;
+}
+
 void set_hid_lights(uint16_t leds) {
+    // if LED is globally disabled, ignore HID lights
+    if (!global_led_enable) {
+        return;
+    }
+
     // if LED overrides are in effect, ignore HID lights
     if (Time::time() < scheduled_led_time) {
         return;
     }
 
     last_led_time = Time::time();
-    if (global_led_enable) {
-        button_leds.set(leds);
-    } else {
-        button_leds.set(0);
-    }    
-}
-
-void update_turntable_lights() {
-    if (global_led_enable && !last_turntable_led_state) {
-        led1.on();
-        led2.on();
-        last_turntable_led_state = true;
-    } else if (!global_led_enable && last_turntable_led_state) {
-        led1.off();
-        led2.off();
-        last_turntable_led_state = false;
+    set_button_lights(leds);
+    if (global_tt_hid_enable) {
+        set_tt_led((leds & 0x800) != 0, (leds & 0x1000) != 0);
     }
 }
 
@@ -391,7 +406,7 @@ int main() {
     led2.set_mode(Pin::Output);
     
     global_led_enable = !runtime_flags.LedOff;
-    update_turntable_lights();
+    global_tt_hid_enable = runtime_flags.TtLedHid;
     
     RCC.enable(RCC.TIM2);
     RCC.enable(RCC.TIM3);
@@ -470,21 +485,28 @@ int main() {
             reset();
         }
         
+        // Non-HID controlled handling of button LEDs
         if (now < scheduled_led_time) {
             uint16_t diff = now - scheduled_led_time;
             if ((diff / 200) % 2 == 0) {
-                button_leds.set(scheduled_leds_aside);
+                set_button_lights(scheduled_leds_aside);
             } else {
-                button_leds.set(scheduled_leds_bside);
+                set_button_lights(scheduled_leds_bside);
             }
         } else if (now - last_led_time > 1000) {
             // If it's been a while since the last HID lights, use the raw
             // button input for lights
             if (global_led_enable) {
-                button_leds.set(buttons);
+                set_button_lights(buttons);
             } else {
-                button_leds.set(0);
+                set_button_lights(0);
             }
+        }
+
+        // Non-HID controlled handling of LED1 / LED2
+        if (!runtime_flags.TtLedHid && !runtime_flags.TtLedReactive) {
+            // in "default" mode, follow the global LED on/off setting.
+            set_tt_led(global_led_enable, global_led_enable);
         }
 
         // [READ QE1]
@@ -501,9 +523,8 @@ int main() {
 
             runtime_flags = process_mode_switch(raw_debounced);
 
-            // Update LED on/off state.
+            // Update LED options state.
             global_led_enable = !runtime_flags.LedOff;
-            update_turntable_lights();
         }
 
         // [REMAP]
@@ -527,8 +548,26 @@ int main() {
 
         // [DIGITAL QE1]
         int8_t tt1_report = 0;
-        if (runtime_flags.DigitalTTEnable || runtime_flags.KeyboardEnable) {
+        if (runtime_flags.DigitalTTEnable ||
+            runtime_flags.KeyboardEnable ||
+            runtime_flags.TtLedReactive) {
             tt1_report = tt1.poll(qe1_count);
+
+            if (runtime_flags.TtLedReactive) {
+                if (global_led_enable) {
+                    switch (tt1_report) {
+                    case -1:
+                    case 1:
+                        set_tt_led(true, true);
+                        break;
+                    default:
+                        set_tt_led(false, false);
+                        break;
+                    }
+                } else {
+                    set_tt_led(false, false);    
+                }
+            }
         }
 
         // [E2 MULTI-TAP]

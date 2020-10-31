@@ -23,7 +23,9 @@ typedef union _config_flags {
         uint32_t JoyInputForceDisable: 1;
         uint32_t ModeSwitchEnable: 1;
         uint32_t LedOff: 1;
-        uint32_t Reserved: 21;
+        uint32_t TtLedReactive: 1;
+        uint32_t TtLedHid: 1;
+        uint32_t Reserved: 19;
     };
 
     uint32_t AsUINT32;
