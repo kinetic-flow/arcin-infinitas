@@ -497,7 +497,7 @@ int main() {
         }
 
         // Non-HID controlled handling of LED1 / LED2
-        if (!global_tt_hid_enable) {
+        if (!runtime_flags.TtLedHid && !runtime_flags.TtLedReactive) {
             // in "default" mode, follow the global LED on/off setting.
             if (global_led_enable) {
                 led1.on();
@@ -547,8 +547,24 @@ int main() {
 
         // [DIGITAL QE1]
         int8_t tt1_report = 0;
-        if (runtime_flags.DigitalTTEnable || runtime_flags.KeyboardEnable) {
+        if (runtime_flags.DigitalTTEnable ||
+            runtime_flags.KeyboardEnable ||
+            runtime_flags.TtLedReactive) {
             tt1_report = tt1.poll(qe1_count);
+
+            if (runtime_flags.TtLedReactive) {
+                switch (tt1_report) {
+                case -1:
+                case 1:
+                    led1.on();
+                    led2.on();
+                    break;
+                default:
+                    led1.off();
+                    led2.off();
+                    break;
+                }
+            }
         }
 
         // [E2 MULTI-TAP]
