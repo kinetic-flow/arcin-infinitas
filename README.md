@@ -1,7 +1,7 @@
 # arcin-infinitas
 arcin firmware and configuration tool for multiple games, including beatmania IIDX Infinitas (2020 ver)
 
-![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/4837cf7ef25819882d576659b3b52ac2f6f5a5b2/res/screenshot.png)
+![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/2d409a6a959842585b2436605bdd933ba42b2959/res/screenshot.png)
 
 ## What is this?
 A custom arcin firmware, written for broad compatibility with various games, including the new infinitas 120hz version. No key config or joy2key needed - everything will work with the game out of the gate. It is natively compatible with Infinitas, HID-light, LR2, and beatoraja. Additional games can be played using keyboard mode, with fully customizable keyboard input.
@@ -54,7 +54,7 @@ This firmware is also technically compatible with the flashing tools, but the fl
 
 # Configuration tool
 
-![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/4837cf7ef25819882d576659b3b52ac2f6f5a5b2/res/screenshot.png)
+![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/2d409a6a959842585b2436605bdd933ba42b2959/res/screenshot.png)
 
 Press "Refresh" to update the list of devices. Press "Load" to load settings from your controller. Press "Save" to save your settings to your controller.
 
@@ -109,6 +109,7 @@ Then:
 
 * Holding Start + Select + 1 for 3 seconds will switch between input modes (controller <=> keyboard). Key 2 or 4 will flash to indicate which mode you are in. 
 * Holding Start + Select + 3 for 3 seconds will switch between turntable modes (analog only <=> digital only). Key 2 or 4 will flash to indicate which mode you are in.
+* Holding Start + Select + 5 for 3 seconds will enable or disable all LEDs.
 
 Note that when you use the mode switching button combinations, the changes are not permanently saved; when the controller is unplugged, things will revert back to what was set in the configuration tool. This is intentional!
 
