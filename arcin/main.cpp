@@ -307,6 +307,8 @@ uint8_t debounce_window_effectors;
 uint32_t scheduled_led_time = 0;
 uint16_t scheduled_leds_aside = 0;
 uint16_t scheduled_leds_bside = 0;
+bool global_led_enable = false;
+bool last_turntable_led_state = false;
 void schedule_led(uint32_t end_time, uint16_t leds_a, uint16_t leds_b) {
     // If scheduling in the past, nothing to do
     // This also guards against wallclock rollover
@@ -326,7 +328,23 @@ void set_hid_lights(uint16_t leds) {
     }
 
     last_led_time = Time::time();
-    button_leds.set(leds);
+    if (global_led_enable) {
+        button_leds.set(leds);
+    } else {
+        button_leds.set(0);
+    }    
+}
+
+void update_turntable_lights() {
+    if (global_led_enable && !last_turntable_led_state) {
+        led1.on();
+        led2.on();
+        last_turntable_led_state = true;
+    } else if (!global_led_enable && last_turntable_led_state) {
+        led1.off();
+        led2.off();
+        last_turntable_led_state = false;
+    }
 }
 
 int main() {
@@ -370,10 +388,10 @@ int main() {
     button_leds.set_mode(Pin::Output);
     
     led1.set_mode(Pin::Output);
-    led1.on();
-    
     led2.set_mode(Pin::Output);
-    led2.on();
+    
+    global_led_enable = !runtime_flags.LedOff;
+    update_turntable_lights();
     
     RCC.enable(RCC.TIM2);
     RCC.enable(RCC.TIM3);
@@ -462,7 +480,11 @@ int main() {
         } else if (now - last_led_time > 1000) {
             // If it's been a while since the last HID lights, use the raw
             // button input for lights
-            button_leds.set(buttons);
+            if (global_led_enable) {
+                button_leds.set(buttons);
+            } else {
+                button_leds.set(0);
+            }
         }
 
         // [READ QE1]
@@ -478,6 +500,10 @@ int main() {
                 (debounce(&debounce_state_raw, buttons & debounce_mask));
 
             runtime_flags = process_mode_switch(raw_debounced);
+
+            // Update LED on/off state.
+            global_led_enable = !runtime_flags.LedOff;
+            update_turntable_lights();
         }
 
         // [REMAP]
