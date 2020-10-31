@@ -325,6 +325,25 @@ void set_button_lights(uint16_t leds) {
     button_leds.set(leds & 0x7ff);
 }
 
+bool led1_last_state = false;
+bool led2_last_state = false;
+void set_tt_led(bool led1_on, bool led2_on) {
+    if (!led1_last_state && led1_on) {
+        led1.on();
+    } else if (led1_last_state && !led1_on) {
+        led1.off();
+    }
+
+    if (!led2_last_state && led2_on) {
+        led2.on();
+    } else if (led2_last_state && !led2_on) {
+        led2.off();
+    }
+
+    led1_last_state = led1_on;
+    led2_last_state = led2_on;
+}
+
 void set_hid_lights(uint16_t leds) {
     // if LED is globally disabled, ignore HID lights
     if (!global_led_enable) {
@@ -339,19 +358,7 @@ void set_hid_lights(uint16_t leds) {
     last_led_time = Time::time();
     set_button_lights(leds);
     if (global_tt_hid_enable) {
-        // LED1
-        if (leds & 0x800) {
-            led1.on();
-        } else {
-            led1.off();
-        }
-
-        // LED2
-        if (leds & 0x1000) {
-            led2.on();
-        } else {
-            led2.off();
-        }
+        set_tt_led((leds & 0x800) != 0, (leds & 0x1000) != 0);
     }
 }
 
@@ -499,14 +506,8 @@ int main() {
         // Non-HID controlled handling of LED1 / LED2
         if (!runtime_flags.TtLedHid && !runtime_flags.TtLedReactive) {
             // in "default" mode, follow the global LED on/off setting.
-            if (global_led_enable) {
-                led1.on();
-                led2.on();
-            } else {
-                led1.off();
-                led2.off();
-            }
-        }        
+            set_tt_led(global_led_enable, global_led_enable);
+        }
 
         // [READ QE1]
         uint32_t qe1_count = TIM2.CNT;
@@ -553,16 +554,18 @@ int main() {
             tt1_report = tt1.poll(qe1_count);
 
             if (runtime_flags.TtLedReactive) {
-                switch (tt1_report) {
-                case -1:
-                case 1:
-                    led1.on();
-                    led2.on();
-                    break;
-                default:
-                    led1.off();
-                    led2.off();
-                    break;
+                if (global_led_enable) {
+                    switch (tt1_report) {
+                    case -1:
+                    case 1:
+                        set_tt_led(true, true);
+                        break;
+                    default:
+                        set_tt_led(false, false);
+                        break;
+                    }
+                } else {
+                    set_tt_led(false, false);    
                 }
             }
         }
