@@ -12,6 +12,8 @@ A custom arcin firmware, written for broad compatibility with various games, inc
 
 ## How do I flash the firmware?
 
+**WARNING:** only use with arcin boards. **Do not** use the firmware flashing tool or the config tool with the official Konami controller plugged in. I'm not responsible for any damage.
+
 Unplug your controller. Hold down buttons 1 and 2 while you plug it back in. If you see button 1 flashing - you are now in flashing mode.
 
 Run the executable (arcin_infinitas_new.exe or arcin_infinitas_new.exe) in Windows. You might need to do it a few times until it works.
