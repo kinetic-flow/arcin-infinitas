@@ -6,6 +6,8 @@ arcin firmware and configuration tool for multiple games, including beatmania II
 ## What is this?
 A custom arcin firmware, written for broad compatibility with various games, including the new infinitas 120hz version. No key config or joy2key needed - everything will work with the game out of the gate. It is natively compatible with Infinitas, HID-light, LR2, and beatoraja. Additional games can be played using keyboard mode, with fully customizable keyboard input.
 
+**WARNING: only use with arcin boards. Do not use the firmware flashing tool or the config tool with the official Konami controller plugged in. I'm not responsible for any damage.**
+
 ## Where do I download?
 
 [Check out the latest release](https://github.com/minsang-github/arcin-infinitas/releases/latest).
