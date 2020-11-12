@@ -618,7 +618,12 @@ int main() {
                 } else if (config.qe1_sens > 0) {
                     qe1_count *= config.qe1_sens;
                 }
-                report.axis_x = uint8_t(qe1_count);
+
+                if (analog_tt_reverse_direction) {
+                    report.axis_x = uint8_t(255 - qe1_count);
+                } else {
+                    report.axis_x = uint8_t(qe1_count);
+                }
             }
 
             report.axis_y = 127;

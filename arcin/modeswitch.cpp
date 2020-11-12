@@ -17,6 +17,8 @@ uint16_t led_mode_switch_request = 0;
 config_flags original_flags = {0};
 config_flags current_flags = {0};
 
+bool analog_tt_reverse_direction = false;
+
 config_flags initialize_mode_switch(config_flags flags) {
     original_flags = flags;
     current_flags = original_flags;
@@ -101,9 +103,11 @@ void process_tt_mode_switch() {
         (ARCIN_PIN_BUTTON_START | ARCIN_PIN_BUTTON_SELECT | ARCIN_PIN_BUTTON_3);
 
     // analog only -> digital only
-    if (!current_flags.DigitalTTEnable && !current_flags.AnalogTTForceEnable) {
+    if (!current_flags.DigitalTTEnable &&
+        !current_flags.AnalogTTForceEnable &&
+        !analog_tt_reverse_direction) {
+
         current_flags.DigitalTTEnable = 1;
-        current_flags.AnalogTTForceEnable = 0;
         schedule_led(
             Time::time() + 2500,
             (mode_lights | ARCIN_PIN_BUTTON_4),
@@ -112,9 +116,22 @@ void process_tt_mode_switch() {
         return;
     }
 
+    // digital only -> analog only (flipped)
+    if (current_flags.DigitalTTEnable && !current_flags.AnalogTTForceEnable) {
+        current_flags.DigitalTTEnable = 0;
+        analog_tt_reverse_direction = true;
+        schedule_led(
+            Time::time() + 2500,
+            (mode_lights | ARCIN_PIN_BUTTON_6),
+            mode_lights);
+
+        return;
+    }
+
     // all others -> analog only
     current_flags.DigitalTTEnable = 0;
     current_flags.AnalogTTForceEnable = 0;
+    analog_tt_reverse_direction = false;
     schedule_led(
         Time::time() + 2500,
         (mode_lights | ARCIN_PIN_BUTTON_2),
