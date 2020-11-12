@@ -114,7 +114,7 @@ First, turn on "Enable mode switching" in the config tool.
 Then:
 
 * Holding Start + Select + 1 for 3 seconds will switch between input modes (controller <=> keyboard). Key 2 or 4 will flash to indicate which mode you are in. 
-* Holding Start + Select + 3 for 3 seconds will switch between turntable modes (analog only <=> digital only). Key 2 or 4 will flash to indicate which mode you are in.
+* Holding Start + Select + 3 for 3 seconds will switch between turntable modes (=> analog only => digital only => analog reversed =>). Key 2, 4, or 6 will flash to indicate which mode you are in.
 * Holding Start + Select + 5 for 3 seconds will enable or disable all LEDs.
 
 Note that when you use the mode switching button combinations, the changes are not permanently saved; when the controller is unplugged, things will revert back to what was set in the configuration tool. This is intentional!
