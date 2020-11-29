@@ -8,34 +8,32 @@ A custom arcin firmware, written for broad compatibility with various games, inc
 
 **WARNING: only use with arcin boards. Do not use the firmware flashing tool or the config tool with the official Konami controller plugged in. I'm not responsible for any damage.**
 
-## Where do I download?
+## Quick HOW-TO
+
+### Where do I download?
 
 [Check out the latest release](https://github.com/minsang-github/arcin-infinitas/releases/latest).
 
-## How do I flash the firmware?
+### How do I flash the firmware?
+* Unplug your controller. Hold down buttons 1 and 2 while you plug it back in. If you see button 1 flashing - you are now in flashing mode.
+* Run the executable (arcin_infinitas_new.exe or arcin_infinitas_new.exe) in Windows. You might need to do it a few times until it works.
 
-Unplug your controller. Hold down buttons 1 and 2 while you plug it back in. If you see button 1 flashing - you are now in flashing mode.
-
-Run the executable (arcin_infinitas_new.exe or arcin_infinitas_new.exe) in Windows. You might need to do it a few times until it works.
-
-## How do I set up the wiring?
+### How do I set up the wiring?
 * Ensure your turntable is connected to QE1.
 * Black & white keys must be wired to b1-b7. This will give you the most responsive input. Avoid b8 and b9 (they have extra debouncing enabled)
 * Start and select to b10 or b11.
 * Other buttons - like the two buttons at the top edge of DAO RED - can be wired to b8 and b9 to be used as extra E buttons.
 
-## How do I use it with Infinitas?
+### How do I use it with Infinitas?
 * Launch the configuration tool (arcin_conf_infinitas.exe)
-    * Set turntable mode to Analog only.
-    * Adjust turntable sensitity as needed.
-    * Change E-button layout as needed.
+    * Set turntable mode to Analog only
 * Start the Infinitas launcher, enter Settings
 * **Press "デフォルトに戻す" to reset all keybinds. This is important and you MUST do this!!**
     * This firmware pretends to be the official infinitas controller, so the game detects this automatically and uses the correct key binds. Even if the key binds "seem" wrong in the UI, ignore it.
-    * Do not change any key binds in the settings - it won't work.
+    * Do not change any key binds in the settings - it doesn't seem to work.
 * If you have trouble with the game recognizing your controller, ensure all other game controllers are disconnected. If you ever installed third party software to make PS4 DualShock work, that might be interferring as well.
 
-# Features
+## Features
 
 In the beginning, this firmware was set out to address the turntable sensitivy issues with Infinitas when running at 120hz. The game has since been patched. This project now aims to be a highly configurable firmware that is compatbile with a wide array of games.
 
@@ -43,20 +41,17 @@ On top of the "arcin_flash_config_alpha5" firmware, the following changes are ma
 
 * Changes the hardware ID (USB VID / PID) to be the same as Konami infinitas controller. This allows the game to automatically detect it & use the analog turntable.
 * Remaps E1-E4 buttons correctly (customizable in the configuration tool)
-* Optional analog / digital turntable modes
+* Supports both analog and digital turntable input
 * Optional double-click / triple-click select button feature (like DJ DAO)
-* Optional button debouncing
-* Freely switch between 1000hz / 250hz polling mode
+* Button debouncing
+* Switch between 1000hz / 250hz polling mode
 * Keyboard mode for games without proper gamepad support
 * Runtime mode switching via button combinations (hold start+select+button)
-* Reactive turntable LED (turntable lights up when you scratch)
-* HID-light control of turntable LED
+* Control over turntable LED - reactive mode, HID-light mode
 
 In addition to Infinitas, this firmware should be perfectly fine with HID-light and beatoraja (analog turntable) configurations. If you enable digital turntable in the configuration tool, it will also work in LR2 for playing BMS. Keyboard mode can be used for any games that do not have full support for gamepads (DJMAX Respect V, Muse Dash...).
 
-This firmware is also technically compatible with the flashing tools, but the flashing tools are unable to automatically discover the controller becuase the USB IDs will be different from what they expect. To work around this, unplug the USB cable, hold down 1+2, plug in the USB cable, this will enter flashing mode and you will be able to proceed as normal.
-
-# Configuration tool
+## Configuration tool
 
 ![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/2d409a6a959842585b2436605bdd933ba42b2959/res/screenshot.png)
 
@@ -96,7 +91,7 @@ The following configurations are recommended:
 
 When keyboard mode is enabled, button pressees will register as keystrokes. Configure each key codes in the menu as shown above.
 
-## QE1 sensitivity
+## Turntable (QE1) sensitivity
 Here is an explanation of the sensitivty options.
 
 1:1 means the rotary encoder counts from 0 and up to (but not including) 256. This value is directly reported as the joystick X-axis.
@@ -107,11 +102,9 @@ N:1 means the rotary encoder counts from 0 and up to (but not including) 256, bu
 
 For DAO turntables, it is recommended that you stick to values between 1:2 and 1:5, inclusive. 1:2 is super sensitive, 1:3 is sensitive, 1:4 and 1:5 are like stock DAO.
 
-## Mode switching
+## Runtime mode switching
 
-First, turn on "Enable mode switching" in the config tool.
-
-Then:
+First of all, turn on "Enable mode switching" in the config tool. Then:
 
 * Holding Start + Select + 1 for 3 seconds will switch between input modes (controller <=> keyboard). Key 2 or 4 will flash to indicate which mode you are in. 
 * Holding Start + Select + 3 for 3 seconds will switch between turntable modes (=> analog only => digital only => analog reversed =>). Key 2, 4, or 6 will flash to indicate which mode you are in.
@@ -119,39 +112,7 @@ Then:
 
 Note that when you use the mode switching button combinations, the changes are not permanently saved; when the controller is unplugged, things will revert back to what was set in the configuration tool. This is intentional!
 
-# Building
-
-This section is for developers only. If you're just looking to run this on your board, download the [latest release](https://github.com/minsang-github/arcin-infinitas/releases/latest).
-
-This is the hard part... components required to are not included in this repository, so you need to shop around.
-
-* Get the ARM toolchain for Linux and put it in your $PATH
-    * https://launchpad.net/gcc-arm-embedded/+download
-    * Try to get these files from the website instead of the ones from your OS's package repository.
-* Get SCons : http://scons.org/pages/download.html
-    * You can get scons from yor OS's package repository (e.g., apt-get)
-* git submodule init: this will pull the external laks submodule, which contains headers for the hardware used by the arcin.
-
-To build, run
-
-    scons
-
-To flash, run
-
-    ./hidflash.py arcin.elf
-
-To create an executable for easily flashing the ELF file, grab https://github.com/theKeithD/arcin/tree/svre9/arcin-utils and then run:
-
-    ./hidloader_append.py arcin.elf hidloader_v2.exe arcin_flash_custom.exe
-
-I had success with Ubuntu 20.04 LTS on WSL2 (Windows Subsystem for Linux). Mind that ARM toolchian will not work in WSL1!
-
-Source for GUI configuration tool is hosted at https://github.com/minsang-github/arcin-infinitas-conf and that one is a pure python project.
-
 ## Disclaimer
 
-The repository owner or contributors are not liable for any damage caused to your hardware. That being said, arcin is a fairly robust board with recovery capabilities, so you should be fine!
-
+The repository owner or contributors are not liable for any damage caused to your hardware.
 This repository is a fork of zyp's respository, specifically at this commit: https://cgit.jvnv.net/arcin/commit/?h=conf&id=1c211c70f4a23a770724ce435e223d442e5fb78e
-
-Thank you for the awesome project, zyp!
