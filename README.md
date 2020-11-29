@@ -112,6 +112,9 @@ First of all, turn on "Enable mode switching" in the config tool. Then:
 
 Note that when you use the mode switching button combinations, the changes are not permanently saved; when the controller is unplugged, things will revert back to what was set in the configuration tool. This is intentional!
 
+## For developers - build instructions
+See [BUILDING.md](https://github.com/minsang-github/arcin-infinitas/blob/master/README.md).
+
 ## Disclaimer
 
 The repository owner or contributors are not liable for any damage caused to your hardware.
