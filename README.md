@@ -53,10 +53,6 @@ In addition to Infinitas, this firmware should be perfectly fine with HID-light 
 
 ## Configuration tool
 
-![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/2d409a6a959842585b2436605bdd933ba42b2959/res/screenshot.png)
-
-**WARNING:** only use with arcin boards. **Do not** use the firmware flashing tool or the config tool with the official Konami controller plugged in. I'm not responsible for any damage.
-
 Press "Refresh" to update the list of devices. Press "Load" to load settings from your controller. Press "Save" to save your settings to your controller.
 
 Hovering over some of the options will show you a tooltip with helpful text.
