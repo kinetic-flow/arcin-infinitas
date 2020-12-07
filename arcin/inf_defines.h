@@ -49,7 +49,6 @@
 #define JOY_BUTTON_14             ((uint16_t)(1 << 13))
 
 void set_hid_lights(uint16_t leds);
-void set_hid_lights_2(uint8_t resistance);
 void schedule_led(uint32_t end_time, uint16_t leds_a, uint16_t leds_b);
 
 #endif

@@ -19,6 +19,7 @@
 // [Least resistance]
 
 void update_qe1_arr(int8_t sens);
+void check_outdated_hid_report();
 
 static const uint8_t resistance_thresholds[] = {
     210,
@@ -108,7 +109,7 @@ void update_qe1_arr(int8_t sens) {
     }
 }
 
-uint32_t apply_qe1_sens_post(uint32_t raw) {
+void check_outdated_hid_report() {
     // if we haven't seen HID update for a while, revert to user-defined value
     if (qe1_sens != original_qe1_sens) {
         uint32_t now = Time::time();
@@ -117,6 +118,10 @@ uint32_t apply_qe1_sens_post(uint32_t raw) {
             update_qe1_arr(qe1_sens);
         }
     }
+}
+
+uint32_t apply_qe1_sens_post(uint32_t raw) {
+    check_outdated_hid_report();
 
     uint32_t qe1_count = raw;
     if (qe1_sens < 0) {
