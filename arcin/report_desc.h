@@ -158,8 +158,18 @@ auto report_desc = gamepad(
 		report_count(1),
 		output(0x02)
 	),
-	
+
 	padding_out(3),
+
+	// report 3 - range outputs
+	report_id(3),
+	usage_page(UsagePage::LED),
+	usage(0x56), // "LED Intensity" DV from HID Usages doc
+	logical_minimum(0),
+	logical_maximum(255),
+	report_count(1),
+	report_size(8),
+	output(0x02),
 	
 	// Bootloader
 	report_id(0xb0),
@@ -212,6 +222,11 @@ struct input_report_t {
 struct output_report_t {
 	uint8_t report_id;
 	uint16_t leds;
+} __attribute__((packed));
+
+struct output_report_range_t {
+	uint8_t report_id;
+	uint8_t tt_resistance;
 } __attribute__((packed));
 
 struct bootloader_report_t {

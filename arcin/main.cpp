@@ -16,6 +16,7 @@
 #include "multifunc.h"
 #include "debounce.h"
 #include "modeswitch.h"
+#include "ttsens.h"
 
 #define ARRAY_SIZE(x) \
     ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
@@ -119,7 +120,7 @@ static Pin led2 = GPIOA[9];
 USB_f1 usb_1000hz(USB, dev_desc_p, conf_desc_p_1000hz);
 USB_f1 usb_250hz(USB, dev_desc_p, conf_desc_p_250hz);
 
-uint32_t last_led_time;
+uint32_t last_led_time = 0;
 
 class HID_arcin : public USB_HID {
     private:
@@ -166,14 +167,25 @@ class HID_arcin : public USB_HID {
     
     protected:
         virtual bool set_output_report(uint32_t* buf, uint32_t len) {
-            if(len != sizeof(output_report_t)) {
+            if (len < sizeof(uint8_t)) {
                 return false;
             }
+
+            uint8_t report_id = *(uint8_t *)buf;
+
+            if (report_id == 2 && len == sizeof(output_report_t)) {
+                output_report_t* report = (output_report_t*)buf;
+                set_hid_lights(report->leds);
+                return true;
+            }
+
+            if (report_id == 3 && len == sizeof(output_report_range_t)) {
+                output_report_range_t* report = (output_report_range_t*)buf;   
+                set_hid_resistance(report->tt_resistance);
+                return true;
+            }
             
-            output_report_t* report = (output_report_t*)buf;
-            
-            set_hid_lights(report->leds);
-            return true;
+            return false;
         }
         
         virtual bool set_feature_report(uint32_t* buf, uint32_t len) {
@@ -419,11 +431,7 @@ int main() {
     TIM2.SMCR = 3;
     TIM2.CR1 = 1;
     
-    if(config.qe1_sens < 0) {
-        TIM2.ARR = 256 * -config.qe1_sens - 1;
-    } else {
-        TIM2.ARR = 256 - 1;
-    }
+    tt_sensitivity_init(config.qe1_sens);
     
     TIM3.CCMR1 = (1 << 8) | (1 << 0);
     TIM3.SMCR = 3;
@@ -613,12 +621,7 @@ int main() {
                 // [ANALOG TT -> SENSITIVITY]
                 // Adjust turntable sensitivity. Must be done AFTER digital TT
                 // processing.
-                if (config.qe1_sens < 0) {
-                    qe1_count /= -config.qe1_sens;
-                } else if (config.qe1_sens > 0) {
-                    qe1_count *= config.qe1_sens;
-                }
-
+                qe1_count = apply_qe1_sens_post(qe1_count);
                 if (analog_tt_reverse_direction) {
                     report.axis_x = uint8_t(255 - qe1_count);
                 } else {
