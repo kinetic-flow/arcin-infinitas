@@ -5,13 +5,18 @@
 
 #include "usb_strings.h"
 
+#define HID_REPORT_BUTTONS        1
+#define HID_REPORT_BUTTON_LEDS    2
+#define HID_REPORT_LED1_LED2      3
+#define HID_REPORT_TT_SENSITIVITY 4
+
 constexpr HID_Item<uint8_t> string_index(uint8_t x) {
 	return hid_item(0x78, x);
 }
 
 auto report_desc = gamepad(
 	// Inputs.
-	report_id(1),
+	report_id(HID_REPORT_BUTTONS),
 	
 	buttons(15),
 	padding_in(1),
@@ -33,7 +38,7 @@ auto report_desc = gamepad(
 	input(0x02),
 	
 	// Outputs.
-	report_id(2),
+	report_id(HID_REPORT_BUTTON_LEDS),
 	
 	usage_page(UsagePage::Ordinal),
 	usage(1),
@@ -180,8 +185,8 @@ auto report_desc = gamepad(
 
 	padding_out(5*8),
 
-	// HID-controlled turntable (LED1 and LED2)
-	report_id(3),
+	// HID-controlled LED1 and LED2
+	report_id(HID_REPORT_LED1_LED2),
 	usage_page(UsagePage::Ordinal),
 	usage(1),
 	collection(Collection::Logical, 
@@ -206,7 +211,22 @@ auto report_desc = gamepad(
 		report_size(8),
 		report_count(1),
 		output(0x02)
-	),	
+	),
+
+	// HID-controlled turntable sensitivity
+	report_id(HID_REPORT_TT_SENSITIVITY),
+	usage_page(UsagePage::Ordinal),
+	usage(1),
+	collection(Collection::Logical, 
+		usage_page(UsagePage::Desktop),
+		usage(0),
+		string_index(STRING_ID_TT_Sens),
+		logical_minimum(0),
+		logical_maximum(255),
+		report_size(8),
+		report_count(1),
+		output(0x02)
+	),
 	
 	// Bootloader
 	report_id(0xb0),
@@ -266,6 +286,11 @@ struct output_report_tt_led_t {
 	uint8_t report_id;
 	uint8_t led1;
 	uint8_t led2;
+} __attribute__((packed));
+
+struct output_report_tt_sens_t {
+	uint8_t report_id;
+	uint8_t tt_resistance;
 } __attribute__((packed));
 
 struct bootloader_report_t {

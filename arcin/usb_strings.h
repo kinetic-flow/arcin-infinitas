@@ -12,6 +12,8 @@
 #define STRING_ID_LED_Base      0x10
 #define STRING_ID_LED_Count     ARCIN_LED_COUNT
 
+#define STRING_ID_TT_Sens       0x40
+
 const char* led_names[STRING_ID_LED_Count] = {
 	"Button 1 LED",
 	"Button 2 LED",
@@ -92,6 +94,15 @@ class USB_strings : public USB_class_driver {
 							}
 							desc = buf;
 						}
+						break;
+
+					case STRING_ID_TT_Sens:
+						for(const char* p = "QE1 Sensitivity"; *p; p++) {
+							buf[i++] = *p;
+						}
+
+						buf[0] |= i * 2;
+						desc = buf;
 						break;
 
 					default:

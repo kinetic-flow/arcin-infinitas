@@ -16,6 +16,7 @@
 #include "multifunc.h"
 #include "debounce.h"
 #include "modeswitch.h"
+#include "ttsens.h" 
 
 #define ARRAY_SIZE(x) \
     ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
@@ -187,7 +188,7 @@ class HID_arcin : public USB_HID {
             }
 
             uint8_t report_id = *(uint8_t *)buf;
-            if (report_id == 2 && len == sizeof(output_report_button_led_t)) {
+            if (report_id == HID_REPORT_BUTTON_LEDS && len == sizeof(output_report_button_led_t)) {
                 output_report_button_led_t* report = (output_report_button_led_t*)buf;
                 uint16_t leds = 0;
                 for (uint8_t i = 0; i < ARRAY_SIZE(report->leds); i++) {
@@ -197,9 +198,15 @@ class HID_arcin : public USB_HID {
                 }
                 set_hid_button_lights(leds);
                 return true;
-            } else if (report_id == 3 && len == sizeof(output_report_tt_led_t)) {
+
+            } else if (report_id == HID_REPORT_LED1_LED2 && len == sizeof(output_report_tt_led_t)) {
                 output_report_tt_led_t* report = (output_report_tt_led_t*)buf;   
                 set_hid_tt_lights(report->led1 >= 128, report->led2 >= 128);
+                return true;
+
+            } else if (report_id == HID_REPORT_TT_SENSITIVITY && len == sizeof(output_report_tt_sens_t)) {
+                output_report_tt_sens_t* report = (output_report_tt_sens_t*)buf;   
+                set_hid_resistance(report->tt_resistance);
                 return true;
             }
 
@@ -454,21 +461,12 @@ int main() {
     TIM2.SMCR = 3;
     TIM2.CR1 = 1;
     
-    if(config.qe1_sens < 0) {
-        TIM2.ARR = 256 * -config.qe1_sens - 1;
-    } else {
-        TIM2.ARR = 256 - 1;
-    }
+    tt_sensitivity_init(config.qe1_sens); 
     
     TIM3.CCMR1 = (1 << 8) | (1 << 0);
     TIM3.SMCR = 3;
     TIM3.CR1 = 1;
-    
-    if(config.qe2_sens < 0) {
-        TIM3.ARR = 256 * -config.qe2_sens - 1;
-    } else {
-        TIM3.ARR = 256 - 1;
-    }
+    TIM3.ARR = 255;
     
     qe1a.set_af(1);
     qe1b.set_af(1);
@@ -545,6 +543,8 @@ int main() {
             // the default values
             set_tt_led(global_led_enable, global_led_enable);
         }
+
+        check_outdated_tt_sensitivity_hid_report();
 
         // [READ QE1]
         uint32_t qe1_count = TIM2.CNT;
@@ -650,12 +650,7 @@ int main() {
                 // [ANALOG TT -> SENSITIVITY]
                 // Adjust turntable sensitivity. Must be done AFTER digital TT
                 // processing.
-                if (config.qe1_sens < 0) {
-                    qe1_count /= -config.qe1_sens;
-                } else if (config.qe1_sens > 0) {
-                    qe1_count *= config.qe1_sens;
-                }
-
+                qe1_count = apply_qe1_sens_post(qe1_count); 
                 if (analog_tt_reverse_direction) {
                     report.axis_x = uint8_t(255 - qe1_count);
                 } else {
