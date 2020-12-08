@@ -9,14 +9,6 @@ constexpr HID_Item<uint8_t> string_index(uint8_t x) {
 	return hid_item(0x78, x);
 }
 
-constexpr HID_Item<uint8_t> string_range_begin(uint8_t x) {
-	return hid_item(0x89, x);
-}
-
-constexpr HID_Item<uint8_t> string_range_end(uint8_t x) {
-	return hid_item(0x99, x);
-}
-
 auto report_desc = gamepad(
 	// Inputs.
 	report_id(1),
@@ -46,9 +38,12 @@ auto report_desc = gamepad(
 	usage_page(UsagePage::Ordinal),
 	usage(1),
 	collection(Collection::Logical, 
-		usage_page(UsagePage::LED),
-		usage(0x4b),
-		report_size(1),
+		usage_page(UsagePage::Desktop),
+		usage(0),
+		string_index(STRING_ID_LED_Base),
+		logical_minimum(0),
+		logical_maximum(255),
+		report_size(8),
 		report_count(1),
 		output(0x02)
 	),
@@ -56,9 +51,12 @@ auto report_desc = gamepad(
 	usage_page(UsagePage::Ordinal),
 	usage(2),
 	collection(Collection::Logical, 
-		usage_page(UsagePage::LED),
-		usage(0x4b),
-		report_size(1),
+		usage_page(UsagePage::Desktop),
+		usage(0),
+		string_index(STRING_ID_LED_Base+1),
+		logical_minimum(0),
+		logical_maximum(255),
+		report_size(8),
 		report_count(1),
 		output(0x02)
 	),
@@ -66,9 +64,12 @@ auto report_desc = gamepad(
 	usage_page(UsagePage::Ordinal),
 	usage(3),
 	collection(Collection::Logical, 
-		usage_page(UsagePage::LED),
-		usage(0x4b),
-		report_size(1),
+		usage_page(UsagePage::Desktop),
+		usage(0),
+		string_index(STRING_ID_LED_Base+2),
+		logical_minimum(0),
+		logical_maximum(255),
+		report_size(8),
 		report_count(1),
 		output(0x02)
 	),
@@ -76,9 +77,12 @@ auto report_desc = gamepad(
 	usage_page(UsagePage::Ordinal),
 	usage(4),
 	collection(Collection::Logical, 
-		usage_page(UsagePage::LED),
-		usage(0x4b),
-		report_size(1),
+		usage_page(UsagePage::Desktop),
+		usage(0),
+		string_index(STRING_ID_LED_Base+3),
+		logical_minimum(0),
+		logical_maximum(255),
+		report_size(8),
 		report_count(1),
 		output(0x02)
 	),
@@ -86,9 +90,12 @@ auto report_desc = gamepad(
 	usage_page(UsagePage::Ordinal),
 	usage(5),
 	collection(Collection::Logical, 
-		usage_page(UsagePage::LED),
-		usage(0x4b),
-		report_size(1),
+		usage_page(UsagePage::Desktop),
+		usage(0),
+		string_index(STRING_ID_LED_Base+4),
+		logical_minimum(0),
+		logical_maximum(255),
+		report_size(8),
 		report_count(1),
 		output(0x02)
 	),
@@ -96,9 +103,12 @@ auto report_desc = gamepad(
 	usage_page(UsagePage::Ordinal),
 	usage(6),
 	collection(Collection::Logical, 
-		usage_page(UsagePage::LED),
-		usage(0x4b),
-		report_size(1),
+		usage_page(UsagePage::Desktop),
+		usage(0),
+		string_index(STRING_ID_LED_Base+5),
+		logical_minimum(0),
+		logical_maximum(255),
+		report_size(8),
 		report_count(1),
 		output(0x02)
 	),
@@ -106,9 +116,12 @@ auto report_desc = gamepad(
 	usage_page(UsagePage::Ordinal),
 	usage(7),
 	collection(Collection::Logical, 
-		usage_page(UsagePage::LED),
-		usage(0x4b),
-		report_size(1),
+		usage_page(UsagePage::Desktop),
+		usage(0),
+		string_index(STRING_ID_LED_Base+6),
+		logical_minimum(0),
+		logical_maximum(255),
+		report_size(8),
 		report_count(1),
 		output(0x02)
 	),
@@ -116,9 +129,12 @@ auto report_desc = gamepad(
 	usage_page(UsagePage::Ordinal),
 	usage(8),
 	collection(Collection::Logical, 
-		usage_page(UsagePage::LED),
-		usage(0x4b),
-		report_size(1),
+		usage_page(UsagePage::Desktop),
+		usage(0),
+		string_index(STRING_ID_LED_Base+7),
+		logical_minimum(0),
+		logical_maximum(255),
+		report_size(8),
 		report_count(1),
 		output(0x02)
 	),
@@ -126,9 +142,12 @@ auto report_desc = gamepad(
 	usage_page(UsagePage::Ordinal),
 	usage(9),
 	collection(Collection::Logical, 
-		usage_page(UsagePage::LED),
-		usage(0x4b),
-		report_size(1),
+		usage_page(UsagePage::Desktop),
+		usage(0),
+		string_index(STRING_ID_LED_Base+8),
+		logical_minimum(0),
+		logical_maximum(255),
+		report_size(8),
 		report_count(1),
 		output(0x02)
 	),
@@ -136,9 +155,12 @@ auto report_desc = gamepad(
 	usage_page(UsagePage::Ordinal),
 	usage(10),
 	collection(Collection::Logical, 
-		usage_page(UsagePage::LED),
-		usage(0x4b),
-		report_size(1),
+		usage_page(UsagePage::Desktop),
+		usage(0),
+		string_index(STRING_ID_LED_Base+9),
+		logical_minimum(0),
+		logical_maximum(255),
+		report_size(8),
 		report_count(1),
 		output(0x02)
 	),
@@ -146,9 +168,12 @@ auto report_desc = gamepad(
 	usage_page(UsagePage::Ordinal),
 	usage(11),
 	collection(Collection::Logical, 
-		usage_page(UsagePage::LED),
-		usage(0x4b),
-		report_size(1),
+		usage_page(UsagePage::Desktop),
+		usage(0),
+		string_index(STRING_ID_LED_Base+10),
+		logical_minimum(0),
+		logical_maximum(255),
+		report_size(8),
 		report_count(1),
 		output(0x02)
 	),
@@ -156,9 +181,12 @@ auto report_desc = gamepad(
 	usage_page(UsagePage::Ordinal),
 	usage(12),
 	collection(Collection::Logical, 
-		usage_page(UsagePage::LED),
-		usage(0x4b),
-		report_size(1),
+		usage_page(UsagePage::Desktop),
+		usage(0),
+		string_index(STRING_ID_LED_Base+11),
+		logical_minimum(0),
+		logical_maximum(255),
+		report_size(8),
 		report_count(1),
 		output(0x02)
 	),
@@ -166,14 +194,17 @@ auto report_desc = gamepad(
 	usage_page(UsagePage::Ordinal),
 	usage(13),
 	collection(Collection::Logical, 
-		usage_page(UsagePage::LED),
-		usage(0x4b),
-		report_size(1),
+		usage_page(UsagePage::Desktop),
+		usage(0),
+		string_index(STRING_ID_LED_Base+12),
+		logical_minimum(0),
+		logical_maximum(255),
+		report_size(8),
 		report_count(1),
 		output(0x02)
 	),
 	
-	padding_out(3),
+	padding_out(3*8),
 	
 	// Bootloader
 	report_id(0xb0),
@@ -225,7 +256,7 @@ struct input_report_t {
 
 struct output_report_t {
 	uint8_t report_id;
-	uint16_t leds;
+	uint8_t leds[16];
 } __attribute__((packed));
 
 struct bootloader_report_t {

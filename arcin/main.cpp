@@ -183,8 +183,16 @@ class HID_arcin : public USB_HID {
             }
             
             output_report_t* report = (output_report_t*)buf;
-            
-            set_hid_lights(report->leds);
+            uint16_t leds = 0;
+
+            static_assert(ARCIN_LED_COUNT <= ARRAY_SIZE(report->leds), "");
+
+            for (uint8_t i = 0; i < ARCIN_LED_COUNT; i++) {
+                if (report->leds[i] >= 128) {
+                    leds |= (1 << i);
+                }
+            }
+            set_hid_lights(leds);
             return true;
         }
         
