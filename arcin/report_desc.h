@@ -3,6 +3,20 @@
 
 #include <usb/hid.h>
 
+#include "usb_strings.h"
+
+constexpr HID_Item<uint8_t> string_index(uint8_t x) {
+	return hid_item(0x78, x);
+}
+
+constexpr HID_Item<uint8_t> string_range_begin(uint8_t x) {
+	return hid_item(0x89, x);
+}
+
+constexpr HID_Item<uint8_t> string_range_end(uint8_t x) {
+	return hid_item(0x99, x);
+}
+
 auto report_desc = gamepad(
 	// Inputs.
 	report_id(1),

@@ -3,6 +3,13 @@
 
 #include <usb/usb.h>
 
+#define STRING_ID_Language 0x0 // must be zero
+#define STRING_ID_Manufacturer 0x1
+#define STRING_ID_Product 0x2
+#define STRING_ID_Serial 0x3
+
+#define STRING_ID_LED 0x10
+
 uint32_t serial_num() {
 	uint32_t* uid = (uint32_t*)0x1ffff7ac;
 	
@@ -28,15 +35,15 @@ class USB_strings : public USB_class_driver {
 				uint32_t i = 1;
 				
 				switch(wValue & 0xff) {
-					case 0:
+					case STRING_ID_Language:
 						desc = u"\u0304\u0409";
 						break;
 					
-					case 1:
+					case STRING_ID_Manufacturer:
 						desc = u"\u0308zyp";
 						break;
 					
-					case 2:
+					case STRING_ID_Product:
 						for(const char* p = "arcin"; *p; p++) {
 							buf[i++] = *p;
 						}
@@ -57,7 +64,7 @@ class USB_strings : public USB_class_driver {
 						desc = buf;
 						break;
 					
-					case 3:
+					case STRING_ID_Serial:
 						{
 							buf[0] = 0x0312;
 							uint32_t id = serial_num();
@@ -67,6 +74,14 @@ class USB_strings : public USB_class_driver {
 							}
 							desc = buf;
 						}
+						break;
+
+					case STRING_ID_LED:
+						desc = "custom LEDs 0";
+						break;
+
+					case STRING_ID_LED+1:
+						desc = "custom LEDs 1";
 						break;
 				}
 				
