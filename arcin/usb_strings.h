@@ -2,6 +2,31 @@
 #define USB_STRINGS_H
 
 #include <usb/usb.h>
+#include "inf_defines.h"
+
+#define STRING_ID_Language      0x00 // must be zero
+#define STRING_ID_Manufacturer  0x01
+#define STRING_ID_Product       0x02
+#define STRING_ID_Serial        0x03
+
+#define STRING_ID_LED_Base      0x10
+#define STRING_ID_LED_Count     ARCIN_LED_COUNT
+
+const char* led_names[STRING_ID_LED_Count] = {
+	"Button 1 LED",
+	"Button 2 LED",
+	"Button 3 LED",
+	"Button 4 LED",
+	"Button 5 LED",
+	"Button 6 LED",
+	"Button 7 LED",
+	"Button 8 LED",
+	"Button 9 LED",
+	"Start Button LED",
+	"Select Button LED",
+	"TT LED1",
+	"TT LED2"
+};
 
 uint32_t serial_num() {
 	uint32_t* uid = (uint32_t*)0x1ffff7ac;
@@ -26,17 +51,17 @@ class USB_strings : public USB_class_driver {
 				const void* desc = nullptr;
 				uint16_t buf[64] = {0x300};
 				uint32_t i = 1;
-				
-				switch(wValue & 0xff) {
-					case 0:
+				uint8_t identifier = wValue & 0xff;
+				switch(identifier) {
+					case STRING_ID_Language:
 						desc = u"\u0304\u0409";
 						break;
 					
-					case 1:
+					case STRING_ID_Manufacturer:
 						desc = u"\u0308zyp";
 						break;
 					
-					case 2:
+					case STRING_ID_Product:
 						for(const char* p = "arcin"; *p; p++) {
 							buf[i++] = *p;
 						}
@@ -57,7 +82,7 @@ class USB_strings : public USB_class_driver {
 						desc = buf;
 						break;
 					
-					case 3:
+					case STRING_ID_Serial:
 						{
 							buf[0] = 0x0312;
 							uint32_t id = serial_num();
@@ -65,6 +90,18 @@ class USB_strings : public USB_class_driver {
 								buf[i] = (id & 0xf) > 9 ? 'A' + (id & 0xf) - 0xa : '0' + (id & 0xf);
 								id >>= 4;
 							}
+							desc = buf;
+						}
+						break;
+
+					default:
+						int offset = identifier - STRING_ID_LED_Base;
+						if (0 <= offset && offset < STRING_ID_LED_Count) {
+							for(const char* p = led_names[offset]; *p; p++) {
+								buf[i++] = *p;
+							}
+
+							buf[0] |= i * 2;
 							desc = buf;
 						}
 						break;

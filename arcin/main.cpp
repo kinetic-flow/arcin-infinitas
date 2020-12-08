@@ -66,7 +66,19 @@ auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1d50, 0x6080, 0x110, 1, 2, 3, 
 // Hardware ID Infinitas controller: 0x1ccf, 0x8048
 // The game detects this and automatically uses its own (internal) key config
 // overridng any user settings in the launcher
-auto dev_desc = device_desc(0x200, 0, 0, 0, 64, 0x1CCF, 0x8048, 0x110, 1, 2, 3, 1);
+auto dev_desc = device_desc(
+    0x200,  // bcdUSB
+    0,      // bdeviceClass
+    0,      // bDeviceSubClass
+    0,      // bDeviceProtocol
+    64,     // bMaxPacketSize0
+    0x1CCF, // idVendor
+    0x8048, // idProduct
+    0x110,  // bcdDevice
+    STRING_ID_Manufacturer,
+    STRING_ID_Product,
+    STRING_ID_Serial,
+    1);     // bNumConfigurations
 
 auto conf_desc_1000hz = configuration_desc(2, 1, 0, 0xc0, 0,
     // HID interface.
@@ -171,8 +183,16 @@ class HID_arcin : public USB_HID {
             }
             
             output_report_t* report = (output_report_t*)buf;
-            
-            set_hid_lights(report->leds);
+            uint16_t leds = 0;
+
+            static_assert(ARCIN_LED_COUNT <= ARRAY_SIZE(report->leds), "");
+
+            for (uint8_t i = 0; i < ARCIN_LED_COUNT; i++) {
+                if (report->leds[i] >= 128) {
+                    leds |= (1 << i);
+                }
+            }
+            set_hid_lights(leds);
             return true;
         }
         
