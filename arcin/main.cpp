@@ -22,6 +22,9 @@
 
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 
+void set_hid_button_lights(uint16_t leds);
+void set_hid_tt_lights(bool led1_on, bool led2_on);
+
 static const uint16_t infinitas_keys[] = {
     INFINITAS_BUTTON_1,
     INFINITAS_BUTTON_2,
@@ -131,7 +134,8 @@ static Pin led2 = GPIOA[9];
 USB_f1 usb_1000hz(USB, dev_desc_p, conf_desc_p_1000hz);
 USB_f1 usb_250hz(USB, dev_desc_p, conf_desc_p_250hz);
 
-uint32_t last_led_time;
+uint32_t last_button_led_time = 0;
+uint32_t last_tt_led_time = 0;
 
 class HID_arcin : public USB_HID {
     private:
@@ -178,21 +182,27 @@ class HID_arcin : public USB_HID {
     
     protected:
         virtual bool set_output_report(uint32_t* buf, uint32_t len) {
-            if(len != sizeof(output_report_t)) {
+            if (len < sizeof(uint8_t)) {
                 return false;
             }
-            
-            output_report_t* report = (output_report_t*)buf;
-            uint16_t leds = 0;
 
-            static_assert(ARCIN_LED_COUNT <= ARRAY_SIZE(report->leds), "");
-
-            for (uint8_t i = 0; i < ARCIN_LED_COUNT; i++) {
-                if (report->leds[i] >= 128) {
-                    leds |= (1 << i);
+            uint8_t report_id = *(uint8_t *)buf;
+            if (report_id == 2 && len == sizeof(output_report_button_led_t)) {
+                output_report_button_led_t* report = (output_report_button_led_t*)buf;
+                uint16_t leds = 0;
+                for (uint8_t i = 0; i < ARRAY_SIZE(report->leds); i++) {
+                    if (report->leds[i] >= 128) {
+                        leds |= (1 << i);
+                    }
                 }
+                set_hid_button_lights(leds);
+                return true;
+            } else if (report_id == 3 && len == sizeof(output_report_tt_led_t)) {
+                output_report_tt_led_t* report = (output_report_tt_led_t*)buf;   
+                set_hid_tt_lights(report->led1 >= 128, report->led2 >= 128);
+                return true;
             }
-            set_hid_lights(leds);
+
             return true;
         }
         
@@ -328,7 +338,6 @@ uint32_t scheduled_led_time = 0;
 uint16_t scheduled_leds_aside = 0;
 uint16_t scheduled_leds_bside = 0;
 bool global_led_enable = false;
-bool global_tt_hid_enable = false;
 void schedule_led(uint32_t end_time, uint16_t leds_a, uint16_t leds_b) {
     // If scheduling in the past, nothing to do
     // This also guards against wallclock rollover
@@ -364,7 +373,7 @@ void set_tt_led(bool led1_on, bool led2_on) {
     led2_last_state = led2_on;
 }
 
-void set_hid_lights(uint16_t leds) {
+void set_hid_button_lights(uint16_t leds) {
     // if LED is globally disabled, ignore HID lights
     if (!global_led_enable) {
         return;
@@ -375,11 +384,18 @@ void set_hid_lights(uint16_t leds) {
         return;
     }
 
-    last_led_time = Time::time();
+    last_button_led_time = Time::time();
     set_button_lights(leds);
-    if (global_tt_hid_enable) {
-        set_tt_led((leds & 0x800) != 0, (leds & 0x1000) != 0);
+}
+
+void set_hid_tt_lights(bool led1_on, bool led2_on) {
+    // if LED is globally disabled, ignore HID lights
+    if (!global_led_enable) {
+        return;
     }
+
+    last_tt_led_time = Time::time();
+    set_tt_led(led1_on, led2_on);
 }
 
 int main() {
@@ -426,7 +442,6 @@ int main() {
     led2.set_mode(Pin::Output);
     
     global_led_enable = !runtime_flags.LedOff;
-    global_tt_hid_enable = runtime_flags.TtLedHid;
     
     RCC.enable(RCC.TIM2);
     RCC.enable(RCC.TIM3);
@@ -513,7 +528,7 @@ int main() {
             } else {
                 set_button_lights(scheduled_leds_bside);
             }
-        } else if (now - last_led_time > 1000) {
+        } else if (now - last_button_led_time > 1000) {
             // If it's been a while since the last HID lights, use the raw
             // button input for lights
             if (global_led_enable) {
@@ -524,8 +539,10 @@ int main() {
         }
 
         // Non-HID controlled handling of LED1 / LED2
-        if (!runtime_flags.TtLedHid && !runtime_flags.TtLedReactive) {
-            // in "default" mode, follow the global LED on/off setting.
+        if (!runtime_flags.TtLedReactive &&
+            (last_tt_led_time == 0 || now - last_tt_led_time > 5000)) {
+            // If it's been a while since the last HID lights for TT, use
+            // the default values
             set_tt_led(global_led_enable, global_led_enable);
         }
 

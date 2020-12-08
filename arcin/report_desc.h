@@ -178,8 +178,12 @@ auto report_desc = gamepad(
 		output(0x02)
 	),
 
+	padding_out(5*8),
+
+	// HID-controlled turntable (LED1 and LED2)
+	report_id(3),
 	usage_page(UsagePage::Ordinal),
-	usage(12),
+	usage(1),
 	collection(Collection::Logical, 
 		usage_page(UsagePage::Desktop),
 		usage(0),
@@ -192,7 +196,7 @@ auto report_desc = gamepad(
 	),
 
 	usage_page(UsagePage::Ordinal),
-	usage(13),
+	usage(2),
 	collection(Collection::Logical, 
 		usage_page(UsagePage::Desktop),
 		usage(0),
@@ -202,9 +206,7 @@ auto report_desc = gamepad(
 		report_size(8),
 		report_count(1),
 		output(0x02)
-	),
-	
-	padding_out(3*8),
+	),	
 	
 	// Bootloader
 	report_id(0xb0),
@@ -254,9 +256,16 @@ struct input_report_t {
 	uint8_t axis_y;
 } __attribute__((packed));
 
-struct output_report_t {
+struct output_report_button_led_t {
 	uint8_t report_id;
-	uint8_t leds[16];
+	uint8_t leds[11];
+	uint8_t padding[5];
+} __attribute__((packed));
+
+struct output_report_tt_led_t {
+	uint8_t report_id;
+	uint8_t led1;
+	uint8_t led2;
 } __attribute__((packed));
 
 struct bootloader_report_t {
