@@ -131,7 +131,8 @@ static Pin led2 = GPIOA[9];
 USB_f1 usb_1000hz(USB, dev_desc_p, conf_desc_p_1000hz);
 USB_f1 usb_250hz(USB, dev_desc_p, conf_desc_p_250hz);
 
-uint32_t last_led_time;
+uint32_t last_led_time = 0;
+uint32_t last_tt_led_time = 0;
 
 class HID_arcin : public USB_HID {
     private:
@@ -183,16 +184,7 @@ class HID_arcin : public USB_HID {
             }
             
             output_report_t* report = (output_report_t*)buf;
-            uint16_t leds = 0;
-
-            static_assert(ARCIN_LED_COUNT <= ARRAY_SIZE(report->leds), "");
-
-            for (uint8_t i = 0; i < ARCIN_LED_COUNT; i++) {
-                if (report->leds[i] >= 128) {
-                    leds |= (1 << i);
-                }
-            }
-            set_hid_lights(leds);
+            set_hid_lights(report->leds);
             return true;
         }
         
@@ -378,8 +370,21 @@ void set_hid_lights(uint16_t leds) {
     last_led_time = Time::time();
     set_button_lights(leds);
     if (global_tt_hid_enable) {
+        last_tt_led_time = last_led_time;
         set_tt_led((leds & 0x800) != 0, (leds & 0x1000) != 0);
     }
+}
+
+void check_for_outdated_tt_led_report(config_flags *runtime_flags) {
+    if (runtime_flags->TtLedReactive) {
+        return;
+    }
+    if (runtime_flags->TtLedHid &&
+        last_tt_led_time != 0 &&
+        (Time::time() - last_tt_led_time) < 5000) {
+        return;
+    }
+    set_tt_led(global_led_enable, global_led_enable);
 }
 
 int main() {
@@ -424,6 +429,7 @@ int main() {
     
     led1.set_mode(Pin::Output);
     led2.set_mode(Pin::Output);
+    set_tt_led(false, false);
     
     global_led_enable = !runtime_flags.LedOff;
     global_tt_hid_enable = runtime_flags.TtLedHid;
@@ -524,10 +530,7 @@ int main() {
         }
 
         // Non-HID controlled handling of LED1 / LED2
-        if (!runtime_flags.TtLedHid && !runtime_flags.TtLedReactive) {
-            // in "default" mode, follow the global LED on/off setting.
-            set_tt_led(global_led_enable, global_led_enable);
-        }
+        check_for_outdated_tt_led_report(&runtime_flags);
 
         // [READ QE1]
         uint32_t qe1_count = TIM2.CNT;

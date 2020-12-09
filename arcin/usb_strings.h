@@ -13,19 +13,19 @@
 #define STRING_ID_LED_Count     ARCIN_LED_COUNT
 
 const char* led_names[STRING_ID_LED_Count] = {
-	"Button 1 LED",
-	"Button 2 LED",
-	"Button 3 LED",
-	"Button 4 LED",
-	"Button 5 LED",
-	"Button 6 LED",
-	"Button 7 LED",
-	"Button 8 LED",
-	"Button 9 LED",
-	"Start Button LED",
-	"Select Button LED",
-	"TT LED1",
-	"TT LED2"
+	"Button 1",
+	"Button 2",
+	"Button 3",
+	"Button 4",
+	"Button 5",
+	"Button 6",
+	"Button 7",
+	"Button 8",
+	"Button 9",
+	"Start Button",
+	"Select Button",
+	"LED1",
+	"LED2"
 };
 
 uint32_t serial_num() {
