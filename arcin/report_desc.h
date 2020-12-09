@@ -9,6 +9,60 @@ constexpr HID_Item<uint8_t> string_index(uint8_t x) {
 	return hid_item(0x78, x);
 }
 
+constexpr auto hid_button_light(uint8_t num) -> decltype(
+	pack(
+		usage_page(UsagePage::Ordinal),
+		usage(num),
+		collection(Collection::Logical, 
+			usage_page(UsagePage::Button),
+			usage(num),
+			string_index(STRING_ID_LED_Base+num-1),
+			report_size(1),
+			report_count(1),
+			output(0x02)
+		)
+	)) {
+	return pack(
+		usage_page(UsagePage::Ordinal),
+		usage(num),
+		collection(Collection::Logical, 
+			usage_page(UsagePage::Button),
+			usage(num),
+			string_index(STRING_ID_LED_Base+num-1),
+			report_size(1),
+			report_count(1),
+			output(0x02)
+		)
+	);
+}
+
+constexpr auto hid_generic_indicator_light(uint8_t num) -> decltype(
+	pack(
+		usage_page(UsagePage::Ordinal),
+		usage(num),
+		collection(Collection::Logical, 
+			usage_page(UsagePage::LED),
+			usage(0x4b),
+			string_index(STRING_ID_LED_Base+num-1),
+			report_size(1),
+			report_count(1),
+			output(0x02)
+		)
+	)) {
+	return pack(
+		usage_page(UsagePage::Ordinal),
+		usage(num),
+		collection(Collection::Logical, 
+			usage_page(UsagePage::LED),
+			usage(0x4b),
+			string_index(STRING_ID_LED_Base+num-1),
+			report_size(1),
+			report_count(1),
+			output(0x02)
+		)
+	);
+}
+
 auto report_desc = gamepad(
 	// Inputs.
 	report_id(1),
@@ -34,177 +88,20 @@ auto report_desc = gamepad(
 	
 	// Outputs.
 	report_id(2),
-	
-	usage_page(UsagePage::Ordinal),
-	usage(1),
-	collection(Collection::Logical, 
-		usage_page(UsagePage::Desktop),
-		usage(0),
-		string_index(STRING_ID_LED_Base),
-		logical_minimum(0),
-		logical_maximum(255),
-		report_size(8),
-		report_count(1),
-		output(0x02)
-	),
-	
-	usage_page(UsagePage::Ordinal),
-	usage(2),
-	collection(Collection::Logical, 
-		usage_page(UsagePage::Desktop),
-		usage(0),
-		string_index(STRING_ID_LED_Base+1),
-		logical_minimum(0),
-		logical_maximum(255),
-		report_size(8),
-		report_count(1),
-		output(0x02)
-	),
-	
-	usage_page(UsagePage::Ordinal),
-	usage(3),
-	collection(Collection::Logical, 
-		usage_page(UsagePage::Desktop),
-		usage(0),
-		string_index(STRING_ID_LED_Base+2),
-		logical_minimum(0),
-		logical_maximum(255),
-		report_size(8),
-		report_count(1),
-		output(0x02)
-	),
-	
-	usage_page(UsagePage::Ordinal),
-	usage(4),
-	collection(Collection::Logical, 
-		usage_page(UsagePage::Desktop),
-		usage(0),
-		string_index(STRING_ID_LED_Base+3),
-		logical_minimum(0),
-		logical_maximum(255),
-		report_size(8),
-		report_count(1),
-		output(0x02)
-	),
-	
-	usage_page(UsagePage::Ordinal),
-	usage(5),
-	collection(Collection::Logical, 
-		usage_page(UsagePage::Desktop),
-		usage(0),
-		string_index(STRING_ID_LED_Base+4),
-		logical_minimum(0),
-		logical_maximum(255),
-		report_size(8),
-		report_count(1),
-		output(0x02)
-	),
-	
-	usage_page(UsagePage::Ordinal),
-	usage(6),
-	collection(Collection::Logical, 
-		usage_page(UsagePage::Desktop),
-		usage(0),
-		string_index(STRING_ID_LED_Base+5),
-		logical_minimum(0),
-		logical_maximum(255),
-		report_size(8),
-		report_count(1),
-		output(0x02)
-	),
-	
-	usage_page(UsagePage::Ordinal),
-	usage(7),
-	collection(Collection::Logical, 
-		usage_page(UsagePage::Desktop),
-		usage(0),
-		string_index(STRING_ID_LED_Base+6),
-		logical_minimum(0),
-		logical_maximum(255),
-		report_size(8),
-		report_count(1),
-		output(0x02)
-	),
-	
-	usage_page(UsagePage::Ordinal),
-	usage(8),
-	collection(Collection::Logical, 
-		usage_page(UsagePage::Desktop),
-		usage(0),
-		string_index(STRING_ID_LED_Base+7),
-		logical_minimum(0),
-		logical_maximum(255),
-		report_size(8),
-		report_count(1),
-		output(0x02)
-	),
-	
-	usage_page(UsagePage::Ordinal),
-	usage(9),
-	collection(Collection::Logical, 
-		usage_page(UsagePage::Desktop),
-		usage(0),
-		string_index(STRING_ID_LED_Base+8),
-		logical_minimum(0),
-		logical_maximum(255),
-		report_size(8),
-		report_count(1),
-		output(0x02)
-	),
-	
-	usage_page(UsagePage::Ordinal),
-	usage(10),
-	collection(Collection::Logical, 
-		usage_page(UsagePage::Desktop),
-		usage(0),
-		string_index(STRING_ID_LED_Base+9),
-		logical_minimum(0),
-		logical_maximum(255),
-		report_size(8),
-		report_count(1),
-		output(0x02)
-	),
-	
-	usage_page(UsagePage::Ordinal),
-	usage(11),
-	collection(Collection::Logical, 
-		usage_page(UsagePage::Desktop),
-		usage(0),
-		string_index(STRING_ID_LED_Base+10),
-		logical_minimum(0),
-		logical_maximum(255),
-		report_size(8),
-		report_count(1),
-		output(0x02)
-	),
-
-	usage_page(UsagePage::Ordinal),
-	usage(12),
-	collection(Collection::Logical, 
-		usage_page(UsagePage::Desktop),
-		usage(0),
-		string_index(STRING_ID_LED_Base+11),
-		logical_minimum(0),
-		logical_maximum(255),
-		report_size(8),
-		report_count(1),
-		output(0x02)
-	),
-
-	usage_page(UsagePage::Ordinal),
-	usage(13),
-	collection(Collection::Logical, 
-		usage_page(UsagePage::Desktop),
-		usage(0),
-		string_index(STRING_ID_LED_Base+12),
-		logical_minimum(0),
-		logical_maximum(255),
-		report_size(8),
-		report_count(1),
-		output(0x02)
-	),
-	
-	padding_out(3*8),
+	hid_button_light(1),
+	hid_button_light(2),
+	hid_button_light(3),
+	hid_button_light(4),
+	hid_button_light(5),
+	hid_button_light(6),
+	hid_button_light(7),
+	hid_button_light(8),
+	hid_button_light(9),
+	hid_button_light(10),
+	hid_button_light(11),
+	hid_generic_indicator_light(12),
+	hid_generic_indicator_light(13),
+	padding_out(3),
 	
 	// Bootloader
 	report_id(0xb0),
@@ -256,7 +153,7 @@ struct input_report_t {
 
 struct output_report_t {
 	uint8_t report_id;
-	uint8_t leds[16];
+	uint16_t leds;
 } __attribute__((packed));
 
 struct bootloader_report_t {
