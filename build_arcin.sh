@@ -22,7 +22,7 @@ cp ./bin/* ./pkg
 cp ../arcin-conf/arcin-infinitas-conf/dist/arcin_conf_infinitas.exe ./pkg
 
 cp COPYING ./pkg/license.txt
-cat COPYING ../arcin-conf/arcin-infinitas-conf/LICENSE > ./pkg/license.txt
+cat ../arcin-conf/arcin-infinitas-conf/LICENSE >> ./pkg/license.txt
 
 mkdir -p ./dist
 
