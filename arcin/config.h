@@ -8,7 +8,10 @@ typedef union _config_flags {
     struct {
         uint32_t SelectMultiFunction: 1;
         uint32_t InvertQE1: 1;
-        uint32_t Swap89: 1;
+
+        // was "Swap89" -replaced with E button remapping
+        uint32_t Reserved3: 1;
+
         uint32_t DigitalTTEnable: 1;
         uint32_t DebounceEnable: 1;
         uint32_t PollAt250Hz: 1;
@@ -38,23 +41,24 @@ struct config_t {
     config_flags flags;
     int8_t qe1_sens;
     int8_t qe2_sens;
-    uint8_t effector_mode;
+
+    // was "effector_mode" -replaced with E button remapping
+    uint8_t reserved0;
+
     uint8_t debounce_ticks;
 
     // [Buttons 1-7] + [E1-E4] + [TT Up] + [TT Down] = 13 + 3pad
     char keycodes[16];
 
-    uint8_t reserved[24];
+    // upper nibble = start, lower nibble = select
+    // 0 = invalid, 1 = E1, 2 = E2, 3 = E3, 4 = E4
+    uint8_t remap_start_sel;
+    uint8_t remap_b8_b9;
+
+    uint8_t reserved[22];
 };
 
 // From config_report_t.data[60]
 static_assert(sizeof(config_t) == 60, "config size mismatch");
-
-typedef enum _effector_mode_option {
-    START_E1_SEL_E2 = 0,
-    START_E2_SEL_E1,
-    START_E3_SEL_E4,
-    START_E4_SEL_E3
-} effector_mode_option, *peffector_mode_option;
 
 #endif
