@@ -1,7 +1,7 @@
 # arcin-infinitas
 arcin firmware and configuration tool for multiple games, including beatmania IIDX Infinitas (2020 ver)
 
-![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/2d409a6a959842585b2436605bdd933ba42b2959/res/screenshot.png)
+![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/35f3ec72d68757802c7a1aaf7cee1b10912a6c75/res/screenshot.png)
 
 ## What is this?
 A custom arcin firmware, written for broad compatibility with various games, including the new infinitas 120hz version. No key config or joy2key needed - everything will work with the game out of the gate. It is natively compatible with Infinitas, HID-light, LR2, and beatoraja. Additional games can be played using keyboard mode, with fully customizable keyboard input.
@@ -40,10 +40,10 @@ In the beginning, this firmware was set out to address the turntable sensitivy i
 On top of the "arcin_flash_config_alpha5" firmware, the following changes are made:
 
 * Changes the hardware ID (USB VID / PID) to be the same as Konami infinitas controller. This allows the game to automatically detect it & use the analog turntable.
-* Remaps E1-E4 buttons correctly (customizable in the configuration tool)
+* Remaps E1-E4 buttons correctly; customizable in the configuration tool
 * Supports both analog and digital turntable input
 * Optional double-click / triple-click select button feature (like DJ DAO)
-* Button debouncing
+* Button debouncing with customizable millisecond window
 * Switch between 1000hz / 250hz polling mode
 * Keyboard mode for games without proper gamepad support
 * Runtime mode switching via button combinations (hold start+select+button)
