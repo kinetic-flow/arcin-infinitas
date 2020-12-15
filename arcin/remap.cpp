@@ -1,6 +1,33 @@
 #include "remap.h"
 #include "inf_defines.h"
 
+uint16_t get_effector_button(uint8_t effector_number) {
+    switch(effector_number) {
+    case 1:
+        return INFINITAS_BUTTON_E1;
+
+    case 2:
+        return INFINITAS_BUTTON_E2;
+
+    case 3:
+        return INFINITAS_BUTTON_E3;
+
+    case 4:
+        return INFINITAS_BUTTON_E4;
+
+    default:
+        return 0;
+    }
+}
+
+uint16_t get_effector(uint8_t effector_number, uint16_t default_button) {
+    uint16_t button = get_effector_button(effector_number);
+    if (button == 0) {
+        button = default_button;
+    }
+    return button;
+}
+
 uint16_t remap_buttons(config_t &config, uint16_t buttons) {
     uint16_t remapped;
 
@@ -8,66 +35,18 @@ uint16_t remap_buttons(config_t &config, uint16_t buttons) {
     // The keys have the same values across raw input and infinitas input
     remapped = buttons & INFINITAS_BUTTON_ALL;
 
-    // Remap start button
+    // Remap effectors
     if (buttons & ARCIN_PIN_BUTTON_START) {
-        switch(config.effector_mode) {
-        case START_E1_SEL_E2:
-        default:
-            remapped |= INFINITAS_BUTTON_E1;
-            break;
-
-        case START_E2_SEL_E1:
-            remapped |= INFINITAS_BUTTON_E2;
-            break;
-
-        case START_E3_SEL_E4:
-            remapped |= INFINITAS_BUTTON_E3;
-            break;
-
-        case START_E4_SEL_E3:
-            remapped |= INFINITAS_BUTTON_E4;
-            break;
-        }
+        remapped |= get_effector((config.remap_start_sel >> 4) & 0xF, INFINITAS_BUTTON_E1);
     }
-
-    // Remap select button
     if (buttons & ARCIN_PIN_BUTTON_SELECT) {
-        switch(config.effector_mode) {
-        case START_E1_SEL_E2:
-        default:
-            remapped |= INFINITAS_BUTTON_E2;
-            break;
-
-        case START_E2_SEL_E1:
-            remapped |= INFINITAS_BUTTON_E1;
-            break;
-
-        case START_E3_SEL_E4:
-            remapped |= INFINITAS_BUTTON_E4;
-            break;
-
-        case START_E4_SEL_E3:
-            remapped |= INFINITAS_BUTTON_E3;
-            break;
-        }
+        remapped |= get_effector((config.remap_start_sel) & 0xF, INFINITAS_BUTTON_E2);
     }
-
-    // Button 8 is normally E3, unless flipped
     if (buttons & ARCIN_PIN_BUTTON_8) {
-        if (config.flags.Swap89) {
-            remapped |= INFINITAS_BUTTON_E4;
-        } else {
-            remapped |= INFINITAS_BUTTON_E3;
-        }
+        remapped |= get_effector((config.remap_b8_b9 >> 4) & 0xF, INFINITAS_BUTTON_E3);
     }
-
-    // Button 9 is normally E4, unless flipped
     if (buttons & ARCIN_PIN_BUTTON_9) {
-        if (config.flags.Swap89) {
-            remapped |= INFINITAS_BUTTON_E3;
-        } else {
-            remapped |= INFINITAS_BUTTON_E4;
-        }
+        remapped |= get_effector((config.remap_b8_b9) & 0xF, INFINITAS_BUTTON_E4);
     }
 
     return remapped;
