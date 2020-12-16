@@ -2,6 +2,8 @@
 #define CONFIG_H
 
 #include <stdint.h>
+#include "inttypes.h"
+#include "color.h"
 
 // Assumes little-endian bit ordering (first bit is LSB)
 typedef union _config_flags {
@@ -28,13 +30,31 @@ typedef union _config_flags {
         uint32_t LedOff: 1;
         uint32_t TtLedReactive: 1;
         uint32_t TtLedHid: 1;
-        uint32_t Reserved: 19;
+        uint32_t Ws2812b: 1;
+        uint32_t Reserved: 18;
     };
 
     uint32_t AsUINT32;
-} config_flags, *pconfig_flags;
+} config_flags;
 
 static_assert(sizeof(config_flags) == sizeof(uint32_t), "size mismatch");
+
+typedef union _rgb_config_flags {
+    struct {
+        uint8_t EnableHidControl: 1;
+        uint8_t Reserved: 7;
+    };
+
+    uint8_t AsUINT8;
+} rgb_config_flags;
+
+static_assert(sizeof(rgb_config_flags) == sizeof(uint8_t), "size mismatch");
+
+typedef struct _rgb_config {
+    rgb_config_flags Flags;
+    ColorRgb Rgb;
+    uint8_t Darkness;
+} rgb_config;
 
 struct config_t {
     uint8_t label[12];
@@ -55,7 +75,11 @@ struct config_t {
     uint8_t remap_start_sel;
     uint8_t remap_b8_b9;
 
-    uint8_t reserved[22];
+    uint8_t reserved1[2];
+
+    rgb_config rgb;
+
+    uint8_t reserved2[15];
 };
 
 // From config_report_t.data[60]

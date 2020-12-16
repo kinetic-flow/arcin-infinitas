@@ -48,8 +48,8 @@
 #define JOY_BUTTON_13             ((uint16_t)(1 << 12))
 #define JOY_BUTTON_14             ((uint16_t)(1 << 13))
 
-// buttons[1-9], start, sel, led1, led2
-#define ARCIN_LED_COUNT           13
+// buttons[1-9], start, sel, led1, led2, r, g, b
+#define ARCIN_LED_COUNT           16
 
 void set_hid_lights(uint16_t leds);
 void schedule_led(uint32_t end_time, uint16_t leds_a, uint16_t leds_b);
