@@ -5,14 +5,17 @@
 #include <os/time.h>
 #include "color.h"
 
+#define min(x, y) (((x) < (y)) ? (x) : (y))
+
 #define WS2812B_DMA_BUFFER_LEN 26 // was 25 in arcin
 #define WS2812B_MAX_LEDS 60
-
 extern bool global_led_enable;
 
 typedef enum _WS2812B_Mode {
-  WS2812B_MODE_STATIC,
-  WS2812B_MODE_TT_DIRECTIONAL,
+    WS2812B_MODE_STATIC,
+    WS2812B_MODE_TT_DIRECTIONAL,
+    WS2812B_MODE_TRICOLOR,
+    WS2812B_MODE_TRICOLOR_TT_DIRECTIONAL,
 } WS2812B_Mode;
 
 class WS2812B {
@@ -20,42 +23,8 @@ class WS2812B {
         uint8_t dmabuf[WS2812B_DMA_BUFFER_LEN];
         volatile uint32_t cnt;
         volatile bool busy;
-        uint32_t last_hid_report = 0;
-        uint32_t last_outdated_hid_check = 0;
-
-        uint8_t default_darkness = 0;
-        ColorRgb rgb_primary = {0};
-        ColorRgb rgb_secondary = {0};
-        ColorRgb rgb_tertiary = {0};
-        WS2812B_Mode rgb_mode = WS2812B_MODE_STATIC;
-
-        uint8_t apply_darkness(uint8_t color) {
-            uint16_t new_color = color;
-            new_color = new_color * (__UINT8_MAX__ - default_darkness) / __UINT8_MAX__;
-            return (uint8_t)new_color;
-        }
-
-        void update(ColorRgb rgb) {
-            if (busy) {
-                return;
-            }
-
-            busy = true;
-
-            set_color(
-                apply_darkness(rgb.Red),
-                apply_darkness(rgb.Green),
-                apply_darkness(rgb.Blue));
-
-            cnt = WS2812B_MAX_LEDS;
-
-            schedule_dma();
-        }
-
-        void set_off() {
-            ColorRgb off = {0};
-            this->update(off);
-        }
+        uint8_t num_leds = WS2812B_MAX_LEDS;
+        ColorRgb colors[WS2812B_MAX_LEDS];
 
         void schedule_dma() {
             cnt--;
@@ -64,6 +33,10 @@ class WS2812B {
             DMA1.reg.C[6].MAR = (uint32_t)&dmabuf;
             DMA1.reg.C[6].PAR = (uint32_t)&TIM4.CCR3;
             DMA1.reg.C[6].CR = (0 << 10) | (1 << 8) | (1 << 7) | (0 << 6) | (1 << 4) | (1 << 1) | (1 << 0);
+        }
+
+        void set_color(ColorRgb rgb) {
+            this->set_color(rgb.Red, rgb.Green, rgb.Blue);
         }
         
         void set_color(uint8_t r, uint8_t g, uint8_t b) {
@@ -88,9 +61,10 @@ class WS2812B {
         }
         
     public:
-        void init() {
-            busy = false;
-            cnt = 0;
+        void init(uint8_t num_leds) {
+            this->busy = false;
+            this->cnt = 0;
+            this->num_leds = min(num_leds, WS2812B_MAX_LEDS);
 
             RCC.enable(RCC.TIM4);
             RCC.enable(RCC.DMA1);
@@ -111,17 +85,113 @@ class WS2812B {
             TIM4.CR1 = 1 << 0;
             
             Time::sleep(1);
-            this->set_off();
         }
 
+        void update_led_color(ColorRgb rgb, uint8_t index) {
+            if (busy) {
+                return;
+            }
+
+            if (index < this->num_leds) {
+                colors[index] = rgb;
+            }
+        }
+
+        void update_complete() {
+            if (busy) {
+                return;
+            }
+            busy = true;
+            cnt = this->num_leds;
+            set_color(this->colors[0]);
+            schedule_dma();
+        }
+
+        uint8_t get_num_leds() {
+            return this->num_leds;
+        }
+
+        void irq() {
+            DMA1.reg.C[6].CR = 0;
+            DMA1.reg.IFCR = 1 << 24;
+            
+            if (cnt) {
+                set_color(this->colors[this->num_leds - this->cnt]);
+                schedule_dma();
+            } else {
+                busy = false;
+            }
+        }
+};
+
+class RGBManager {
+
+    WS2812B ws2812b;
+
+    uint32_t last_hid_report = 0;
+    uint32_t last_outdated_hid_check = 0;
+
+    WS2812B_Mode rgb_mode = WS2812B_MODE_STATIC;
+    uint8_t default_darkness = 0;
+    ColorRgb rgb_primary = {0};
+    ColorRgb rgb_secondary = {0};
+    ColorRgb rgb_tertiary = {0};
+
+    uint8_t tt_shift = 0;
+
+    private:    
+        uint8_t apply_darkness(uint8_t color) {
+            uint16_t new_color = color;
+            new_color = new_color * (__UINT8_MAX__ - default_darkness) / __UINT8_MAX__;
+            return (uint8_t)new_color;
+        }
+
+        void apply_darkness(ColorRgb* color) {
+            color->Red = apply_darkness(color->Red);
+            color->Green = apply_darkness(color->Green);
+            color->Blue = apply_darkness(color->Blue);
+        }
+
+        void update_static(ColorRgb rgb) {
+            for (uint8_t i = 0; i < ws2812b.get_num_leds(); i++) {
+                this->update(rgb, i);
+            }
+
+            this->update_complete();
+        }
+
+        void update(ColorRgb rgb, uint8_t index) {
+            apply_darkness(&rgb);
+            ws2812b.update_led_color(rgb, index);
+        }
+
+        void update_complete() {
+            ws2812b.update_complete();
+        }
+
+        void set_off() {
+            ColorRgb off = {0};
+            this->update_static(off);
+        }
+
+    public:
+        void init(uint8_t num_leds) {
+            ws2812b.init(num_leds);
+            this->set_off();
+        }
+        
+        void set_mode(WS2812B_Mode rgb_mode) {
+            this->rgb_mode = rgb_mode;
+        }
+        
         void set_default_colors(ColorRgb primary, ColorRgb secondary, ColorRgb tertiary) {
-            rgb_primary = primary;
-            rgb_secondary = secondary;
-            rgb_tertiary = tertiary;
+            this->rgb_primary = primary;
+            this->rgb_secondary = secondary;
+            this->rgb_tertiary = tertiary;
         }
 
         void set_darkness(uint8_t darkness) {
-            default_darkness = darkness;
+            this->default_darkness = darkness;
         }
         
         void update_from_hid(ColorRgb rgb) {
@@ -129,13 +199,13 @@ class WS2812B {
                 return;
             }
             last_hid_report = Time::time();
-            this->update(rgb);
+            this->update_static(rgb);
         }
 
         void update_colors(int8_t turntable_direction) {
-            // update at most x milliseconds
+            // prevent frequent updates
             uint32_t now = Time::time();
-            if ((now - last_outdated_hid_check) < 4) {
+            if ((now - last_outdated_hid_check) < 10) {
                 return;
             }
             last_outdated_hid_check = now;
@@ -153,37 +223,55 @@ class WS2812B {
                 case WS2812B_MODE_TT_DIRECTIONAL:
                     switch (turntable_direction) {
                         case -1:
-                            this->update(rgb_secondary);
+                            this->update_static(rgb_secondary);
                             break;
                         case 1:
-                            this->update(rgb_tertiary);
+                            this->update_static(rgb_tertiary);
                             break;
                         default:
-                            this->update(rgb_primary);
+                            this->update_static(rgb_primary);
                             break;
+                    }
+                    break;
+
+                case WS2812B_MODE_TRICOLOR:
+                case WS2812B_MODE_TRICOLOR_TT_DIRECTIONAL:
+                    {
+                        uint8_t shift = 0;
+                        if (rgb_mode == WS2812B_MODE_TRICOLOR_TT_DIRECTIONAL) {
+                            tt_shift += turntable_direction;
+                            shift = (tt_shift >> 4) % 3;
+                        }
+
+                        for (int led = 0; led < ws2812b.get_num_leds(); led++) {
+                            ColorRgb* rgb = NULL;
+                            switch ((led + shift) % 3) {
+                                case 0:
+                                default:
+                                    rgb = &rgb_primary;
+                                    break;
+                                case 1:
+                                    rgb = &rgb_secondary;
+                                    break;
+                                case 2:
+                                    rgb = &rgb_tertiary;
+                                    break;
+                            }                        
+                            this->update(*rgb, led);
+                        }
+                        this->update_complete();
                     }
                     break;
 
                 case WS2812B_MODE_STATIC:
                 default:
-                    this->update(rgb_primary);
+                    this->update_static(rgb_primary);
                     break;
             }
         }
 
-        void set_mode(WS2812B_Mode rgb_mode) {
-            this->rgb_mode = rgb_mode;
-        }
-        
         void irq() {
-            DMA1.reg.C[6].CR = 0;
-            DMA1.reg.IFCR = 1 << 24;
-            
-            if(cnt) {
-                schedule_dma();
-            } else {
-                busy = false;
-            }
+            ws2812b.irq();
         }
 };
 

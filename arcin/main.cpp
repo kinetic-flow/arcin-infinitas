@@ -141,11 +141,11 @@ USB_f1 usb_250hz(USB, dev_desc_p, conf_desc_p_250hz);
 bool global_led_enable = false;
 bool global_tt_hid_enable = false;
 
-WS2812B ws2812b;
+RGBManager rgb_manager;
 
 template <>
 void interrupt<Interrupt::DMA1_Channel7>() {
-    ws2812b.irq();
+    rgb_manager.irq();
 }
 
 uint32_t last_led_time = 0;
@@ -211,7 +211,7 @@ class HID_arcin : public USB_HID {
                        config.rgb.Flags.EnableHidControl) {
 
                 output_report_rgb_t* report = (output_report_rgb_t*)buf;
-                ws2812b.update_from_hid(report->rgb);
+                rgb_manager.update_from_hid(report->rgb);
             }
 
             return true;
@@ -470,12 +470,13 @@ int main() {
     if (config.flags.Ws2812b) {
         // power
         button9_led.on();
-        ws2812b.init();
-        ws2812b.set_default_colors(
+        rgb_manager.init(10); // todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo 
+        rgb_manager.set_default_colors(
             config.rgb.RgbPrimary, config.rgb.RgbSecondary, config.rgb.RgbTertiary);
-        ws2812b.set_darkness(config.rgb.Darkness);
+        rgb_manager.set_darkness(config.rgb.Darkness);
         if (config.rgb.Flags.ReactToTt) {
-            ws2812b.set_mode(WS2812B_MODE_TT_DIRECTIONAL);
+            //rgb_manager.set_mode(WS2812B_MODE_TT_DIRECTIONAL); // todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo 
+            rgb_manager.set_mode(WS2812B_MODE_TRICOLOR_TT_DIRECTIONAL);
         }
     }
 
@@ -578,7 +579,7 @@ int main() {
         }
 
         if (config.flags.Ws2812b) {
-            ws2812b.update_colors(tt1_report);
+            rgb_manager.update_colors(tt1_report);
         }
 
         // [E2 MULTI-TAP]
