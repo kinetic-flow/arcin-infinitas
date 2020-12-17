@@ -471,8 +471,12 @@ int main() {
         // power
         button9_led.on();
         ws2812b.init();
-        ws2812b.set_default_colors(config.rgb.Rgb);
+        ws2812b.set_default_colors(
+            config.rgb.RgbPrimary, config.rgb.RgbSecondary, config.rgb.RgbTertiary);
         ws2812b.set_darkness(config.rgb.Darkness);
+        if (config.rgb.Flags.ReactToTt) {
+            ws2812b.set_mode(WS2812B_MODE_TT_DIRECTIONAL);
+        }
     }
 
     while(1) {
@@ -514,9 +518,6 @@ int main() {
 
         // Non-HID controlled handling of LED1 / LED2
         check_for_outdated_tt_led_report(&runtime_flags);
-        if (config.flags.Ws2812b) {
-            ws2812b.check_for_outdated_hid();
-        }
 
         // [READ QE1]
         uint32_t qe1_count = TIM2.CNT;
@@ -557,14 +558,12 @@ int main() {
 
         // [DIGITAL QE1]
         int8_t tt1_report = 0;
-        if (runtime_flags.DigitalTTEnable ||
-            runtime_flags.KeyboardEnable ||
-            runtime_flags.TtLedReactive) {
-            tt1_report = tt1.poll(qe1_count);
+        tt1_report = tt1.poll(qe1_count);
 
-            if (runtime_flags.TtLedReactive) {
-                if (global_led_enable) {
-                    switch (tt1_report) {
+        // [DIGITAL QE1 POST-PROCESSING]
+        if (runtime_flags.TtLedReactive) {
+            if (global_led_enable) {
+                switch (tt1_report) {
                     case -1:
                     case 1:
                         set_tt_led(true, true);
@@ -572,11 +571,14 @@ int main() {
                     default:
                         set_tt_led(false, false);
                         break;
-                    }
-                } else {
-                    set_tt_led(false, false);    
                 }
+            } else {
+                set_tt_led(false, false);    
             }
+        }
+
+        if (config.flags.Ws2812b) {
+            ws2812b.update_colors(tt1_report);
         }
 
         // [E2 MULTI-TAP]

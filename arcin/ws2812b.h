@@ -10,6 +10,11 @@
 
 extern bool global_led_enable;
 
+typedef enum _WS2812B_Mode {
+  WS2812B_MODE_STATIC,
+  WS2812B_MODE_TT_DIRECTIONAL,
+} WS2812B_Mode;
+
 class WS2812B {
     private:
         uint8_t dmabuf[WS2812B_DMA_BUFFER_LEN];
@@ -19,7 +24,10 @@ class WS2812B {
         uint32_t last_outdated_hid_check = 0;
 
         uint8_t default_darkness = 0;
-        ColorRgb default_static_color = {0};
+        ColorRgb rgb_primary = {0};
+        ColorRgb rgb_secondary = {0};
+        ColorRgb rgb_tertiary = {0};
+        WS2812B_Mode rgb_mode = WS2812B_MODE_STATIC;
 
         uint8_t apply_darkness(uint8_t color) {
             uint16_t new_color = color;
@@ -32,13 +40,14 @@ class WS2812B {
                 return;
             }
 
+            busy = true;
+
             set_color(
                 apply_darkness(rgb.Red),
                 apply_darkness(rgb.Green),
                 apply_darkness(rgb.Blue));
 
             cnt = WS2812B_MAX_LEDS;
-            busy = true;
 
             schedule_dma();
         }
@@ -48,10 +57,6 @@ class WS2812B {
             this->update(off);
         }
 
-        void set_static_rgb() {
-            this->update(default_static_color);
-        }
-        
         void schedule_dma() {
             cnt--;
             
@@ -109,8 +114,10 @@ class WS2812B {
             this->set_off();
         }
 
-        void set_default_colors(ColorRgb rgb) {
-            default_static_color = rgb;
+        void set_default_colors(ColorRgb primary, ColorRgb secondary, ColorRgb tertiary) {
+            rgb_primary = primary;
+            rgb_secondary = secondary;
+            rgb_tertiary = tertiary;
         }
 
         void set_darkness(uint8_t darkness) {
@@ -125,20 +132,47 @@ class WS2812B {
             this->update(rgb);
         }
 
-        void check_for_outdated_hid() {
+        void update_colors(int8_t turntable_direction) {
+            // update at most x milliseconds
             uint32_t now = Time::time();
-            if ((now - last_outdated_hid_check) < 1000) {
+            if ((now - last_outdated_hid_check) < 4) {
                 return;
             }
             last_outdated_hid_check = now;
 
-            if ((last_hid_report == 0) || ((now - last_hid_report) > 5000)) {
-                if (global_led_enable) {
-                    this->set_static_rgb();
-                } else {
-                    this->set_off();
-                }
+            // if there was a HID report recently, don't take over control
+            if ((last_hid_report != 0) && ((now - last_hid_report) < 5000)) {
+                return;
             }
+            if (!global_led_enable) {
+                this->set_off();
+                return;
+            }
+
+            switch(rgb_mode) {
+                case WS2812B_MODE_TT_DIRECTIONAL:
+                    switch (turntable_direction) {
+                        case -1:
+                            this->update(rgb_secondary);
+                            break;
+                        case 1:
+                            this->update(rgb_tertiary);
+                            break;
+                        default:
+                            this->update(rgb_primary);
+                            break;
+                    }
+                    break;
+
+                case WS2812B_MODE_STATIC:
+                default:
+                    this->update(rgb_primary);
+                    break;
+            }
+        }
+
+        void set_mode(WS2812B_Mode rgb_mode) {
+            this->rgb_mode = rgb_mode;
         }
         
         void irq() {
