@@ -4,6 +4,7 @@
 #include <usb/hid.h>
 
 #include "usb_strings.h"
+#include "color.h"
 
 constexpr HID_Item<uint8_t> string_index(uint8_t x) {
     return hid_item(0x78, x);
@@ -16,7 +17,7 @@ constexpr auto hid_button_light(uint8_t num) -> decltype(
         collection(Collection::Logical, 
             usage_page(UsagePage::Button),
             usage(num),
-            string_index(STRING_ID_LED_Base+num-1),
+            string_index(STRING_ID_LED_Base+num),
             report_size(1),
             report_count(1),
             output(0x02)
@@ -28,7 +29,7 @@ constexpr auto hid_button_light(uint8_t num) -> decltype(
         collection(Collection::Logical, 
             usage_page(UsagePage::Button),
             usage(num),
-            string_index(STRING_ID_LED_Base+num-1),
+            string_index(STRING_ID_LED_Base+num),
             report_size(1),
             report_count(1),
             output(0x02)
@@ -43,7 +44,7 @@ constexpr auto hid_generic_indicator_light(uint8_t num) -> decltype(
         collection(Collection::Logical, 
             usage_page(UsagePage::LED),
             usage(0x4b),
-            string_index(STRING_ID_LED_Base+num-1),
+            string_index(STRING_ID_LED_Base+num),
             report_size(1),
             report_count(1),
             output(0x02)
@@ -55,7 +56,7 @@ constexpr auto hid_generic_indicator_light(uint8_t num) -> decltype(
         collection(Collection::Logical, 
             usage_page(UsagePage::LED),
             usage(0x4b),
-            string_index(STRING_ID_LED_Base+num-1),
+            string_index(STRING_ID_LED_Base+num),
             report_size(1),
             report_count(1),
             output(0x02)
@@ -88,6 +89,8 @@ auto report_desc = gamepad(
     
     // Outputs.
     report_id(2),
+    logical_minimum(0),
+    logical_maximum(1),
     hid_button_light(1),
     hid_button_light(2),
     hid_button_light(3),
@@ -102,7 +105,55 @@ auto report_desc = gamepad(
     hid_generic_indicator_light(12),
     hid_generic_indicator_light(13),
     padding_out(3),
+
+    report_id(3),
+    logical_minimum(0),
+    logical_maximum(255),
+    usage_page(UsagePage::Ordinal),
+    usage(1),
+    collection(Collection::Logical, 
+        usage_page(UsagePage::LED),
+        usage(0x4b),
+        string_index(STRING_ID_LED_Base+14),
+        report_size(8),
+        report_count(1),
+        output(0x02)
+    ),
     
+    usage_page(UsagePage::Ordinal),
+    usage(2),
+    collection(Collection::Logical, 
+        usage_page(UsagePage::LED),
+        usage(0x4b),
+        string_index(STRING_ID_LED_Base+15),
+        report_size(8),
+        report_count(1),
+        output(0x02)
+    ),
+    
+    usage_page(UsagePage::Ordinal),
+    usage(3),
+    collection(Collection::Logical, 
+        usage_page(UsagePage::LED),
+        usage(0x4b),
+        string_index(STRING_ID_LED_Base+16),
+        report_size(8),
+        report_count(1),
+        output(0x02)
+    ),
+
+    // dummy output for btools
+    usage_page(UsagePage::Ordinal),
+    usage(4),
+    collection(Collection::Logical, 
+        usage_page(UsagePage::LED),
+        usage(0x4b),
+        string_index(STRING_ID_LED_Base),
+        report_size(8),
+        report_count(1),
+        output(0x02)
+    ),
+
     // Bootloader
     report_id(0xb0),
     
@@ -154,6 +205,12 @@ struct input_report_t {
 struct output_report_t {
     uint8_t report_id;
     uint16_t leds;
+} __attribute__((packed));
+
+struct output_report_rgb_t {
+    uint8_t report_id;
+    ColorRgb rgb;
+    uint8_t Unused;
 } __attribute__((packed));
 
 struct bootloader_report_t {

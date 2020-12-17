@@ -12,7 +12,8 @@
 #define STRING_ID_LED_Base      0x10
 #define STRING_ID_LED_Count     ARCIN_LED_COUNT
 
-const char* led_names[STRING_ID_LED_Count] = {
+const char* led_names[STRING_ID_LED_Count+1] = {
+    "Unused",
     "Button 1",
     "Button 2",
     "Button 3",
@@ -24,8 +25,11 @@ const char* led_names[STRING_ID_LED_Count] = {
     "Button 9",
     "Start Button",
     "Select Button",
-    "LED1",
-    "LED2"
+    "LED1",         // 12
+    "LED2",         // 13
+    "WS2812B Red",  // 14
+    "WS2812B Green",// 15
+    "WS2812B Blue"  // 16
 };
 
 uint32_t serial_num() {
@@ -96,7 +100,7 @@ class USB_strings : public USB_class_driver {
 
                     default:
                         int offset = identifier - STRING_ID_LED_Base;
-                        if (0 <= offset && offset < STRING_ID_LED_Count) {
+                        if (0 <= offset && offset < (STRING_ID_LED_Count+1)) {
                             for(const char* p = led_names[offset]; *p; p++) {
                                 buf[i++] = *p;
                             }

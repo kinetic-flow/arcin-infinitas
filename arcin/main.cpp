@@ -2,6 +2,7 @@
 #include <gpio/gpio.h>
 #include <interrupt/interrupt.h>
 #include <timer/timer.h>
+#include <dma/dma.h>
 #include <os/time.h>
 #include <usb/usb.h>
 #include <usb/descriptor.h>
@@ -16,6 +17,8 @@
 #include "multifunc.h"
 #include "debounce.h"
 #include "modeswitch.h"
+#include "analog_button.h"
+#include "ws2812b.h"
 
 #define ARRAY_SIZE(x) \
     ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
@@ -118,7 +121,11 @@ static Pin usb_dp = GPIOA[12];
 static Pin usb_pu = GPIOA[15];
 
 static PinArray button_inputs = GPIOB.array(0, 10);
-static PinArray button_leds = GPIOC.array(0, 10);
+static PinArray button_leds = GPIOC.array(0, 6);
+static Pin button8_led = GPIOC[7];
+static Pin button9_led = GPIOC[8]; // do not use if ws2812b is active
+static Pin start_led = GPIOC[9];
+static Pin select_led = GPIOC[10];
 
 static Pin qe1a = GPIOA[0];
 static Pin qe1b = GPIOA[1];
@@ -130,6 +137,16 @@ static Pin led2 = GPIOA[9];
 
 USB_f1 usb_1000hz(USB, dev_desc_p, conf_desc_p_1000hz);
 USB_f1 usb_250hz(USB, dev_desc_p, conf_desc_p_250hz);
+
+bool global_led_enable = false;
+bool global_tt_hid_enable = false;
+
+WS2812B ws2812b;
+
+template <>
+void interrupt<Interrupt::DMA1_Channel7>() {
+    ws2812b.irq();
+}
 
 uint32_t last_led_time = 0;
 uint32_t last_tt_led_time = 0;
@@ -179,12 +196,24 @@ class HID_arcin : public USB_HID {
     
     protected:
         virtual bool set_output_report(uint32_t* buf, uint32_t len) {
-            if(len != sizeof(output_report_t)) {
+            if (len < sizeof(uint8_t)) {
                 return false;
             }
-            
-            output_report_t* report = (output_report_t*)buf;
-            set_hid_lights(report->leds);
+
+            uint8_t report_id = *(uint8_t*)buf;
+            if (report_id == 0x2 && len == sizeof(output_report_t)) {
+                output_report_t* report = (output_report_t*)buf;
+                set_hid_lights(report->leds);
+
+            } else if (report_id == 0x3 &&
+                       len == sizeof(output_report_rgb_t) &&
+                       config.flags.Ws2812b &&
+                       config.rgb.Flags.EnableHidControl) {
+
+                output_report_rgb_t* report = (output_report_rgb_t*)buf;
+                ws2812b.update_from_hid(report->rgb);
+            }
+
             return true;
         }
         
@@ -236,72 +265,6 @@ class HID_keyb : public USB_HID {
         }
 };
 
-class analog_button {
-public:
-    // config
-
-    // Number of ticks we need to advance before recognizing an input
-    uint32_t deadzone;
-    // How long to sustain the input before clearing it (if opposite direction is input, we'll release immediately)
-    uint32_t sustain_ms;
-    // Always provide a zero-input for one poll before reversing?
-    bool clear;
-
-    // State: Center of deadzone
-    uint32_t center;
-    bool center_valid;
-    // times to: reset to zero, reset center to counter
-    uint32_t t_timeout;
-
-    int8_t state; // -1, 0, 1
-    int8_t last_delta;
-public:
-    analog_button(uint32_t deadzone, uint32_t sustain_ms, bool clear)
-        : deadzone(deadzone), sustain_ms(sustain_ms), clear(clear)
-    {
-        center = 0;
-        center_valid = false;
-        t_timeout = 0;
-        state = 0;
-    }
-
-    int8_t poll(uint32_t current_value) {
-        if (!center_valid) {
-            center_valid = true;
-            center = current_value;
-        }
-
-        uint8_t observed = current_value;
-        int8_t delta = observed - center;
-        last_delta = delta;
-
-        uint8_t direction = 0;
-        if (delta >= (int32_t)deadzone) {
-            direction = 1;
-        } else if (delta <= -(int32_t)deadzone) {
-            direction = -1;
-        }
-
-        if (direction != 0) {
-            center = observed;
-            t_timeout = Time::time() + sustain_ms;
-        } else if (t_timeout != 0 && Time::time() >= t_timeout) {
-            state = 0;
-            center = observed;
-            t_timeout = 0;
-        }
-
-        if (direction == -state && clear) {
-            state = direction;
-            return 0;
-        } else if (direction != 0) {
-            state = direction;
-        }
-
-        return state;
-    }
-};
-
 HID_arcin usb_hid_1000hz(usb_1000hz, report_desc_p);
 HID_arcin usb_hid_250hz(usb_250hz, report_desc_p);
 
@@ -319,8 +282,7 @@ uint8_t debounce_window_effectors;
 uint32_t scheduled_led_time = 0;
 uint16_t scheduled_leds_aside = 0;
 uint16_t scheduled_leds_bside = 0;
-bool global_led_enable = false;
-bool global_tt_hid_enable = false;
+
 void schedule_led(uint32_t end_time, uint16_t leds_a, uint16_t leds_b) {
     // If scheduling in the past, nothing to do
     // This also guards against wallclock rollover
@@ -334,7 +296,13 @@ void schedule_led(uint32_t end_time, uint16_t leds_a, uint16_t leds_b) {
 }
 
 void set_button_lights(uint16_t leds) {
-    button_leds.set(leds & 0x7ff);
+    button_leds.set(leds & ARCIN_PIN_BUTTON_ALL);
+    button8_led.set((leds & ARCIN_PIN_BUTTON_8) != 0);
+    if (!config.flags.Ws2812b) {
+        button9_led.set((leds & ARCIN_PIN_BUTTON_9) != 0);
+    }
+    start_led.set((leds & ARCIN_PIN_BUTTON_START) != 0);
+    select_led.set((leds & ARCIN_PIN_BUTTON_SELECT) != 0);
 }
 
 bool led1_last_state = false;
@@ -426,6 +394,10 @@ int main() {
     button_inputs.set_pull(Pin::PullUp);
     
     button_leds.set_mode(Pin::Output);
+    button8_led.set_mode(Pin::Output);
+    button9_led.set_mode(Pin::Output);
+    start_led.set_mode(Pin::Output);
+    select_led.set_mode(Pin::Output);
     
     led1.set_mode(Pin::Output);
     led2.set_mode(Pin::Output);
@@ -495,11 +467,22 @@ int main() {
     schedule_led(
         Time::time() + 1000, ARCIN_PIN_BUTTON_WHITE, ARCIN_PIN_BUTTON_WHITE);
 
+    if (config.flags.Ws2812b) {
+        // power
+        button9_led.on();
+        ws2812b.init();
+        ws2812b.set_default_colors(config.rgb.Rgb);
+        ws2812b.set_darkness(config.rgb.Darkness);
+    }
+
     while(1) {
         usb->process();
 
         uint32_t now = Time::time();
         uint16_t buttons = button_inputs.get() ^ 0x7ff;
+        if (config.flags.Ws2812b) {
+            buttons &= (~ARCIN_PIN_BUTTON_9);
+        }
         
         if(do_reset_bootloader) {
             Time::sleep(10);
@@ -531,6 +514,9 @@ int main() {
 
         // Non-HID controlled handling of LED1 / LED2
         check_for_outdated_tt_led_report(&runtime_flags);
+        if (config.flags.Ws2812b) {
+            ws2812b.check_for_outdated_hid();
+        }
 
         // [READ QE1]
         uint32_t qe1_count = TIM2.CNT;
