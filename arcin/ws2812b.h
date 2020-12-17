@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <os/time.h>
+#include "fastled_pixeltypes.h"
 #include "color.h"
 
 #define min(x, y) (((x) < (y)) ? (x) : (y))
@@ -18,13 +19,19 @@ typedef enum _WS2812B_Mode {
     WS2812B_MODE_RAINBOW,
 } WS2812B_Mode;
 
+void crgb_from_colorrgb(ColorRgb color, CRGB& crgb) {
+    crgb.red = color.Red;
+    crgb.green = color.Green;
+    crgb.blue = color.Blue;
+}
+
 class WS2812B {
     private:
         uint8_t dmabuf[WS2812B_DMA_BUFFER_LEN];
         volatile uint32_t cnt;
         volatile bool busy;
         uint8_t num_leds = WS2812B_MAX_LEDS;
-        ColorRgb colors[WS2812B_MAX_LEDS];
+        CRGB colors[WS2812B_MAX_LEDS];
 
         void schedule_dma() {
             cnt--;
@@ -35,8 +42,8 @@ class WS2812B {
             DMA1.reg.C[6].CR = (0 << 10) | (1 << 8) | (1 << 7) | (0 << 6) | (1 << 4) | (1 << 1) | (1 << 0);
         }
 
-        void set_color(ColorRgb rgb) {
-            this->set_color(rgb.Red, rgb.Green, rgb.Blue);
+        void set_color(CRGB rgb) {
+            this->set_color(rgb.red, rgb.green, rgb.blue);
         }
         
         void set_color(uint8_t r, uint8_t g, uint8_t b) {
@@ -93,7 +100,7 @@ class WS2812B {
             Time::sleep(1);
         }
 
-        void update_led_color(ColorRgb rgb, uint8_t index) {
+        void update_led_color(CRGB rgb, uint8_t index) {
             if (busy) {
                 return;
             }
@@ -140,9 +147,9 @@ class RGBManager {
     WS2812B_Mode rgb_mode = WS2812B_MODE_STATIC;
     rgb_config_flags flags = {0};
     uint8_t default_darkness = 0;
-    ColorRgb rgb_primary = {0};
-    ColorRgb rgb_secondary = {0};
-    ColorRgb rgb_tertiary = {0};
+    CRGB rgb_primary;
+    CRGB rgb_secondary;
+    CRGB rgb_tertiary;
 
     uint8_t tt_shift = 0;
 
@@ -153,13 +160,13 @@ class RGBManager {
             return (uint8_t)new_color;
         }
 
-        void apply_darkness(ColorRgb* color) {
-            color->Red = apply_darkness(color->Red);
-            color->Green = apply_darkness(color->Green);
-            color->Blue = apply_darkness(color->Blue);
+        void apply_darkness(CRGB& color) {
+            color.red = apply_darkness(color.red);
+            color.green = apply_darkness(color.green);
+            color.blue = apply_darkness(color.blue);
         }
 
-        void update_static(ColorRgb rgb) {
+        void update_static(CRGB& rgb) {
             for (uint8_t i = 0; i < ws2812b.get_num_leds(); i++) {
                 this->update(rgb, i);
             }
@@ -167,9 +174,10 @@ class RGBManager {
             this->update_complete();
         }
 
-        void update(ColorRgb rgb, uint8_t index) {
-            apply_darkness(&rgb);
-            ws2812b.update_led_color(rgb, index);
+        void update(CRGB& rgb, uint8_t index) {
+            CRGB rgb_adjusted = rgb;
+            apply_darkness(rgb_adjusted);
+            ws2812b.update_led_color(rgb_adjusted, index);
         }
 
         void update_complete() {
@@ -177,7 +185,10 @@ class RGBManager {
         }
 
         void set_off() {
-            ColorRgb off = {0};
+            CRGB off;
+            off.red = 0;
+            off.green = 0;
+            off.blue = 0;
             this->update_static(off);
         }
 
@@ -193,21 +204,24 @@ class RGBManager {
         }
         
         void set_default_colors(ColorRgb primary, ColorRgb secondary, ColorRgb tertiary) {
-            this->rgb_primary = primary;
-            this->rgb_secondary = secondary;
-            this->rgb_tertiary = tertiary;
+            crgb_from_colorrgb(primary, this->rgb_primary);
+            crgb_from_colorrgb(secondary, this->rgb_secondary);
+            crgb_from_colorrgb(tertiary, this->rgb_tertiary);
         }
 
         void set_darkness(uint8_t darkness) {
             this->default_darkness = darkness;
         }
         
-        void update_from_hid(ColorRgb rgb) {
+        void update_from_hid(ColorRgb color) {
             if (!global_led_enable || !flags.EnableHidControl) {
                 return;
             }
             last_hid_report = Time::time();
-            this->update_static(rgb);
+
+            CRGB crgb;
+            crgb_from_colorrgb(color, crgb);
+            this->update_static(crgb);
         }
 
         void update_colors(int8_t raw_turntable_direction) {
@@ -242,7 +256,7 @@ class RGBManager {
                         }
 
                         for (int led = 0; led < ws2812b.get_num_leds(); led++) {
-                            ColorRgb* rgb = NULL;
+                            CRGB* rgb = NULL;
                             switch ((led + shift) % 3) {
                                 case 0:
                                 default:
