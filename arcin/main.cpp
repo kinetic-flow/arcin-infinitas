@@ -207,8 +207,7 @@ class HID_arcin : public USB_HID {
 
             } else if (report_id == 0x3 &&
                        len == sizeof(output_report_rgb_t) &&
-                       config.flags.Ws2812b &&
-                       config.rgb.Flags.EnableHidControl) {
+                       config.flags.Ws2812b) {
 
                 output_report_rgb_t* report = (output_report_rgb_t*)buf;
                 rgb_manager.update_from_hid(report->rgb);
@@ -470,14 +469,11 @@ int main() {
     if (config.flags.Ws2812b) {
         // power
         button9_led.on();
-        rgb_manager.init(10); // todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo 
+        rgb_manager.init(config.rgb.Flags, config.rgb.NumberOfLeds);
         rgb_manager.set_default_colors(
             config.rgb.RgbPrimary, config.rgb.RgbSecondary, config.rgb.RgbTertiary);
         rgb_manager.set_darkness(config.rgb.Darkness);
-        if (config.rgb.Flags.ReactToTt) {
-            //rgb_manager.set_mode(WS2812B_MODE_TT_DIRECTIONAL); // todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo todo 
-            rgb_manager.set_mode(WS2812B_MODE_TRICOLOR_TT_DIRECTIONAL);
-        }
+        rgb_manager.set_mode((WS2812B_Mode)config.rgb.Mode);
     }
 
     while(1) {

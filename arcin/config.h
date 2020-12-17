@@ -43,7 +43,8 @@ typedef union _rgb_config_flags {
     struct {
         uint8_t EnableHidControl: 1;
         uint8_t ReactToTt: 1;
-        uint8_t Reserved: 6;
+        uint8_t FlipDirection: 1;
+        uint8_t Reserved: 5;
     };
 
     uint8_t AsUINT8;
@@ -57,6 +58,8 @@ typedef struct _rgb_config {
     uint8_t Darkness;
     ColorRgb RgbSecondary;
     ColorRgb RgbTertiary;
+    uint8_t Mode; // WS2812B_Mode
+    uint8_t NumberOfLeds;
 } rgb_config;
 
 struct config_t {
@@ -82,7 +85,7 @@ struct config_t {
 
     rgb_config rgb;
 
-    uint8_t reserved2[9];
+    uint8_t reserved2[7];
 };
 
 // From config_report_t.data[60]

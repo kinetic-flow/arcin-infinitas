@@ -6,6 +6,7 @@
 #include "color.h"
 
 #define min(x, y) (((x) < (y)) ? (x) : (y))
+#define max(a,b) (((a) > (b)) ? (a) : (b))
 
 #define WS2812B_DMA_BUFFER_LEN 26 // was 25 in arcin
 #define WS2812B_MAX_LEDS 60
@@ -13,9 +14,8 @@ extern bool global_led_enable;
 
 typedef enum _WS2812B_Mode {
     WS2812B_MODE_STATIC,
-    WS2812B_MODE_TT_DIRECTIONAL,
     WS2812B_MODE_TRICOLOR,
-    WS2812B_MODE_TRICOLOR_TT_DIRECTIONAL,
+    WS2812B_MODE_RAINBOW,
 } WS2812B_Mode;
 
 class WS2812B {
@@ -64,7 +64,13 @@ class WS2812B {
         void init(uint8_t num_leds) {
             this->busy = false;
             this->cnt = 0;
+
+            // num_leds should be [1, MAX]
+            // use a sensible unconfigured value (turn 0 into max)
             this->num_leds = min(num_leds, WS2812B_MAX_LEDS);
+            if (this->num_leds == 0) {
+                this->num_leds = WS2812B_MAX_LEDS;
+            }
 
             RCC.enable(RCC.TIM4);
             RCC.enable(RCC.DMA1);
@@ -132,6 +138,7 @@ class RGBManager {
     uint32_t last_outdated_hid_check = 0;
 
     WS2812B_Mode rgb_mode = WS2812B_MODE_STATIC;
+    rgb_config_flags flags = {0};
     uint8_t default_darkness = 0;
     ColorRgb rgb_primary = {0};
     ColorRgb rgb_secondary = {0};
@@ -175,7 +182,8 @@ class RGBManager {
         }
 
     public:
-        void init(uint8_t num_leds) {
+        void init(rgb_config_flags flags, uint8_t num_leds) {
+            this->flags = flags;
             ws2812b.init(num_leds);
             this->set_off();
         }
@@ -195,14 +203,14 @@ class RGBManager {
         }
         
         void update_from_hid(ColorRgb rgb) {
-            if (!global_led_enable) {
+            if (!global_led_enable || !flags.EnableHidControl) {
                 return;
             }
             last_hid_report = Time::time();
             this->update_static(rgb);
         }
 
-        void update_colors(int8_t turntable_direction) {
+        void update_colors(int8_t raw_turntable_direction) {
             // prevent frequent updates
             uint32_t now = Time::time();
             if ((now - last_outdated_hid_check) < 10) {
@@ -219,27 +227,17 @@ class RGBManager {
                 return;
             }
 
-            switch(rgb_mode) {
-                case WS2812B_MODE_TT_DIRECTIONAL:
-                    switch (turntable_direction) {
-                        case -1:
-                            this->update_static(rgb_secondary);
-                            break;
-                        case 1:
-                            this->update_static(rgb_tertiary);
-                            break;
-                        default:
-                            this->update_static(rgb_primary);
-                            break;
-                    }
-                    break;
+            int8_t tt = raw_turntable_direction;
+            if (flags.FlipDirection) {
+                tt *= -1;
+            }
 
+            switch(rgb_mode) {
                 case WS2812B_MODE_TRICOLOR:
-                case WS2812B_MODE_TRICOLOR_TT_DIRECTIONAL:
                     {
                         uint8_t shift = 0;
-                        if (rgb_mode == WS2812B_MODE_TRICOLOR_TT_DIRECTIONAL) {
-                            tt_shift += turntable_direction;
+                        if (flags.ReactToTt) {
+                            tt_shift += tt;
                             shift = (tt_shift >> 4) % 3;
                         }
 
@@ -265,7 +263,23 @@ class RGBManager {
 
                 case WS2812B_MODE_STATIC:
                 default:
-                    this->update_static(rgb_primary);
+                    if (flags.ReactToTt) {
+                        switch (tt) {
+                            case -1:
+                                this->update_static(rgb_secondary);
+                                break;
+                            case 1:
+                                this->update_static(rgb_tertiary);
+                                break;
+                            case 0:
+                            default:
+                                this->update_static(rgb_primary);
+                                break;
+                        }
+                    } else {
+                        this->update_static(rgb_primary);
+                    }
+
                     break;
             }
         }
