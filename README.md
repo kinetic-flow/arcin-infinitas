@@ -1,7 +1,7 @@
 # arcin-infinitas
 arcin firmware and configuration tool for multiple games, including beatmania IIDX Infinitas (2020 ver)
 
-![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/35f3ec72d68757802c7a1aaf7cee1b10912a6c75/res/screenshot.png)
+![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/ce8058caf97a84ac9981a455a71a1bc7173a6317/res/screenshot.png)
 
 ## What is this?
 A custom arcin firmware, written for broad compatibility with various games, including the new infinitas 120hz version. No key config or joy2key needed - everything will work with the game out of the gate. It is natively compatible with Infinitas, HID-light, LR2, and beatoraja. Additional games can be played using keyboard mode, with fully customizable keyboard input.
@@ -48,6 +48,7 @@ On top of the "arcin_flash_config_alpha5" firmware, the following changes are ma
 * Keyboard mode for games without proper gamepad support
 * Runtime mode switching via button combinations (hold start+select+button)
 * Control over turntable LED - reactive mode, HID-light mode
+* Experimental WS2812B support
 
 In addition to Infinitas, this firmware should be perfectly fine with HID-light and beatoraja (analog turntable) configurations. If you enable digital turntable in the configuration tool, it will also work in LR2 for playing BMS. Keyboard mode can be used for any games that do not have full support for gamepads (DJMAX Respect V, Muse Dash...).
 
@@ -107,6 +108,10 @@ First of all, turn on "Enable mode switching" in the config tool. Then:
 * Holding Start + Select + 5 for 3 seconds will enable or disable all LEDs.
 
 Note that when you use the mode switching button combinations, the changes are not permanently saved; when the controller is unplugged, things will revert back to what was set in the configuration tool. This is intentional!
+
+# WS2812B control
+
+WS2812B light strips can be controlled over button 9 pins. This is currently experimental. See https://github.com/minsang-github/rhythmgame-docs/wiki/WS2812B-on-arcin for details.
 
 ## For developers - build instructions
 See [BUILDING.md](https://github.com/minsang-github/arcin-infinitas/blob/master/BUILDING.md).
