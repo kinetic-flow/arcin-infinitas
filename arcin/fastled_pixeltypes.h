@@ -106,6 +106,12 @@ struct CRGB {
     {
     }
 
+    /// allow construction from R, G, B
+    inline CRGB( uint8_t ir, uint8_t ig, uint8_t ib) __attribute__((always_inline))
+        : r(ir), g(ig), b(ib)
+    {
+    }
+
     /// allow construction from HSV color
 	inline CRGB(const CHSV& rhs) __attribute__((always_inline))
     {

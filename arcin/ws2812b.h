@@ -17,7 +17,10 @@ typedef enum _WS2812B_Mode {
     WS2812B_MODE_STATIC,
     WS2812B_MODE_TRICOLOR,
     WS2812B_MODE_STATIC_RAINBOW,
-    WS2812B_MODE_CIRCULAR_RAINBOW,
+    WS2812B_MODE_RAINBOW_SPIRAL,
+    WS2812B_MODE_RAINBOW_WAVE,
+    WS2812B_MODE_ONE_COLOR_FADE,
+    WS2812B_MODE_TWO_COLOR_FADE
 } WS2812B_Mode;
 
 void crgb_from_colorrgb(ColorRgb color, CRGB& crgb) {
@@ -164,18 +167,19 @@ class RGBManager {
     CRGB rgb_tertiary;
 
     uint16_t shift_value = 0;
+    int8_t shift_direction = 1;
 
     private:    
-        uint8_t apply_darkness(uint8_t color) {
+        uint8_t apply_darkness(uint8_t color, uint8_t darkness) {
             uint16_t new_color = color;
-            new_color = new_color * (UINT8_MAX - default_darkness) / UINT8_MAX;
+            new_color = new_color * (UINT8_MAX - darkness) / UINT8_MAX;
             return (uint8_t)new_color;
         }
 
-        void apply_darkness(CRGB& color) {
-            color.red = apply_darkness(color.red);
-            color.green = apply_darkness(color.green);
-            color.blue = apply_darkness(color.blue);
+        void apply_darkness(CRGB& color, uint8_t darkness) {
+            color.red = apply_darkness(color.red, darkness);
+            color.green = apply_darkness(color.green, darkness);
+            color.blue = apply_darkness(color.blue, darkness);
         }
 
         void update_static(CHSV& hsv) {
@@ -198,7 +202,7 @@ class RGBManager {
 
         void update(CRGB& rgb, uint8_t index) {
             CRGB rgb_adjusted = rgb;
-            apply_darkness(rgb_adjusted);
+            apply_darkness(rgb_adjusted, default_darkness);
             ws2812b.update_led_color(rgb_adjusted, index);
         }
 
@@ -207,10 +211,7 @@ class RGBManager {
         }
 
         void set_off() {
-            CRGB off;
-            off.red = 0;
-            off.green = 0;
-            off.blue = 0;
+            CRGB off(0, 0, 0);
             this->update_static(off);
         }
 
@@ -302,7 +303,9 @@ class RGBManager {
 
                 // Circular rainbow mode.
                 //
-                // Each LED covers a portion of the hue spectrum, coming full circle.
+                // Spiral: each LED covers a portion of the hue spectrum, coming full circle.
+                // Wave: like spiral, but not a full spectrum, only a slice.
+                // 
                 // The math depends on the number of LEDs being accurate.
                 //
                 // TT reactive mode causes a hue shift.
@@ -310,17 +313,24 @@ class RGBManager {
                 //
                 // Flip reverse the entire LED strip direction.
                 // Speed affects how fast the hue shift happens.
-                case WS2812B_MODE_CIRCULAR_RAINBOW:
+                case WS2812B_MODE_RAINBOW_SPIRAL:
+                case WS2812B_MODE_RAINBOW_WAVE:
                 {
-                    int32_t tick = speed * 2;
+                    int32_t tick = speed;
                     if (flags.ReactToTt) {
                         shift_value += tt * tick;
                     } else {
                         shift_value += tick;
                     }
 
+                    uint16_t number_of_circles = 1;
+                    if (rgb_mode == WS2812B_MODE_RAINBOW_WAVE) {
+                        // it doesn't have to be 3, but 3 looks pretty good.
+                        number_of_circles = 3;
+                    }
+
                     for (uint8_t led = 0; led < ws2812b.get_num_leds(); led++) {
-                        uint16_t hue = 255 * led / ws2812b.get_num_leds();
+                        uint16_t hue = 255 * led / (ws2812b.get_num_leds() * number_of_circles);
                         hue = (hue + (shift_value >> 6)) % 255;
                         CHSV hsv(hue, 255, 255);
                         this->update(hsv, led);
@@ -359,6 +369,71 @@ class RGBManager {
                         this->update(*rgb, led);
                     }
                     this->update_complete();
+                }
+                break;
+
+                // One color fade: fade between off and the primary color.
+                // Two color fade: fade between the primary and the secondary color.
+                case WS2812B_MODE_ONE_COLOR_FADE:
+                case WS2812B_MODE_TWO_COLOR_FADE:
+                {
+                    if (flags.ReactToTt) {
+                        uint16_t fade_in_speed = 1024;
+                        uint16_t fade_out_speed = speed * 2;
+                        switch (tt) {
+                            case 1:
+                            case -1:
+                                // when there is TT activity, increase it, but with a soft cap
+                                shift_value += fade_in_speed;
+                                shift_value = min(shift_value, (UINT8_MAX << 4));
+                                break;
+
+                            case 0:
+                            default:
+                                // no activity, slowly wind down
+                                if (shift_value > fade_out_speed) {
+                                    shift_value -= fade_out_speed;
+                                } else {
+                                    shift_value = 0;
+                                }
+                                break;
+                        }
+                    } else {
+                        uint16_t modifier = speed / 4;
+                        shift_value += (shift_direction * modifier);
+                        if (shift_value >= (UINT8_MAX << 4)) {
+                            shift_direction = -1;
+                            shift_value = (UINT8_MAX << 4);
+                        } else if (shift_value <= modifier) {
+                            shift_direction = 1;
+                        }
+                    }
+
+                    uint16_t brightness = (shift_value >> 4);
+                    if (brightness > UINT8_MAX) {
+                        brightness = UINT8_MAX;
+                    }
+
+                    // brightness 0 => primary color
+                    // brightness 1-254 => something in between
+                    // brightness 255 => secondary color
+
+                    CRGB initial_rgb;
+                    CRGB goal_rgb;
+                    if (rgb_mode == WS2812B_MODE_ONE_COLOR_FADE) {
+                        initial_rgb = CRGB(0, 0, 0);
+                        goal_rgb = rgb_primary;
+                    } else {
+                        initial_rgb = rgb_primary;
+                        goal_rgb = rgb_secondary;
+                    }
+
+                    int8_t r = (goal_rgb.r - initial_rgb.r) * brightness / UINT8_MAX;
+                    int8_t g = (goal_rgb.g - initial_rgb.g) * brightness / UINT8_MAX;
+                    int8_t b = (goal_rgb.b - initial_rgb.b) * brightness / UINT8_MAX;
+
+                    CRGB rgb(initial_rgb.r + r, initial_rgb.g + g, initial_rgb.b + b);
+                    this->update_static(rgb);
                 }
                 break;
 
