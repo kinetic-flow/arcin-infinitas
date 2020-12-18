@@ -17,7 +17,7 @@ typedef enum _WS2812B_Mode {
     WS2812B_MODE_STATIC,
     WS2812B_MODE_TRICOLOR,
     WS2812B_MODE_STATIC_RAINBOW,
-    WS2812B_MODE_CIRCULAR_RAINBOW
+    WS2812B_MODE_CIRCULAR_RAINBOW,
 } WS2812B_Mode;
 
 void crgb_from_colorrgb(ColorRgb color, CRGB& crgb) {
@@ -32,6 +32,7 @@ class WS2812B {
         volatile uint32_t cnt;
         volatile bool busy;
         uint8_t num_leds = WS2812B_MAX_LEDS;
+        bool order_reversed = false;
         CRGB colors[WS2812B_MAX_LEDS];
 
         void schedule_dma() {
@@ -69,7 +70,7 @@ class WS2812B {
         }
         
     public:
-        void init(uint8_t num_leds) {
+        void init(uint8_t num_leds, bool order_reversed) {
             this->busy = false;
             this->cnt = 0;
 
@@ -79,6 +80,7 @@ class WS2812B {
             if (this->num_leds == 0) {
                 this->num_leds = WS2812B_MAX_LEDS;
             }
+            this->order_reversed = order_reversed;
 
             RCC.enable(RCC.TIM4);
             RCC.enable(RCC.DMA1);
@@ -106,7 +108,13 @@ class WS2812B {
                 return;
             }
 
-            if (index < this->num_leds) {
+            if (index >= this->num_leds) {
+                return;
+            }
+
+            if (this->order_reversed) {
+                colors[this->num_leds - index] = rgb;
+            } else {
                 colors[index] = rgb;
             }
         }
@@ -209,7 +217,7 @@ class RGBManager {
     public:
         void init(rgb_config_flags flags, uint8_t num_leds) {
             this->flags = flags;
-            ws2812b.init(num_leds);
+            ws2812b.init(num_leds, flags.FlipDirection);
             this->set_off();
         }
         
@@ -242,7 +250,7 @@ class RGBManager {
             this->update_static(crgb);
         }
 
-        void update_colors(int8_t raw_turntable_direction) {
+        void update_colors(int8_t tt) {
             // prevent frequent updates - use 20ms as the framerate. This framerate will have
             // downstream effects on the various color algorithms below.
             uint32_t now = Time::time();
@@ -260,91 +268,108 @@ class RGBManager {
                 return;
             }
 
-            int8_t tt = 0;
-            if (flags.ReactToTt) {
-                tt = raw_turntable_direction;
-                if (flags.FlipDirection) {
-                    tt *= -1;
-                }
-            }
+            // configurable speed is signed; convert this to unsigned
+            // 0 should be the reasonable default speed.
+            // (slowest / no movement being 0, highest being 255)
+            uint8_t speed = this->speed - INT8_MIN;
 
             switch(rgb_mode) {
+                // Static rainbow mode.
+                //
+                // All LEDs have the same color, but the hue can change.
+                // When TT reactive is on, the turntable adjusts the hue.
+                // In normal mode, hue shifts in one direction.
+                //
+                // Flip affects direction for both.
+                // Speed affects how fast the hue changes.
                 case WS2812B_MODE_STATIC_RAINBOW:
-                    {
-                        uint8_t hue = 0;
-                        int32_t tick = (this->speed - INT8_MIN);
-                        if (flags.ReactToTt) {
-                            shift_value += tt * tick;
-                        } else {
-                            if (flags.FlipDirection) {
-                                tick *= -1;
-                            }
-
-                            shift_value += tick;
-                        }
-
-                        hue = shift_value >> 8;
-                        CHSV hsv(hue, 255, 255);
-                        this->update_static(hsv);
-                        break;
+                {
+                    int32_t tick = speed;
+                    if (flags.FlipDirection) {
+                        tick *= -1;
                     }
+
+                    if (flags.ReactToTt) {
+                        shift_value += tt * tick;
+                    } else {
+                        shift_value += tick;
+                    }
+
+                    CHSV hsv(shift_value >> 8, 255, 255);
+                    this->update_static(hsv);
+                }
+                break;
+
+                // Circular rainbow mode.
+                //
+                // Each LED covers a portion of the hue spectrum, coming full circle.
+                // The math depends on the number of LEDs being accurate.
+                //
+                // TT reactive mode causes a hue shift.
+                // Normal mode causes hue to shift over time.
+                //
+                // Flip reverse the entire LED strip direction.
+                // Speed affects how fast the hue shift happens.
                 case WS2812B_MODE_CIRCULAR_RAINBOW:
-                    {
-                        int32_t tick = (this->speed - INT8_MIN) * 2;
-                        if (flags.ReactToTt) {
-                            // raw_turntable_direction is used here since we'll flip the order of
-                            // LEDs below anyway
-                            shift_value += raw_turntable_direction * tick;
-                        } else {
-                            shift_value += tick;
-                        }
-
-                        for (uint8_t led = 0; led < ws2812b.get_num_leds(); led++) {
-                            uint16_t hue = 255 * led / ws2812b.get_num_leds();
-                            hue = (hue + (shift_value >> 6)) % 255;
-                            CHSV hsv(hue, 255, 255);
-                            
-                            // The flipping here is done by completely reversing the LED order, so
-                            // it's done as the last thing.
-                            if (flags.FlipDirection) {
-                                this->update(hsv, ws2812b.get_num_leds() - led);
-                            } else {
-                                this->update(hsv, led);
-                            }
-                        }
-                        this->update_complete();
+                {
+                    int32_t tick = speed * 2;
+                    if (flags.ReactToTt) {
+                        shift_value += tt * tick;
+                    } else {
+                        shift_value += tick;
                     }
-                    break;
+
+                    for (uint8_t led = 0; led < ws2812b.get_num_leds(); led++) {
+                        uint16_t hue = 255 * led / ws2812b.get_num_leds();
+                        hue = (hue + (shift_value >> 6)) % 255;
+                        CHSV hsv(hue, 255, 255);
+                        this->update(hsv, led);
+                    }
+                    this->update_complete();
+                }
+                break;
+
+                // Tricolor mode.
+                //
+                // Each LED uses one of three colors, in order.
                 case WS2812B_MODE_TRICOLOR:
-                    {
-                        uint8_t shift = 0;
-                        if (flags.ReactToTt) {
-                            shift_value += tt;
-                            shift = (shift_value >> 4) % 3;
-                        }
-
-                        for (int led = 0; led < ws2812b.get_num_leds(); led++) {
-                            CRGB* rgb = NULL;
-                            switch ((led + shift) % 3) {
-                                case 0:
-                                default:
-                                    rgb = &rgb_primary;
-                                    break;
-                                case 1:
-                                    rgb = &rgb_secondary;
-                                    break;
-                                case 2:
-                                    rgb = &rgb_tertiary;
-                                    break;
-                            }                        
-                            this->update(*rgb, led);
-                        }
-                        this->update_complete();
+                {
+                    int32_t tick = speed;
+                    if (flags.ReactToTt) {
+                        shift_value += tt * tick;
+                    } else {
+                        shift_value += tick;
                     }
-                    break;
 
+                    uint8_t pixel_shift = (shift_value >> 10) % 3;
+                    for (int led = 0; led < ws2812b.get_num_leds(); led++) {
+                        CRGB* rgb = NULL;
+                        switch ((led + pixel_shift) % 3) {
+                            case 0:
+                            default:
+                                rgb = &rgb_primary;
+                                break;
+                            case 1:
+                                rgb = &rgb_secondary;
+                                break;
+                            case 2:
+                                rgb = &rgb_tertiary;
+                                break;
+                        }                        
+                        this->update(*rgb, led);
+                    }
+                    this->update_complete();
+                }
+                break;
+
+                // Static color mode.
+                //
+                // Same color for all LEDs.
+                // TT reactive mode causes all LEDs to use the secondary or the primary color
+                // Flip only reverses the TT direction.
                 case WS2812B_MODE_STATIC:
                 default:
+                {
                     switch (tt) {
                         case -1:
                             this->update_static(rgb_secondary);
@@ -357,8 +382,8 @@ class RGBManager {
                             this->update_static(rgb_primary);
                             break;
                     }
-
-                    break;
+                }
+                break;
             }
         }
 
