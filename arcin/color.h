@@ -7,7 +7,7 @@ typedef struct _ColorRgb {
     uint8_t Red;
     uint8_t Green;
     uint8_t Blue;
-} ColorRgb;
+} ColorRgb, *PColorRgb;
 
 static_assert(sizeof(ColorRgb) == (sizeof(uint8_t) * 3), "size mismatch");
 

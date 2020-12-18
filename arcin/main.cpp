@@ -141,11 +141,11 @@ USB_f1 usb_250hz(USB, dev_desc_p, conf_desc_p_250hz);
 bool global_led_enable = false;
 bool global_tt_hid_enable = false;
 
-WS2812B ws2812b;
+RGBManager rgb_manager;
 
 template <>
 void interrupt<Interrupt::DMA1_Channel7>() {
-    ws2812b.irq();
+    rgb_manager.irq();
 }
 
 uint32_t last_led_time = 0;
@@ -207,11 +207,10 @@ class HID_arcin : public USB_HID {
 
             } else if (report_id == 0x3 &&
                        len == sizeof(output_report_rgb_t) &&
-                       config.flags.Ws2812b &&
-                       config.rgb.Flags.EnableHidControl) {
+                       config.flags.Ws2812b) {
 
                 output_report_rgb_t* report = (output_report_rgb_t*)buf;
-                ws2812b.update_from_hid(report->rgb);
+                rgb_manager.update_from_hid(report->rgb);
             }
 
             return true;
@@ -470,9 +469,12 @@ int main() {
     if (config.flags.Ws2812b) {
         // power
         button9_led.on();
-        ws2812b.init();
-        ws2812b.set_default_colors(config.rgb.Rgb);
-        ws2812b.set_darkness(config.rgb.Darkness);
+        rgb_manager.init(config.rgb.Flags, config.rgb.NumberOfLeds);
+        rgb_manager.set_default_colors(
+            config.rgb.RgbPrimary, config.rgb.RgbSecondary, config.rgb.RgbTertiary);
+        rgb_manager.set_darkness(config.rgb.Darkness);
+        rgb_manager.set_speed(config.rgb.Speed);
+        rgb_manager.set_mode((WS2812B_Mode)config.rgb.Mode);
     }
 
     while(1) {
@@ -514,9 +516,6 @@ int main() {
 
         // Non-HID controlled handling of LED1 / LED2
         check_for_outdated_tt_led_report(&runtime_flags);
-        if (config.flags.Ws2812b) {
-            ws2812b.check_for_outdated_hid();
-        }
 
         // [READ QE1]
         uint32_t qe1_count = TIM2.CNT;
@@ -557,14 +556,12 @@ int main() {
 
         // [DIGITAL QE1]
         int8_t tt1_report = 0;
-        if (runtime_flags.DigitalTTEnable ||
-            runtime_flags.KeyboardEnable ||
-            runtime_flags.TtLedReactive) {
-            tt1_report = tt1.poll(qe1_count);
+        tt1_report = tt1.poll(qe1_count);
 
-            if (runtime_flags.TtLedReactive) {
-                if (global_led_enable) {
-                    switch (tt1_report) {
+        // [DIGITAL QE1 POST-PROCESSING]
+        if (runtime_flags.TtLedReactive) {
+            if (global_led_enable) {
+                switch (tt1_report) {
                     case -1:
                     case 1:
                         set_tt_led(true, true);
@@ -572,11 +569,14 @@ int main() {
                     default:
                         set_tt_led(false, false);
                         break;
-                    }
-                } else {
-                    set_tt_led(false, false);    
                 }
+            } else {
+                set_tt_led(false, false);    
             }
+        }
+
+        if (config.flags.Ws2812b) {
+            rgb_manager.update_colors(tt1_report);
         }
 
         // [E2 MULTI-TAP]

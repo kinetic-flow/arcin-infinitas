@@ -42,7 +42,9 @@ static_assert(sizeof(config_flags) == sizeof(uint32_t), "size mismatch");
 typedef union _rgb_config_flags {
     struct {
         uint8_t EnableHidControl: 1;
-        uint8_t Reserved: 7;
+        uint8_t ReactToTt: 1;
+        uint8_t FlipDirection: 1;
+        uint8_t Reserved: 5;
     };
 
     uint8_t AsUINT8;
@@ -52,8 +54,13 @@ static_assert(sizeof(rgb_config_flags) == sizeof(uint8_t), "size mismatch");
 
 typedef struct _rgb_config {
     rgb_config_flags Flags;
-    ColorRgb Rgb;
+    ColorRgb RgbPrimary;
     uint8_t Darkness;
+    ColorRgb RgbSecondary;
+    ColorRgb RgbTertiary;
+    uint8_t Mode; // WS2812B_Mode
+    uint8_t NumberOfLeds;
+    int8_t Speed;
 } rgb_config;
 
 struct config_t {
@@ -79,7 +86,7 @@ struct config_t {
 
     rgb_config rgb;
 
-    uint8_t reserved2[15];
+    uint8_t reserved2[6];
 };
 
 // From config_report_t.data[60]
