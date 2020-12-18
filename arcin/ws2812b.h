@@ -16,7 +16,8 @@ extern bool global_led_enable;
 typedef enum _WS2812B_Mode {
     WS2812B_MODE_STATIC,
     WS2812B_MODE_TRICOLOR,
-    WS2812B_MODE_STATIC_RAINBOW
+    WS2812B_MODE_STATIC_RAINBOW,
+    WS2812B_MODE_CIRCULAR_RAINBOW
 } WS2812B_Mode;
 
 void crgb_from_colorrgb(ColorRgb color, CRGB& crgb) {
@@ -169,12 +170,22 @@ class RGBManager {
             color.blue = apply_darkness(color.blue);
         }
 
+        void update_static(CHSV& hsv) {
+            CRGB rgb(hsv);
+            this->update_static(rgb);
+        }
+
         void update_static(CRGB& rgb) {
             for (uint8_t i = 0; i < ws2812b.get_num_leds(); i++) {
                 this->update(rgb, i);
             }
 
             this->update_complete();
+        }
+
+        void update(CHSV& hsv, uint8_t index) {
+            CRGB rgb(hsv);
+            this->update(rgb, index);
         }
 
         void update(CRGB& rgb, uint8_t index) {
@@ -261,24 +272,49 @@ class RGBManager {
                 case WS2812B_MODE_STATIC_RAINBOW:
                     {
                         uint8_t hue = 0;
-                        int32_t tick = (this->speed - INT8_MIN) * 2;
+                        int32_t tick = (this->speed - INT8_MIN);
                         if (flags.ReactToTt) {
                             shift_value += tt * tick;
-                            hue = shift_value >> 8;
                         } else {
                             if (flags.FlipDirection) {
                                 tick *= -1;
                             }
 
                             shift_value += tick;
-                            hue = shift_value >> 8;
                         }
 
+                        hue = shift_value >> 8;
                         CHSV hsv(hue, 255, 255);
-                        CRGB rgb(hsv);
-                        this->update_static(rgb);
+                        this->update_static(hsv);
                         break;
                     }
+                case WS2812B_MODE_CIRCULAR_RAINBOW:
+                    {
+                        int32_t tick = (this->speed - INT8_MIN) * 2;
+                        if (flags.ReactToTt) {
+                            // raw_turntable_direction is used here since we'll flip the order of
+                            // LEDs below anyway
+                            shift_value += raw_turntable_direction * tick;
+                        } else {
+                            shift_value += tick;
+                        }
+
+                        for (uint8_t led = 0; led < ws2812b.get_num_leds(); led++) {
+                            uint16_t hue = 255 * led / ws2812b.get_num_leds();
+                            hue = (hue + (shift_value >> 6)) % 255;
+                            CHSV hsv(hue, 255, 255);
+                            
+                            // The flipping here is done by completely reversing the LED order, so
+                            // it's done as the last thing.
+                            if (flags.FlipDirection) {
+                                this->update(hsv, ws2812b.get_num_leds() - led);
+                            } else {
+                                this->update(hsv, led);
+                            }
+                        }
+                        this->update_complete();
+                    }
+                    break;
                 case WS2812B_MODE_TRICOLOR:
                     {
                         uint8_t shift = 0;
