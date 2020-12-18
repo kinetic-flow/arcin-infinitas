@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <os/time.h>
-#include "fastled_pixeltypes.h"
+#include "fastled_hsv2rgb.h"
 #include "color.h"
 
 #define min(x, y) (((x) < (y)) ? (x) : (y))
@@ -16,7 +16,7 @@ extern bool global_led_enable;
 typedef enum _WS2812B_Mode {
     WS2812B_MODE_STATIC,
     WS2812B_MODE_TRICOLOR,
-    WS2812B_MODE_RAINBOW,
+    WS2812B_MODE_STATIC_RAINBOW
 } WS2812B_Mode;
 
 void crgb_from_colorrgb(ColorRgb color, CRGB& crgb) {
@@ -146,17 +146,20 @@ class RGBManager {
 
     WS2812B_Mode rgb_mode = WS2812B_MODE_STATIC;
     rgb_config_flags flags = {0};
+
     uint8_t default_darkness = 0;
+    int8_t speed = 0;
+
     CRGB rgb_primary;
     CRGB rgb_secondary;
     CRGB rgb_tertiary;
 
-    uint8_t tt_shift = 0;
+    uint16_t shift_value = 0;
 
     private:    
         uint8_t apply_darkness(uint8_t color) {
             uint16_t new_color = color;
-            new_color = new_color * (__UINT8_MAX__ - default_darkness) / __UINT8_MAX__;
+            new_color = new_color * (UINT8_MAX - default_darkness) / UINT8_MAX;
             return (uint8_t)new_color;
         }
 
@@ -212,6 +215,10 @@ class RGBManager {
         void set_darkness(uint8_t darkness) {
             this->default_darkness = darkness;
         }
+
+        void set_speed(int8_t speed) {
+            this->speed = speed;
+        }
         
         void update_from_hid(ColorRgb color) {
             if (!global_led_enable || !flags.EnableHidControl) {
@@ -225,9 +232,10 @@ class RGBManager {
         }
 
         void update_colors(int8_t raw_turntable_direction) {
-            // prevent frequent updates
+            // prevent frequent updates - use 20ms as the framerate. This framerate will have
+            // downstream effects on the various color algorithms below.
             uint32_t now = Time::time();
-            if ((now - last_outdated_hid_check) < 10) {
+            if ((now - last_outdated_hid_check) < 20) {
                 return;
             }
             last_outdated_hid_check = now;
@@ -241,18 +249,42 @@ class RGBManager {
                 return;
             }
 
-            int8_t tt = raw_turntable_direction;
-            if (flags.FlipDirection) {
-                tt *= -1;
+            int8_t tt = 0;
+            if (flags.ReactToTt) {
+                tt = raw_turntable_direction;
+                if (flags.FlipDirection) {
+                    tt *= -1;
+                }
             }
 
             switch(rgb_mode) {
+                case WS2812B_MODE_STATIC_RAINBOW:
+                    {
+                        uint8_t hue = 0;
+                        int32_t tick = (this->speed - INT8_MIN) * 2;
+                        if (flags.ReactToTt) {
+                            shift_value += tt * tick;
+                            hue = shift_value >> 8;
+                        } else {
+                            if (flags.FlipDirection) {
+                                tick *= -1;
+                            }
+
+                            shift_value += tick;
+                            hue = shift_value >> 8;
+                        }
+
+                        CHSV hsv(hue, 255, 255);
+                        CRGB rgb(hsv);
+                        this->update_static(rgb);
+                        break;
+                    }
                 case WS2812B_MODE_TRICOLOR:
                     {
                         uint8_t shift = 0;
                         if (flags.ReactToTt) {
-                            tt_shift += tt;
-                            shift = (tt_shift >> 4) % 3;
+                            shift_value += tt;
+                            shift = (shift_value >> 4) % 3;
                         }
 
                         for (int led = 0; led < ws2812b.get_num_leds(); led++) {
@@ -277,21 +309,17 @@ class RGBManager {
 
                 case WS2812B_MODE_STATIC:
                 default:
-                    if (flags.ReactToTt) {
-                        switch (tt) {
-                            case -1:
-                                this->update_static(rgb_secondary);
-                                break;
-                            case 1:
-                                this->update_static(rgb_tertiary);
-                                break;
-                            case 0:
-                            default:
-                                this->update_static(rgb_primary);
-                                break;
-                        }
-                    } else {
-                        this->update_static(rgb_primary);
+                    switch (tt) {
+                        case -1:
+                            this->update_static(rgb_secondary);
+                            break;
+                        case 1:
+                            this->update_static(rgb_tertiary);
+                            break;
+                        case 0:
+                        default:
+                            this->update_static(rgb_primary);
+                            break;
                     }
 
                     break;

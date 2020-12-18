@@ -2,8 +2,8 @@
 #define HSV2RGB_H
 
 #include <stdint.h>
-#include "pixeltypes.h"
-#include "scale8.h"
+#include "fastled_pixeltypes.h"
+#include "fastled_scale8.h"
 
 // hsv2rgb_rainbow copied from the FastLED project
 // https://github.com/FastLED/FastLED
