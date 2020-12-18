@@ -109,7 +109,7 @@ First of all, turn on "Enable mode switching" in the config tool. Then:
 
 Note that when you use the mode switching button combinations, the changes are not permanently saved; when the controller is unplugged, things will revert back to what was set in the configuration tool. This is intentional!
 
-# WS2812B control
+## WS2812B control
 
 WS2812B light strips can be controlled over button 9 pins. This is currently experimental. See https://github.com/minsang-github/rhythmgame-docs/wiki/WS2812B-on-arcin for details.
 
