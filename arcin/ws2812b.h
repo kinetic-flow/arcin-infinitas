@@ -291,7 +291,7 @@ class RGBManager {
                     }
 
                     if (flags.ReactToTt) {
-                        shift_value += tt * tick;
+                        shift_value += (-tt) * tick;
                     } else {
                         shift_value += tick;
                     }
@@ -320,7 +320,8 @@ class RGBManager {
                     if (flags.ReactToTt) {
                         shift_value += tt * tick;
                     } else {
-                        shift_value += tick;
+                        // yes, it must go in negative direction
+                        shift_value -= tick;
                     }
 
                     uint16_t number_of_circles = 1;
@@ -348,7 +349,8 @@ class RGBManager {
                     if (flags.ReactToTt) {
                         shift_value += tt * tick;
                     } else {
-                        shift_value += tick;
+                        // yes, it must go in negative direction
+                        shift_value -= tick;
                     }
 
                     uint8_t pixel_shift = (shift_value >> 10) % 3;
