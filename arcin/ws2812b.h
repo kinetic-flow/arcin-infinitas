@@ -218,7 +218,18 @@ class RGBManager {
 
         void update(CRGB& rgb, uint8_t index) {
             CRGB rgb_adjusted = rgb;
+            
+            if (flags.ReactToTt) {
+                uint8_t brightness = idle_brightness;
+                // start out with idle brightness..
+                // and increase with TT activity
+                brightness += (UINT8_MAX - idle_brightness) * tt_activity / UINT8_MAX;
+                apply_darkness(rgb_adjusted, UINT8_MAX - brightness);
+            }
+
+            // finally, apply overall darkness override
             apply_darkness(rgb_adjusted, default_darkness);
+
             ws2812b.update_led_color(rgb_adjusted, index);
         }
 
@@ -473,31 +484,6 @@ class RGBManager {
 
                     CRGB rgb(initial_rgb.r + r, initial_rgb.g + g, initial_rgb.b + b);
                     this->update_static(rgb);
-                }
-                break;
-
-                case WS2812B_MODE_THREE_DOTS:
-                {
-                    int32_t tick = speed;
-                    if (flags.ReactToTt) {
-                        shift_value += tt * tick;
-                    } else {
-                        // yes, it must go in negative direction
-                        shift_value -= tick;
-                    }
-
-                    // shift_value is the location of the dot (one of the LEDs)
-                    shift_value = (shift_value % ws2812b.get_num_leds()); 
-
-                    CRGB off(0, 0, 0);
-                    for (uint8_t led = 0; led < ws2812b.get_num_leds(); led++) {
-                        if (led == shift_value) {
-                            this->update(this->rgb_primary, led);
-                        } else {
-                            this->update(off, led);
-                        }
-                    }
-                    this->update_complete();
                 }
                 break;
 
