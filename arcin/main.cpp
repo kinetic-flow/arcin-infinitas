@@ -473,6 +473,7 @@ int main() {
         rgb_manager.set_default_colors(
             config.rgb.RgbPrimary, config.rgb.RgbSecondary, config.rgb.RgbTertiary);
         rgb_manager.set_darkness(config.rgb.Darkness);
+        rgb_manager.set_idle_brightness(config.rgb.IdleBrightness);
         rgb_manager.set_speed(config.rgb.Speed);
         rgb_manager.set_mode((WS2812B_Mode)config.rgb.Mode);
     }

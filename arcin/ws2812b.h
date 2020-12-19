@@ -22,7 +22,6 @@ typedef enum _WS2812B_Mode {
     WS2812B_MODE_RAINBOW_WAVE,
     WS2812B_MODE_ONE_COLOR_FADE,
     WS2812B_MODE_TWO_COLOR_FADE,
-    WS2812B_MODE_THREE_DOTS
 } WS2812B_Mode;
 
 void crgb_from_colorrgb(ColorRgb color, CRGB& crgb) {
@@ -174,6 +173,7 @@ class RGBManager {
 
     // user-defined modifiers
     uint8_t default_darkness = 0;
+    uint8_t idle_brightness = 0;
     int8_t speed = 0;
 
     // user-defined colors
@@ -259,6 +259,10 @@ class RGBManager {
 
         void set_darkness(uint8_t darkness) {
             this->default_darkness = darkness;
+        }
+
+        void set_idle_brightness(uint8_t idle_brightness) {
+            this->idle_brightness = idle_brightness;
         }
 
         void set_speed(int8_t speed) {

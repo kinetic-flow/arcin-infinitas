@@ -63,6 +63,7 @@ typedef struct _rgb_config {
     uint8_t Mode; // WS2812B_Mode
     uint8_t NumberOfLeds;
     int8_t Speed;
+    uint8_t IdleBrightness;
 } rgb_config;
 
 struct config_t {
@@ -88,7 +89,7 @@ struct config_t {
 
     rgb_config rgb;
 
-    uint8_t reserved2[6];
+    uint8_t reserved2[5];
 };
 
 // From config_report_t.data[60]
