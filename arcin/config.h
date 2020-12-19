@@ -44,7 +44,9 @@ typedef union _rgb_config_flags {
         uint8_t EnableHidControl: 1;
         uint8_t ReactToTt: 1;
         uint8_t FlipDirection: 1;
-        uint8_t Reserved: 5;
+        uint8_t FadeOutFast: 1;
+        uint8_t FadeOutSlow: 1;
+        uint8_t Reserved: 3;
     };
 
     uint8_t AsUINT8;

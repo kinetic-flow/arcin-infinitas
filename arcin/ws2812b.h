@@ -11,6 +11,7 @@
 
 #define WS2812B_DMA_BUFFER_LEN 26 // was 25 in arcin
 #define WS2812B_MAX_LEDS 60
+
 extern bool global_led_enable;
 
 typedef enum _WS2812B_Mode {
@@ -20,7 +21,8 @@ typedef enum _WS2812B_Mode {
     WS2812B_MODE_RAINBOW_SPIRAL,
     WS2812B_MODE_RAINBOW_WAVE,
     WS2812B_MODE_ONE_COLOR_FADE,
-    WS2812B_MODE_TWO_COLOR_FADE
+    WS2812B_MODE_TWO_COLOR_FADE,
+    WS2812B_MODE_THREE_DOTS
 } WS2812B_Mode;
 
 void crgb_from_colorrgb(ColorRgb color, CRGB& crgb) {
@@ -149,6 +151,9 @@ class WS2812B {
         }
 };
 
+// duration of each frame, in milliseconds
+#define RGB_MANAGER_FRAME_MS 20
+
 class RGBManager {
 
     WS2812B ws2812b;
@@ -156,16 +161,27 @@ class RGBManager {
     uint32_t last_hid_report = 0;
     uint32_t last_outdated_hid_check = 0;
 
+    // reacting to tt movement (stationary / moving)
+    // any movement instantly increases it to UINT8_MAX
+    // no movement slowly decreases this value over time
+    uint8_t tt_activity = 0;
+    uint32_t last_tt_activity_time = 0;
+    uint16_t tt_fade_out_time = 0;
+
+    // user-defined color mode
     WS2812B_Mode rgb_mode = WS2812B_MODE_STATIC;
     rgb_config_flags flags = {0};
 
+    // user-defined modifiers
     uint8_t default_darkness = 0;
     int8_t speed = 0;
 
+    // user-defined colors
     CRGB rgb_primary;
     CRGB rgb_secondary;
     CRGB rgb_tertiary;
 
+    // shift values that modify lights
     uint16_t shift_value = 0;
     int8_t shift_direction = 1;
 
@@ -218,6 +234,15 @@ class RGBManager {
     public:
         void init(rgb_config_flags flags, uint8_t num_leds) {
             this->flags = flags;
+
+            this->tt_fade_out_time = 0;
+            if (flags.FadeOutFast) {
+                tt_fade_out_time += 200;
+            }
+            if (flags.FadeOutSlow) {
+                tt_fade_out_time += 400;
+            }
+
             ws2812b.init(num_leds, flags.FlipDirection);
             this->set_off();
         }
@@ -251,11 +276,33 @@ class RGBManager {
             this->update_static(crgb);
         }
 
+        void update_turntable_activity(uint32_t now, int8_t tt) {
+            // Detect TT activity; framerate dependent, of course.
+            switch (tt) {
+                case 1:
+                case -1:
+                    tt_activity = UINT8_MAX;
+                    last_tt_activity_time = now;
+                    break;
+
+                case 0:
+                default:
+                    uint32_t delta = now - last_tt_activity_time;
+                    if (delta < this->tt_fade_out_time) {
+                        tt_activity = 
+                            UINT8_MAX * (this->tt_fade_out_time - delta) / this->tt_fade_out_time;
+                    } else {
+                        tt_activity = 0;
+                    }
+                    break;
+            }
+        }
+
         void update_colors(int8_t tt) {
             // prevent frequent updates - use 20ms as the framerate. This framerate will have
             // downstream effects on the various color algorithms below.
             uint32_t now = Time::time();
-            if ((now - last_outdated_hid_check) < 20) {
+            if ((now - last_outdated_hid_check) < RGB_MANAGER_FRAME_MS) {
                 return;
             }
             last_outdated_hid_check = now;
@@ -267,6 +314,10 @@ class RGBManager {
             if (!global_led_enable) {
                 this->set_off();
                 return;
+            }
+
+            if (flags.ReactToTt){
+                update_turntable_activity(now, tt);
             }
 
             // configurable speed is signed; convert this to unsigned
@@ -379,27 +430,9 @@ class RGBManager {
                 case WS2812B_MODE_ONE_COLOR_FADE:
                 case WS2812B_MODE_TWO_COLOR_FADE:
                 {
+                    uint16_t brightness = 0;
                     if (flags.ReactToTt) {
-                        uint16_t fade_in_speed = 1024;
-                        uint16_t fade_out_speed = speed * 2;
-                        switch (tt) {
-                            case 1:
-                            case -1:
-                                // when there is TT activity, increase it, but with a soft cap
-                                shift_value += fade_in_speed;
-                                shift_value = min(shift_value, (UINT8_MAX << 4));
-                                break;
-
-                            case 0:
-                            default:
-                                // no activity, slowly wind down
-                                if (shift_value > fade_out_speed) {
-                                    shift_value -= fade_out_speed;
-                                } else {
-                                    shift_value = 0;
-                                }
-                                break;
-                        }
+                        brightness = tt_activity;
                     } else {
                         uint16_t modifier = speed / 4;
                         shift_value += (shift_direction * modifier);
@@ -409,16 +442,16 @@ class RGBManager {
                         } else if (shift_value <= modifier) {
                             shift_direction = 1;
                         }
+
+                        brightness = (shift_value >> 4);
+                        if (brightness > UINT8_MAX) {
+                            brightness = UINT8_MAX;
+                        }
                     }
 
-                    uint16_t brightness = (shift_value >> 4);
-                    if (brightness > UINT8_MAX) {
-                        brightness = UINT8_MAX;
-                    }
-
-                    // brightness 0 => primary color
+                    // brightness 0 => initial color
                     // brightness 1-254 => something in between
-                    // brightness 255 => secondary color
+                    // brightness 255 => goal color
 
                     CRGB initial_rgb;
                     CRGB goal_rgb;
@@ -436,6 +469,31 @@ class RGBManager {
 
                     CRGB rgb(initial_rgb.r + r, initial_rgb.g + g, initial_rgb.b + b);
                     this->update_static(rgb);
+                }
+                break;
+
+                case WS2812B_MODE_THREE_DOTS:
+                {
+                    int32_t tick = speed;
+                    if (flags.ReactToTt) {
+                        shift_value += tt * tick;
+                    } else {
+                        // yes, it must go in negative direction
+                        shift_value -= tick;
+                    }
+
+                    // shift_value is the location of the dot (one of the LEDs)
+                    shift_value = (shift_value % ws2812b.get_num_leds()); 
+
+                    CRGB off(0, 0, 0);
+                    for (uint8_t led = 0; led < ws2812b.get_num_leds(); led++) {
+                        if (led == shift_value) {
+                            this->update(this->rgb_primary, led);
+                        } else {
+                            this->update(off, led);
+                        }
+                    }
+                    this->update_complete();
                 }
                 break;
 
