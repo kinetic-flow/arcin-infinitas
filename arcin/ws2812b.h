@@ -43,12 +43,16 @@ typedef enum _WS2812B_Mode {
 
     // same as single color, except with (1 and 2) instead of (0 and 1)
     WS2812B_MODE_TWO_COLOR_FADE,
+
+    // static   - one LED has 1, rest are off
+    // animated - 1 LED moves around
+    // tt       - controls animation speed and direction
+    WS2812B_MODE_SINGLE_DOT,
 } WS2812B_Mode;
 
-void crgb_from_colorrgb(ColorRgb color, CRGB& crgb) {
-    crgb.red = color.Red;
-    crgb.green = color.Green;
-    crgb.blue = color.Blue;
+void chsv_from_colorrgb(ColorRgb color, CHSV& chsv) {
+    CRGB crgb(color.Red, color.Green, color.Blue);
+    chsv = rgb2hsv_approximate(crgb);
 }
 
 class WS2812B {
@@ -195,63 +199,52 @@ class RGBManager {
     // user-defined modifiers
     uint8_t default_darkness = 0;
     uint8_t idle_brightness = 0;
-    int8_t speed = 0;
+    uint8_t idle_animation_speed = 0;
+    int8_t tt_animation_speed = 0;
 
     // user-defined colors
-    CRGB rgb_primary;
-    CRGB rgb_secondary;
-    CRGB rgb_tertiary;
+    CHSV hsv_primary;
+    CHSV hsv_secondary;
+    CHSV hsv_tertiary;
 
     // shift values that modify lights
     uint16_t shift_value = 0;
     int8_t shift_direction = 1;
 
     private:    
-        uint8_t apply_darkness(uint8_t color, uint8_t darkness) {
-            uint16_t new_color = color;
-            new_color = new_color * (UINT8_MAX - darkness) / UINT8_MAX;
-            return (uint8_t)new_color;
-        }
-
-        void apply_darkness(CRGB& color, uint8_t darkness) {
-            color.red = apply_darkness(color.red, darkness);
-            color.green = apply_darkness(color.green, darkness);
-            color.blue = apply_darkness(color.blue, darkness);
+        void apply_brightness(CHSV& color, uint8_t brightness) {
+            color.value = color.value * brightness / UINT8_MAX;
         }
 
         void update_static(CHSV& hsv) {
-            CRGB rgb(hsv);
-            this->update_static(rgb);
-        }
-
-        void update_static(CRGB& rgb) {
             for (uint8_t i = 0; i < ws2812b.get_num_leds(); i++) {
-                this->update(rgb, i);
+                this->update(hsv, i);
             }
 
             this->update_complete();
         }
 
-        void update(CHSV& hsv, uint8_t index) {
-            CRGB rgb(hsv);
-            this->update(rgb, index);
-        }
-
-        void update(CRGB& rgb, uint8_t index) {
-            CRGB rgb_adjusted = rgb;
-            
+        uint8_t calculate_brightness() {
+            uint16_t brightness;
             if (flags.ReactToTt) {
-                uint8_t brightness = idle_brightness;
                 // start out with idle brightness..
+                brightness = idle_brightness;
                 // and increase with TT activity
                 brightness += (UINT8_MAX - idle_brightness) * tt_activity / UINT8_MAX;
-                apply_darkness(rgb_adjusted, UINT8_MAX - brightness);
+            } else {
+                // full brightness
+                brightness = UINT8_MAX;
             }
-
+            
             // finally, apply overall darkness override
-            apply_darkness(rgb_adjusted, default_darkness);
+            return brightness * (UINT8_MAX - default_darkness) / UINT8_MAX;
+        }
 
-            ws2812b.update_led_color(rgb_adjusted, index);
+        void update(CHSV& hsv, uint8_t index) {
+            CHSV hsv_adjusted = hsv;
+            apply_brightness(hsv_adjusted, calculate_brightness());
+            CRGB rgb(hsv_adjusted);
+            ws2812b.update_led_color(rgb, index);
         }
 
         void update_complete() {
@@ -259,7 +252,7 @@ class RGBManager {
         }
 
         void set_off() {
-            CRGB off(0, 0, 0);
+            CHSV off(0, 0, 0);
             this->update_static(off);
         }
 
@@ -284,9 +277,9 @@ class RGBManager {
         }
         
         void set_default_colors(ColorRgb primary, ColorRgb secondary, ColorRgb tertiary) {
-            crgb_from_colorrgb(primary, this->rgb_primary);
-            crgb_from_colorrgb(secondary, this->rgb_secondary);
-            crgb_from_colorrgb(tertiary, this->rgb_tertiary);
+            chsv_from_colorrgb(primary, this->hsv_primary);
+            chsv_from_colorrgb(secondary, this->hsv_secondary);
+            chsv_from_colorrgb(tertiary, this->hsv_tertiary);
         }
 
         void set_darkness(uint8_t darkness) {
@@ -297,8 +290,9 @@ class RGBManager {
             this->idle_brightness = idle_brightness;
         }
 
-        void set_speed(int8_t speed) {
-            this->speed = speed;
+        void set_animation_speed(int8_t idle_speed, int8_t tt_speed) {
+            this->idle_animation_speed = idle_speed;
+            this->tt_animation_speed = tt_speed;
         }
         
         void update_from_hid(ColorRgb color) {
@@ -307,9 +301,9 @@ class RGBManager {
             }
             last_hid_report = Time::time();
 
-            CRGB crgb;
-            crgb_from_colorrgb(color, crgb);
-            this->update_static(crgb);
+            CHSV chsv;
+            chsv_from_colorrgb(color, chsv);
+            this->update_static(chsv);
         }
 
         void update_turntable_activity(uint32_t now, int8_t tt) {
@@ -332,6 +326,32 @@ class RGBManager {
                     }
                     break;
             }
+        }
+
+        void update_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
+            uint32_t idle_animation = idle_animation_speed * idle_multiplier;
+            uint32_t tt_animation = tt * tt_animation_speed * tt_multiplier;
+
+            // if TT movement has no effect, only idle animation is used
+            if (!flags.ReactToTt || tt == 0 || tt_animation == 0) {
+                shift_value += idle_animation;
+                return;
+            }
+
+            shift_value += tt_animation;
+            
+            // if tt animation is moving in the same direction, use both
+            if ((idle_animation > 0 && tt_animation > 0) ||
+                (idle_animation < 0 && tt_animation < 0)) {
+                shift_value += idle_animation;
+                return;
+            }
+
+            // in all other cases:
+            //  - idle animation is stationary
+            //  - tt animatino in the opposite direction of idle animation
+            //... just use the tt animation.
+            return;
         }
 
         void update_colors(int8_t tt) {
@@ -359,10 +379,7 @@ class RGBManager {
             switch(rgb_mode) {
                 case WS2812B_MODE_STATIC_RAINBOW:
                 {
-                    shift_value += speed;
-                    if (flags.ReactToTt) {
-                        shift_value += (-tt) * speed * 2;
-                    }
+                    update_shift(tt, 2, -4);
 
                     CHSV hsv(shift_value >> 8, 255, 255);
                     this->update_static(hsv);
@@ -372,21 +389,19 @@ class RGBManager {
                 case WS2812B_MODE_RAINBOW_SPIRAL:
                 case WS2812B_MODE_RAINBOW_WAVE:
                 {
-                    // yes, it must go in negative direction
-                    shift_value -= speed;
-                    if (flags.ReactToTt) {
-                        shift_value += (-tt) * speed * 2;
-                    }
+                    update_shift(tt, -3, 5);
 
                     uint16_t number_of_circles = 1;
                     if (rgb_mode == WS2812B_MODE_RAINBOW_WAVE) {
-                        // it doesn't have to be 3, but 3 looks pretty good.
                         number_of_circles = 3;
                     }
 
                     for (uint8_t led = 0; led < ws2812b.get_num_leds(); led++) {
                         uint16_t hue = 255 * led / (ws2812b.get_num_leds() * number_of_circles);
                         hue = (hue + (shift_value >> 6)) % 255;
+                        if (rgb_mode == WS2812B_MODE_RAINBOW_WAVE) {
+                            hue = UINT8_MAX - hue;
+                        }
                         CHSV hsv(hue, 255, 255);
                         this->update(hsv, led);
                     }
@@ -396,28 +411,24 @@ class RGBManager {
 
                 case WS2812B_MODE_TRICOLOR:
                 {
-                    // yes, it must go in negative direction
-                    shift_value -= speed;
-                    if (flags.ReactToTt) {
-                        shift_value += (-tt) * speed * 2;
-                    }
+                    update_shift(tt, -2, 4);
 
                     uint8_t pixel_shift = (shift_value >> 10) % 3;
                     for (int led = 0; led < ws2812b.get_num_leds(); led++) {
-                        CRGB* rgb = NULL;
+                        CHSV* color = NULL;
                         switch ((led + pixel_shift) % 3) {
                             case 0:
                             default:
-                                rgb = &rgb_primary;
+                                color = &hsv_primary;
                                 break;
                             case 1:
-                                rgb = &rgb_secondary;
+                                color = &hsv_secondary;
                                 break;
                             case 2:
-                                rgb = &rgb_tertiary;
+                                color = &hsv_tertiary;
                                 break;
                         }                        
-                        this->update(*rgb, led);
+                        this->update(*color, led);
                     }
                     this->update_complete();
                 }
@@ -454,22 +465,22 @@ class RGBManager {
                     // value 1-254 => something in between
                     // value 255 => goal color
 
-                    CRGB initial_rgb = rgb_primary;
+                    CHSV initial_color = hsv_primary;
 
-                    int8_t r = (rgb_secondary.r - initial_rgb.r) * value / UINT8_MAX;
-                    int8_t g = (rgb_secondary.g - initial_rgb.g) * value / UINT8_MAX;
-                    int8_t b = (rgb_secondary.b - initial_rgb.b) * value / UINT8_MAX;
+                    int8_t h = (hsv_secondary.h - initial_color.h) * value / UINT8_MAX;
+                    int8_t s = (hsv_secondary.s - initial_color.s) * value / UINT8_MAX;
+                    int8_t v = (hsv_secondary.v - initial_color.v) * value / UINT8_MAX;
 
-                    CRGB rgb(initial_rgb.r + r, initial_rgb.g + g, initial_rgb.b + b);
-                    this->update_static(rgb);
+                    CHSV hsv(initial_color.h + h, initial_color.s + s, initial_color.v + v);
+                    this->update_static(hsv);
                 }
                 break;
 
                 case WS2812B_MODE_SINGLE_COLOR:
                 default:
                 {
-                    if (this->speed == 0 || this->flags.ReactToTt) {
-                        this->update_static(rgb_primary);
+                    if (this->idle_animation_speed == 0 || this->flags.ReactToTt) {
+                        this->update_static(hsv_primary);
                     } else {
                         // breathe mode
                     }
