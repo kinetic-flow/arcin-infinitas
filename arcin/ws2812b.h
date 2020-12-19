@@ -14,13 +14,34 @@
 
 extern bool global_led_enable;
 
+// Here, "0" is off, "1" refers to primary color, "2" is secondary, "3" is tertiary
 typedef enum _WS2812B_Mode {
-    WS2812B_MODE_STATIC,
+    // static   - all LEDs on 1
+    // animated - this is the "breathe" effect (cycles between 0 and 1)
+    // tt       - same as static (with default fade in/out only)
+    WS2812B_MODE_SINGLE_COLOR,
+
+    // static   - each LED takes 1/2/3
+    // animated - each LED cycles through 1/2/3
+    // tt       - controls animation speed and direction
     WS2812B_MODE_TRICOLOR,
+
+    // static   - all LEDs have the same color (somewhere on the hue spectrum)
+    // animated - all LEDs cycle through hue spectrum
+    // tt       - controls animation speed and direction
     WS2812B_MODE_STATIC_RAINBOW,
+
+    // static   - each LED represents hue value on the rainbow spectrum
+    // animated - static, but rotates through
+    // tt       - controls animation speed and direction
     WS2812B_MODE_RAINBOW_SPIRAL,
+
+    // static   - same as rainbow spiral except hue specturm spans three circles
+    // animated - static, but rotates through
+    // tt       - controls animation speed and direction
     WS2812B_MODE_RAINBOW_WAVE,
-    WS2812B_MODE_ONE_COLOR_FADE,
+
+    // same as single color, except with (1 and 2) instead of (0 and 1)
     WS2812B_MODE_TWO_COLOR_FADE,
 } WS2812B_Mode;
 
@@ -168,7 +189,7 @@ class RGBManager {
     uint16_t tt_fade_out_time = 0;
 
     // user-defined color mode
-    WS2812B_Mode rgb_mode = WS2812B_MODE_STATIC;
+    WS2812B_Mode rgb_mode = WS2812B_MODE_SINGLE_COLOR;
     rgb_config_flags flags = {0};
 
     // user-defined modifiers
@@ -335,31 +356,12 @@ class RGBManager {
                 update_turntable_activity(now, tt);
             }
 
-            // configurable speed is signed; convert this to unsigned
-            // 0 should be the reasonable default speed.
-            // (slowest / no movement being 0, highest being 255)
-            uint8_t speed = this->speed - INT8_MIN;
-
             switch(rgb_mode) {
-                // Static rainbow mode.
-                //
-                // All LEDs have the same color, but the hue can change.
-                // When TT reactive is on, the turntable adjusts the hue.
-                // In normal mode, hue shifts in one direction.
-                //
-                // Flip affects direction for both.
-                // Speed affects how fast the hue changes.
                 case WS2812B_MODE_STATIC_RAINBOW:
                 {
-                    int32_t tick = speed;
-                    if (flags.FlipDirection) {
-                        tick *= -1;
-                    }
-
+                    shift_value += speed;
                     if (flags.ReactToTt) {
-                        shift_value += (-tt) * tick;
-                    } else {
-                        shift_value += tick;
+                        shift_value += (-tt) * speed * 2;
                     }
 
                     CHSV hsv(shift_value >> 8, 255, 255);
@@ -367,27 +369,13 @@ class RGBManager {
                 }
                 break;
 
-                // Circular rainbow mode.
-                //
-                // Spiral: each LED covers a portion of the hue spectrum, coming full circle.
-                // Wave: like spiral, but not a full spectrum, only a slice.
-                // 
-                // The math depends on the number of LEDs being accurate.
-                //
-                // TT reactive mode causes a hue shift.
-                // Normal mode causes hue to shift over time.
-                //
-                // Flip reverse the entire LED strip direction.
-                // Speed affects how fast the hue shift happens.
                 case WS2812B_MODE_RAINBOW_SPIRAL:
                 case WS2812B_MODE_RAINBOW_WAVE:
                 {
-                    int32_t tick = speed;
+                    // yes, it must go in negative direction
+                    shift_value -= speed;
                     if (flags.ReactToTt) {
-                        shift_value += tt * tick;
-                    } else {
-                        // yes, it must go in negative direction
-                        shift_value -= tick;
+                        shift_value += (-tt) * speed * 2;
                     }
 
                     uint16_t number_of_circles = 1;
@@ -406,17 +394,12 @@ class RGBManager {
                 }
                 break;
 
-                // Tricolor mode.
-                //
-                // Each LED uses one of three colors, in order.
                 case WS2812B_MODE_TRICOLOR:
                 {
-                    int32_t tick = speed;
+                    // yes, it must go in negative direction
+                    shift_value -= speed;
                     if (flags.ReactToTt) {
-                        shift_value += tt * tick;
-                    } else {
-                        // yes, it must go in negative direction
-                        shift_value -= tick;
+                        shift_value += (-tt) * speed * 2;
                     }
 
                     uint8_t pixel_shift = (shift_value >> 10) % 3;
@@ -440,11 +423,9 @@ class RGBManager {
                 }
                 break;
 
-                // One color fade: fade between off and the primary color.
-                // Two color fade: fade between the primary and the secondary color.
-                case WS2812B_MODE_ONE_COLOR_FADE:
                 case WS2812B_MODE_TWO_COLOR_FADE:
                 {
+                    /*
                     uint16_t brightness = 0;
                     if (flags.ReactToTt) {
                         brightness = tt_activity;
@@ -462,50 +443,35 @@ class RGBManager {
                         if (brightness > UINT8_MAX) {
                             brightness = UINT8_MAX;
                         }
+                    }*/
+
+                    uint16_t value = 0;
+                    if (flags.ReactToTt) {
+                        value = tt_activity;
                     }
 
-                    // brightness 0 => initial color
-                    // brightness 1-254 => something in between
-                    // brightness 255 => goal color
+                    // value 0 => initial color
+                    // value 1-254 => something in between
+                    // value 255 => goal color
 
-                    CRGB initial_rgb;
-                    CRGB goal_rgb;
-                    if (rgb_mode == WS2812B_MODE_ONE_COLOR_FADE) {
-                        initial_rgb = CRGB(0, 0, 0);
-                        goal_rgb = rgb_primary;
-                    } else {
-                        initial_rgb = rgb_primary;
-                        goal_rgb = rgb_secondary;
-                    }
+                    CRGB initial_rgb = rgb_primary;
 
-                    int8_t r = (goal_rgb.r - initial_rgb.r) * brightness / UINT8_MAX;
-                    int8_t g = (goal_rgb.g - initial_rgb.g) * brightness / UINT8_MAX;
-                    int8_t b = (goal_rgb.b - initial_rgb.b) * brightness / UINT8_MAX;
+                    int8_t r = (rgb_secondary.r - initial_rgb.r) * value / UINT8_MAX;
+                    int8_t g = (rgb_secondary.g - initial_rgb.g) * value / UINT8_MAX;
+                    int8_t b = (rgb_secondary.b - initial_rgb.b) * value / UINT8_MAX;
 
                     CRGB rgb(initial_rgb.r + r, initial_rgb.g + g, initial_rgb.b + b);
                     this->update_static(rgb);
                 }
                 break;
 
-                // Static color mode.
-                //
-                // Same color for all LEDs.
-                // TT reactive mode causes all LEDs to use the secondary or the primary color
-                // Flip only reverses the TT direction.
-                case WS2812B_MODE_STATIC:
+                case WS2812B_MODE_SINGLE_COLOR:
                 default:
                 {
-                    switch (tt) {
-                        case -1:
-                            this->update_static(rgb_secondary);
-                            break;
-                        case 1:
-                            this->update_static(rgb_tertiary);
-                            break;
-                        case 0:
-                        default:
-                            this->update_static(rgb_primary);
-                            break;
+                    if (this->speed == 0 || this->flags.ReactToTt) {
+                        this->update_static(rgb_primary);
+                    } else {
+                        // breathe mode
                     }
                 }
                 break;
