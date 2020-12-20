@@ -21,7 +21,7 @@
 // 30 LEDs = 900 us  = 0.900ms
 // 24 LEDs = 720 us  = 0.729ms
 // 10 LEDs = 300 us  = 0.300ms
-#define WS2812B_MAX_LEDS 30
+#define WS2812B_MAX_LEDS 60
 
 extern bool global_led_enable;
 

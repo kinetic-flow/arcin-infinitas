@@ -20,6 +20,8 @@
 #include "analog_button.h"
 #include "ws2812b.h"
 
+#define DEBUG_TIMING_KEYBOARD 1
+
 #define RAND16_SEED  1337
 uint16_t rand16seed = RAND16_SEED;
 
@@ -357,6 +359,12 @@ void check_for_outdated_tt_led_report(config_flags *runtime_flags) {
     set_tt_led(global_led_enable, global_led_enable);
 }
 
+#if DEBUG_TIMING_KEYBOARD
+
+uint32_t previous_report_time = 0;
+
+#endif
+
 int main() {
     rcc_init();
     
@@ -672,6 +680,17 @@ int main() {
                     break;
                 }
             }
+
+#if DEBUG_TIMING_KEYBOARD
+
+            uint32_t nownow = Time::time();;
+            uint32_t delta = nownow - previous_report_time;
+            if (buttons & ARCIN_PIN_BUTTON_1) {
+                scancodes[0] = delta + 0x1d; // 0x1d = '1'
+            }
+            previous_report_time = nownow;
+
+#endif
 
             usb->write(2, (uint32_t*)scancodes, sizeof(scancodes));
         }
