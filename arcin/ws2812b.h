@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <os/time.h>
 #include "fastled_hsv2rgb.h"
+#include "fastled_random8.h"
 #include "color.h"
 
 #define min(x, y) (((x) < (y)) ? (x) : (y))
@@ -44,10 +45,10 @@ typedef enum _WS2812B_Mode {
     // same as single color, except with (1 and 2) instead of (0 and 1)
     WS2812B_MODE_TWO_COLOR_FADE,
 
-    // static   - one LED has 1, rest are off
-    // animated - 1 LED moves around
-    // tt       - controls animation speed and direction
-    WS2812B_MODE_SINGLE_DOT,
+    // static   - todo
+    // animated - todo
+    // tt       - whenever activated, pick a random hue for all LEDs
+    WS2812B_MODE_RANDOM_HUE,
 } WS2812B_Mode;
 
 void chsv_from_colorrgb(ColorRgb color, CHSV& chsv) {
@@ -191,6 +192,7 @@ class RGBManager {
     uint8_t tt_activity = 0;
     uint32_t last_tt_activity_time = 0;
     uint16_t tt_fade_out_time = 0;
+    int8_t previous_tt = 0;
 
     // user-defined color mode
     WS2812B_Mode rgb_mode = WS2812B_MODE_SINGLE_COLOR;
@@ -206,6 +208,10 @@ class RGBManager {
     CHSV hsv_primary;
     CHSV hsv_secondary;
     CHSV hsv_tertiary;
+
+    // for random hue
+    uint8_t hue_temporary;
+    bool ready_for_new_hue = false;
 
     // shift values that modify lights
     uint16_t shift_value = 0;
@@ -270,6 +276,9 @@ class RGBManager {
 
             ws2812b.init(num_leds, flags.FlipDirection);
             this->set_off();
+
+            // init for color modes
+            hue_temporary = random8();
         }
         
         void set_mode(WS2812B_Mode rgb_mode) {
@@ -317,14 +326,24 @@ class RGBManager {
 
                 case 0:
                 default:
-                    uint32_t delta = now - last_tt_activity_time;
-                    if (delta < this->tt_fade_out_time) {
-                        tt_activity = 
-                            UINT8_MAX * (this->tt_fade_out_time - delta) / this->tt_fade_out_time;
-                    } else {
+                    if (last_tt_activity_time == 0) {
                         tt_activity = 0;
+                    } else {
+                        uint32_t delta = now - last_tt_activity_time;
+                        if (delta < this->tt_fade_out_time) {
+                            tt_activity = 
+                                UINT8_MAX * (this->tt_fade_out_time - delta) / this->tt_fade_out_time;
+
+                            tt_activity = quadwave8(tt_activity / 2);
+                        } else {
+                            tt_activity = 0;
+                        }
                     }
                     break;
+            }
+
+            if (tt_activity < 64) {
+                ready_for_new_hue = true;
             }
         }
 
@@ -436,42 +455,46 @@ class RGBManager {
 
                 case WS2812B_MODE_TWO_COLOR_FADE:
                 {
-                    /*
-                    uint16_t brightness = 0;
-                    if (flags.ReactToTt) {
-                        brightness = tt_activity;
-                    } else {
-                        uint16_t modifier = speed / 4;
-                        shift_value += (shift_direction * modifier);
-                        if (shift_value >= (UINT8_MAX << 4)) {
-                            shift_direction = -1;
-                            shift_value = (UINT8_MAX << 4);
-                        } else if (shift_value <= modifier) {
-                            shift_direction = 1;
-                        }
-
-                        brightness = (shift_value >> 4);
-                        if (brightness > UINT8_MAX) {
-                            brightness = UINT8_MAX;
-                        }
-                    }*/
-
                     uint16_t value = 0;
-                    if (flags.ReactToTt) {
+                    if (this->flags.ReactToTt) {
                         value = tt_activity;
+                    } else {
+                        update_shift(0, 4, 0);
+                        value = quadwave8(shift_value >> 8);
                     }
 
                     // value 0 => initial color
                     // value 1-254 => something in between
                     // value 255 => goal color
 
-                    CHSV initial_color = hsv_primary;
+                    // on the hue spectrum, always travel in the direction that is shorter
+                    int16_t h = (hsv_secondary.h - hsv_primary.h);
+                    if (h > INT8_MAX) {
+                        h = h - UINT8_MAX;
+                    } else if (h < INT8_MIN) {
+                        h = h + UINT8_MAX;
+                    }
+                    h = h * value / UINT8_MAX;
+                    int8_t s = (hsv_secondary.s - hsv_primary.s) * value / UINT8_MAX;
+                    int8_t v = (hsv_secondary.v - hsv_primary.v) * value / UINT8_MAX;
 
-                    int8_t h = (hsv_secondary.h - initial_color.h) * value / UINT8_MAX;
-                    int8_t s = (hsv_secondary.s - initial_color.s) * value / UINT8_MAX;
-                    int8_t v = (hsv_secondary.v - initial_color.v) * value / UINT8_MAX;
+                    CHSV hsv(hsv_primary.h + h, hsv_primary.s + s, hsv_primary.v + v);
+                    this->update_static(hsv);
+                }
+                break;
 
-                    CHSV hsv(initial_color.h + h, initial_color.s + s, initial_color.v + v);
+                case WS2812B_MODE_RANDOM_HUE:
+                {
+                    if (this->flags.ReactToTt) {
+                        if ((this->previous_tt == 0) && (tt != 0) && (ready_for_new_hue)) {
+                            // TT triggered, time to pick a new hue value
+                            // pick one that is not too similar to the previous one
+                            hue_temporary = hue_temporary + random8(255-60) + 30;
+                            ready_for_new_hue = false;
+                        }
+                    }
+
+                    CHSV hsv(hue_temporary, 255, 255);
                     this->update_static(hsv);
                 }
                 break;
@@ -483,9 +506,19 @@ class RGBManager {
                         this->update_static(hsv_primary);
                     } else {
                         // breathe mode
+                        update_shift(0, 4, 0);
+                        uint8_t brightness = quadwave8(shift_value >> 8);
+                        // bottom out at 20 since most LEDs have a hard time with really dark values
+                        brightness = max(brightness, 20);
+                        CHSV hsv(hsv_primary.hue, hsv_primary.sat, brightness);
+                        this->update_static(hsv);
                     }
                 }
                 break;
+            }
+
+            if (flags.ReactToTt){
+                this->previous_tt = tt;
             }
         }
 
