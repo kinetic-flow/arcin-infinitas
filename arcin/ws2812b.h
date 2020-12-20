@@ -11,16 +11,6 @@
 
 #define WS2812B_DMA_BUFFER_LEN 26
 
-// https://github.com/FastLED/FastLED/wiki/Interrupt-problems
-// Each pixel takes 30 microseconds.
-//
-// 1000hz mode => need to provide input every 1ms
-// 250hz mode => need to provide input every 4ms
-//
-// 60 LEDs = 1800 us = 1.8ms
-// 30 LEDs = 900 us  = 0.900ms
-// 24 LEDs = 720 us  = 0.729ms
-// 10 LEDs = 300 us  = 0.300ms
 #define WS2812B_MAX_LEDS 60
 
 extern bool global_led_enable;
@@ -187,6 +177,12 @@ class WS2812B {
 };
 
 // duration of each frame, in milliseconds
+//
+// https://github.com/FastLED/FastLED/wiki/Interrupt-problems
+// Each pixel takes 30 microseconds.
+// 60 LEDs = 1800 us = 1.8ms
+// This means the minimum period should be 2ms. So 20ms is way more than enough.
+
 #define RGB_MANAGER_FRAME_MS 20
 
 class RGBManager {
