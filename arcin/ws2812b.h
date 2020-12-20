@@ -3,15 +3,25 @@
 
 #include <stdint.h>
 #include <os/time.h>
-#include "fastled_hsv2rgb.h"
-#include "fastled_random8.h"
+#include "fastled.h"
 #include "color.h"
 
 #define min(x, y) (((x) < (y)) ? (x) : (y))
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 
-#define WS2812B_DMA_BUFFER_LEN 26 // was 25 in arcin
-#define WS2812B_MAX_LEDS 60
+#define WS2812B_DMA_BUFFER_LEN 26
+
+// https://github.com/FastLED/FastLED/wiki/Interrupt-problems
+// Each pixel takes 30 microseconds.
+//
+// 1000hz mode => need to provide input every 1ms
+// 250hz mode => need to provide input every 4ms
+//
+// 60 LEDs = 1800 us = 1.8ms
+// 30 LEDs = 900 us  = 0.900ms
+// 24 LEDs = 720 us  = 0.729ms
+// 10 LEDs = 300 us  = 0.300ms
+#define WS2812B_MAX_LEDS 30
 
 extern bool global_led_enable;
 
@@ -218,10 +228,6 @@ class RGBManager {
     int8_t shift_direction = 1;
 
     private:    
-        void apply_brightness(CHSV& color, uint8_t brightness) {
-            color.value = color.value * brightness / UINT8_MAX;
-        }
-
         void update_static(CHSV& hsv) {
             for (uint8_t i = 0; i < ws2812b.get_num_leds(); i++) {
                 this->update(hsv, i);
@@ -236,19 +242,19 @@ class RGBManager {
                 // start out with idle brightness..
                 brightness = idle_brightness;
                 // and increase with TT activity
-                brightness += (UINT8_MAX - idle_brightness) * tt_activity / UINT8_MAX;
+                brightness += scale8(UINT8_MAX - idle_brightness, tt_activity);
             } else {
                 // full brightness
                 brightness = UINT8_MAX;
             }
             
             // finally, apply overall darkness override
-            return brightness * (UINT8_MAX - default_darkness) / UINT8_MAX;
+            return scale8(brightness, UINT8_MAX - default_darkness);
         }
 
         void update(CHSV& hsv, uint8_t index) {
             CHSV hsv_adjusted = hsv;
-            apply_brightness(hsv_adjusted, calculate_brightness());
+            hsv_adjusted.value = scale8(hsv_adjusted.value, calculate_brightness());
             CRGB rgb(hsv_adjusted);
             ws2812b.update_led_color(rgb, index);
         }
@@ -455,17 +461,17 @@ class RGBManager {
 
                 case WS2812B_MODE_TWO_COLOR_FADE:
                 {
-                    uint16_t value = 0;
+                    uint16_t progress = 0;
                     if (this->flags.ReactToTt) {
-                        value = tt_activity;
+                        progress = tt_activity;
                     } else {
                         update_shift(0, 4, 0);
-                        value = quadwave8(shift_value >> 8);
+                        progress = quadwave8(shift_value >> 8);
                     }
 
-                    // value 0 => initial color
-                    // value 1-254 => something in between
-                    // value 255 => goal color
+                    // progress 0 => initial color
+                    // progress 1-254 => something in between
+                    // progress 255 => goal color
 
                     // on the hue spectrum, always travel in the direction that is shorter
                     int16_t h = (hsv_secondary.h - hsv_primary.h);
@@ -474,10 +480,9 @@ class RGBManager {
                     } else if (h < INT8_MIN) {
                         h = h + UINT8_MAX;
                     }
-                    h = h * value / UINT8_MAX;
-                    int8_t s = (hsv_secondary.s - hsv_primary.s) * value / UINT8_MAX;
-                    int8_t v = (hsv_secondary.v - hsv_primary.v) * value / UINT8_MAX;
-
+                    h = scale8(h, progress);
+                    int8_t s = scale8(hsv_secondary.s - hsv_primary.s, progress);
+                    int8_t v = scale8(hsv_secondary.v - hsv_primary.v, progress);
                     CHSV hsv(hsv_primary.h + h, hsv_primary.s + s, hsv_primary.v + v);
                     this->update_static(hsv);
                 }
@@ -508,8 +513,8 @@ class RGBManager {
                         // breathe mode
                         update_shift(0, 4, 0);
                         uint8_t brightness = quadwave8(shift_value >> 8);
-                        // bottom out at 20 since most LEDs have a hard time with really dark values
-                        brightness = max(brightness, 20);
+                        // make 20 the "floor" since most LEDs have a hard time with really dark values
+                        brightness = scale8(brightness, 255 - 20) + 20;
                         CHSV hsv(hsv_primary.hue, hsv_primary.sat, brightness);
                         this->update_static(hsv);
                     }

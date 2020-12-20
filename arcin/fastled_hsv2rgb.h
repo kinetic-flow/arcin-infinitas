@@ -1,10 +1,7 @@
 #ifndef HSV2RGB_H
 #define HSV2RGB_H
 
-#include <stdint.h>
-#include "fastled_lib8tion.h"
-#include "fastled_pixeltypes.h"
-#include "fastled_scale8.h"
+#include "fastled.h"
 
 #define FORCE_REFERENCE(var)  asm volatile( "" : : "r" (var) )
 

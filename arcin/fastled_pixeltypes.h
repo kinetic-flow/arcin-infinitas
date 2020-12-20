@@ -1,5 +1,7 @@
-#ifndef PIXELTYPES_H
-#define PIXELTYPES_H
+#ifndef __INC_PIXELS_H
+#define __INC_PIXELS_H
+
+#include "fastled.h"
 
 #include <stdint.h>
 #include <algorithm>
@@ -124,6 +126,13 @@ struct CRGB {
 	inline CRGB(const CHSV& rhs) __attribute__((always_inline))
     {
         hsv2rgb_rainbow( rhs, *this);
+    }
+
+    /// fadeToBlackBy is a synonym for nscale8( ..., 255-fadefactor)
+    inline CRGB& fadeToBlackBy (uint8_t fadefactor )
+    {
+        nscale8x3( r, g, b, 255 - fadefactor);
+        return *this;
     }
 
     /// allow assignment from one RGB struct to another

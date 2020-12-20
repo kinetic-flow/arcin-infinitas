@@ -1,8 +1,7 @@
 #ifndef __INC_LIB8TION_RANDOM_H
 #define __INC_LIB8TION_RANDOM_H
 
-#include <stdint.h>
-#include "fastled_lib8tion.h"
+#include "fastled.h"
 
 ///@ingroup lib8tion
 
