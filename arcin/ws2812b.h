@@ -368,17 +368,12 @@ class RGBManager {
 
             delta += tt_animation;
             
-            // if tt animation is moving in the same direction, use both
-            if ((idle_animation > 0 && tt_animation > 0) ||
-                (idle_animation < 0 && tt_animation < 0)) {
+            // if tt is moving clockwise, use idle animation as well
+            if (tt > 0) {
                 delta += idle_animation;
                 return delta;
             }
 
-            // in all other cases:
-            //  - idle animation is stationary
-            //  - tt animation in the opposite direction of idle animation
-            //... just use the tt animation.
             return delta;
         }
 
@@ -389,15 +384,8 @@ class RGBManager {
         uint8_t update_and_get_led_number_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
             int16_t delta = calculate_shift(tt, idle_multiplier, tt_multiplier);
 
-            // shift_value is interpreted as the following:
-            // [     0x0 - 0x099] = LED 0
-            // [   0x100 - 0x199] = LED 1
-            // [   0x200 - 0x299] = LED 2
-            // ...
-            // [ n*0x100 - (n+1) * 0x100 - 1] = LED n
-
-            // possible range is [0... N*0x1000) where N = number of LEDs
-            const uint16_t maximum = ws2812b.get_num_leds() * 0x100;
+            // possible range is [0... N*0x200) where N = number of LEDs
+            const uint16_t maximum = ws2812b.get_num_leds() * (1 << 10);
 
             // did it roll under/over?
             if (maximum <= (shift_value + delta)) {
@@ -410,7 +398,7 @@ class RGBManager {
                 shift_value += delta;
             }
 
-            return (uint8_t)(shift_value >> 8); 
+            return (uint8_t)(shift_value >> 10);
         }
 
         void update_colors(int8_t tt) {
@@ -470,12 +458,10 @@ class RGBManager {
 
                 case WS2812B_MODE_TRICOLOR:
                 {
-                    update_shift(tt, -2, 4);
-
-                    uint8_t pixel_shift = (shift_value >> 10) % 3;
+                    uint8_t pixel_shift = update_and_get_led_number_shift(tt, -1, 2);
                     for (int led = 0; led < ws2812b.get_num_leds(); led++) {
                         CHSV* color = NULL;
-                        switch ((led + pixel_shift) % 3) {
+                        switch ((led + pixel_shift) % ws2812b.get_num_leds() % 3) {
                             case 0:
                             default:
                                 color = &hsv_primary;
@@ -540,7 +526,7 @@ class RGBManager {
 
                 case WS2812B_MODE_SINGLE_DOT:
                 {
-                    uint8_t dot = update_and_get_led_number_shift(tt, 1, -2);
+                    uint8_t dot = update_and_get_led_number_shift(tt, 2, -8);
                     CHSV hsv_off(0, 0, 0);
                     for (uint8_t led = 0; led < ws2812b.get_num_leds(); led++) {
                         if (led == dot) {
