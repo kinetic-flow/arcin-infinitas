@@ -45,10 +45,15 @@ typedef enum _WS2812B_Mode {
     // same as single color, except with (1 and 2) instead of (0 and 1)
     WS2812B_MODE_TWO_COLOR_FADE,
 
-    // static   - todo
-    // animated - todo
+    // static   - picks a random color at boot and all LEDs use this
+    // animated - n/a (same as static)
     // tt       - whenever activated, pick a random hue for all LEDs
     WS2812B_MODE_RANDOM_HUE,
+
+    // static   - 
+    // animated - 
+    // tt       - 
+    WS2812B_MODE_SINGLE_DOT,
 } WS2812B_Mode;
 
 void chsv_from_colorrgb(ColorRgb color, CHSV& chsv) {
@@ -219,7 +224,7 @@ class RGBManager {
     uint8_t hue_temporary;
     bool ready_for_new_hue = false;
 
-    // shift values that modify lights
+    // shift values that modify colors, ranges from [0 - UINT16_MAX]
     uint16_t shift_value = 0;
     int8_t shift_direction = 1;
 
@@ -349,30 +354,63 @@ class RGBManager {
             }
         }
 
-        void update_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
-            uint32_t idle_animation = idle_animation_speed * idle_multiplier;
-            uint32_t tt_animation = tt * tt_animation_speed * tt_multiplier;
+        int16_t calculate_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
+            int16_t delta = 0;
+
+            const uint32_t idle_animation = idle_animation_speed * idle_multiplier;
+            const uint32_t tt_animation = tt * tt_animation_speed * tt_multiplier;
 
             // if TT movement has no effect, only idle animation is used
             if (!flags.ReactToTt || tt == 0 || tt_animation == 0) {
-                shift_value += idle_animation;
-                return;
+                delta += idle_animation;
+                return delta;
             }
 
-            shift_value += tt_animation;
+            delta += tt_animation;
             
             // if tt animation is moving in the same direction, use both
             if ((idle_animation > 0 && tt_animation > 0) ||
                 (idle_animation < 0 && tt_animation < 0)) {
-                shift_value += idle_animation;
-                return;
+                delta += idle_animation;
+                return delta;
             }
 
             // in all other cases:
             //  - idle animation is stationary
-            //  - tt animatino in the opposite direction of idle animation
+            //  - tt animation in the opposite direction of idle animation
             //... just use the tt animation.
-            return;
+            return delta;
+        }
+
+        void update_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
+            shift_value += calculate_shift(tt, idle_multiplier, tt_multiplier);
+        }
+
+        uint8_t update_and_get_led_number_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
+            int16_t delta = calculate_shift(tt, idle_multiplier, tt_multiplier);
+
+            // shift_value is interpreted as the following:
+            // [     0x0 - 0x099] = LED 0
+            // [   0x100 - 0x199] = LED 1
+            // [   0x200 - 0x299] = LED 2
+            // ...
+            // [ n*0x100 - (n+1) * 0x100 - 1] = LED n
+
+            // possible range is [0... N*0x1000) where N = number of LEDs
+            const uint16_t maximum = ws2812b.get_num_leds() * 0x100;
+
+            // did it roll under/over?
+            if (maximum <= (shift_value + delta)) {
+                if (0 <= delta) {
+                    shift_value = shift_value + delta - maximum;
+                } else {
+                    shift_value = shift_value + delta + maximum;
+                }
+            } else {
+                shift_value += delta;
+            }
+
+            return (uint8_t)(shift_value >> 8); 
         }
 
         void update_colors(int8_t tt) {
@@ -497,6 +535,21 @@ class RGBManager {
 
                     CHSV hsv(hue_temporary, 255, 255);
                     this->update_static(hsv);
+                }
+                break;
+
+                case WS2812B_MODE_SINGLE_DOT:
+                {
+                    uint8_t dot = update_and_get_led_number_shift(tt, 1, -2);
+                    CHSV hsv_off(0, 0, 0);
+                    for (uint8_t led = 0; led < ws2812b.get_num_leds(); led++) {
+                        if (led == dot) {
+                            this->update(hsv_primary, led);
+                        } else {
+                            this->update(hsv_off, led);
+                        }
+                    }
+                    this->update_complete();
                 }
                 break;
 
