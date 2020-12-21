@@ -69,15 +69,12 @@ typedef enum _WS2812B_Mode {
     // tt       - whenever activated, pick a random hue for all LEDs
     WS2812B_MODE_RANDOM_HUE,
 
-    // static   - single dot using 1
+    // static   - dots using 1/2/3
     // animated - same as static but rotates
     // tt       - controls animation speed and direction
     WS2812B_MODE_SINGLE_DOT,
-
-    // static   - single dot using 1 and another using 2
-    // animated - same as static but rotates
-    // tt       - controls animation speed and direction
     WS2812B_MODE_TWO_DOTS,
+    WS2812B_MODE_THREE_DOTS,
 } WS2812B_Mode;
 
 void chsv_from_colorrgb(ColorRgb color, CHSV& chsv) {
@@ -166,12 +163,12 @@ class WS2812B {
                 return;
             }
 
-            if (index >= this->num_leds) {
+            if (this->num_leds <= index) {
                 return;
             }
 
             if (this->order_reversed) {
-                colors[this->num_leds - index] = rgb;
+                colors[this->num_leds - 1 - index] = rgb;
             } else {
                 colors[index] = rgb;
             }
@@ -561,11 +558,16 @@ class RGBManager {
 
                 case WS2812B_MODE_SINGLE_DOT:
                 case WS2812B_MODE_TWO_DOTS:
+                case WS2812B_MODE_THREE_DOTS:
                 {
                     uint8_t dot1 = update_and_get_led_number_shift(tt, 2, 9);
                     uint8_t dot2 = UINT8_MAX;
+                    uint8_t dot3 = UINT8_MAX;
                     if (rgb_mode == WS2812B_MODE_TWO_DOTS) {
                         dot2 = (dot1 + (ws2812b.get_num_leds() / 2)) % ws2812b.get_num_leds();
+                    } else if (rgb_mode == WS2812B_MODE_THREE_DOTS) {
+                        dot2 = (dot1 + (ws2812b.get_num_leds() / 3)) % ws2812b.get_num_leds();
+                        dot3 = (dot1 + (ws2812b.get_num_leds() / 3) * 2) % ws2812b.get_num_leds();
                     }
                     CHSV hsv_off(0, 0, 0);
                     for (uint8_t led = 0; led < ws2812b.get_num_leds(); led++) {
@@ -573,6 +575,8 @@ class RGBManager {
                             this->update(hsv_primary, led);
                         } else if (led == dot2) {
                             this->update(hsv_secondary, led);
+                        } else if (led == dot3) {
+                            this->update(hsv_tertiary, led);
                         } else {
                             this->update(hsv_off, led);
                         }
