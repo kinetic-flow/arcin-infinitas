@@ -11,7 +11,18 @@
 
 #define WS2812B_DMA_BUFFER_LEN 26
 
-#define WS2812B_MAX_LEDS 60
+#define WS2812B_MAX_LEDS 180
+#define WS2812B_DEFAULT_LEDS 12
+
+// duration of each frame, in milliseconds
+//
+// https://github.com/FastLED/FastLED/wiki/Interrupt-problems
+// Each pixel takes 30 microseconds.
+//  60 LEDs = 1800 us = 1.8ms
+// 180 LEDs = 5400 us = 5.4ms
+// So 20ms is more than enough to handle the worst case.
+
+#define RGB_MANAGER_FRAME_MS 20
 
 extern bool global_led_enable;
 
@@ -123,10 +134,9 @@ class WS2812B {
             this->cnt = 0;
 
             // num_leds should be [1, MAX]
-            // use a sensible unconfigured value (turn 0 into max)
             this->num_leds = min(num_leds, WS2812B_MAX_LEDS);
             if (this->num_leds == 0) {
-                this->num_leds = WS2812B_MAX_LEDS;
+                this->num_leds = WS2812B_DEFAULT_LEDS;
             }
             this->order_reversed = order_reversed;
 
@@ -193,15 +203,6 @@ class WS2812B {
             }
         }
 };
-
-// duration of each frame, in milliseconds
-//
-// https://github.com/FastLED/FastLED/wiki/Interrupt-problems
-// Each pixel takes 30 microseconds.
-// 60 LEDs = 1800 us = 1.8ms
-// This means the minimum period should be 2ms. So 20ms is way more than enough.
-
-#define RGB_MANAGER_FRAME_MS 20
 
 class RGBManager {
 

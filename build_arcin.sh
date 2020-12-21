@@ -7,12 +7,10 @@ rm -rf ./arcin.elf
 
 mkdir -p ./bin
 rm -rf ./bin/*
-mkdir -p ./bin_dbg
-rm -rf ./bin_dbg/*
 
 scons
 ./arcin-utils/hidloader_append.py ./arcin.elf arcin-utils/hidloader_v2.exe ./bin/arcin_infinitas_new.exe
-./arcin-utils/hidloader_append_dev.py ./arcin.elf arcin-utils/hidloader_v2.exe ./bin_dbg/arcin_infinitas_new_upgrade.exe
+./arcin-utils/hidloader_append_dev.py ./arcin.elf arcin-utils/hidloader_v2.exe ./bin/arcin_infinitas_upgrade.exe
 
 mkdir -p ./pkg
 rm -rf ./pkg/*
