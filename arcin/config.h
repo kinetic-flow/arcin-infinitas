@@ -44,7 +44,9 @@ typedef union _rgb_config_flags {
         uint8_t EnableHidControl: 1;
         uint8_t ReactToTt: 1;
         uint8_t FlipDirection: 1;
-        uint8_t Reserved: 5;
+        uint8_t FadeOutFast: 1;
+        uint8_t FadeOutSlow: 1;
+        uint8_t Reserved: 3;
     };
 
     uint8_t AsUINT8;
@@ -60,7 +62,9 @@ typedef struct _rgb_config {
     ColorRgb RgbTertiary;
     uint8_t Mode; // WS2812B_Mode
     uint8_t NumberOfLeds;
-    int8_t Speed;
+    uint8_t IdleAnimationSpeed;
+    uint8_t IdleBrightness;
+    int8_t TtAnimationSpeed;
 } rgb_config;
 
 struct config_t {
@@ -86,7 +90,7 @@ struct config_t {
 
     rgb_config rgb;
 
-    uint8_t reserved2[6];
+    uint8_t reserved2[4];
 };
 
 // From config_report_t.data[60]

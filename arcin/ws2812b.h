@@ -3,30 +3,83 @@
 
 #include <stdint.h>
 #include <os/time.h>
-#include "fastled_hsv2rgb.h"
+#include "fastled.h"
 #include "color.h"
 
 #define min(x, y) (((x) < (y)) ? (x) : (y))
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 
-#define WS2812B_DMA_BUFFER_LEN 26 // was 25 in arcin
-#define WS2812B_MAX_LEDS 60
+#define WS2812B_DMA_BUFFER_LEN 26
+
+#define WS2812B_MAX_LEDS 180
+#define WS2812B_DEFAULT_LEDS 12
+
+// duration of each frame, in milliseconds
+//
+// https://github.com/FastLED/FastLED/wiki/Interrupt-problems
+// Each pixel takes 30 microseconds.
+//  60 LEDs = 1800 us = 1.8ms
+// 180 LEDs = 5400 us = 5.4ms
+// So 20ms is more than enough to handle the worst case.
+
+#define RGB_MANAGER_FRAME_MS 20
+
 extern bool global_led_enable;
 
+int8_t abs8(int8_t i) {
+    if (i < 0) {
+        return -i;
+    } else {
+        return i;
+    }
+}
+
+// Here, "0" is off, "1" refers to primary color, "2" is secondary, "3" is tertiary
 typedef enum _WS2812B_Mode {
-    WS2812B_MODE_STATIC,
+    // static   - all LEDs on 1
+    // animated - this is the "breathe" effect (cycles between 0 and 1)
+    // tt       - same as static (with default fade in/out only)
+    WS2812B_MODE_SINGLE_COLOR,
+
+    // static   - each LED takes 1/2/3
+    // animated - each LED cycles through 1/2/3
+    // tt       - controls animation speed and direction
     WS2812B_MODE_TRICOLOR,
+
+    // static   - all LEDs have the same color (somewhere on the hue spectrum)
+    // animated - all LEDs cycle through hue spectrum
+    // tt       - controls animation speed and direction
     WS2812B_MODE_STATIC_RAINBOW,
+
+    // static   - each LED represents hue value on the rainbow spectrum
+    // animated - static, but rotates through
+    // tt       - controls animation speed and direction
     WS2812B_MODE_RAINBOW_SPIRAL,
+
+    // static   - same as rainbow spiral except hue specturm spans three circles
+    // animated - static, but rotates through
+    // tt       - controls animation speed and direction
     WS2812B_MODE_RAINBOW_WAVE,
-    WS2812B_MODE_ONE_COLOR_FADE,
-    WS2812B_MODE_TWO_COLOR_FADE
+
+    // same as single color, except with (1 and 2) instead of (0 and 1)
+    WS2812B_MODE_TWO_COLOR_FADE,
+
+    // static   - picks a random color at boot and all LEDs use this
+    // animated - n/a (same as static)
+    // tt       - whenever activated, pick a random hue for all LEDs
+    WS2812B_MODE_RANDOM_HUE,
+
+    // static   - dots using 1/2/3
+    // animated - same as static but rotates
+    // tt       - controls animation speed and direction
+    WS2812B_MODE_SINGLE_DOT,
+    WS2812B_MODE_TWO_DOTS,
+    WS2812B_MODE_THREE_DOTS,
 } WS2812B_Mode;
 
-void crgb_from_colorrgb(ColorRgb color, CRGB& crgb) {
-    crgb.red = color.Red;
-    crgb.green = color.Green;
-    crgb.blue = color.Blue;
+void chsv_from_colorrgb(ColorRgb color, CHSV& chsv) {
+    CRGB crgb(color.Red, color.Green, color.Blue);
+    chsv = rgb2hsv_approximate(crgb);
 }
 
 class WS2812B {
@@ -78,10 +131,9 @@ class WS2812B {
             this->cnt = 0;
 
             // num_leds should be [1, MAX]
-            // use a sensible unconfigured value (turn 0 into max)
             this->num_leds = min(num_leds, WS2812B_MAX_LEDS);
             if (this->num_leds == 0) {
-                this->num_leds = WS2812B_MAX_LEDS;
+                this->num_leds = WS2812B_DEFAULT_LEDS;
             }
             this->order_reversed = order_reversed;
 
@@ -111,12 +163,12 @@ class WS2812B {
                 return;
             }
 
-            if (index >= this->num_leds) {
+            if (this->num_leds <= index) {
                 return;
             }
 
             if (this->order_reversed) {
-                colors[this->num_leds - index] = rgb;
+                colors[this->num_leds - 1 - index] = rgb;
             } else {
                 colors[index] = rgb;
             }
@@ -156,54 +208,70 @@ class RGBManager {
     uint32_t last_hid_report = 0;
     uint32_t last_outdated_hid_check = 0;
 
-    WS2812B_Mode rgb_mode = WS2812B_MODE_STATIC;
+    // reacting to tt movement (stationary / moving)
+    // any movement instantly increases it to -127 or +127
+    // no movement - slowly reaches 0 over time
+    int8_t tt_activity = 0;
+    uint32_t last_tt_activity_time = 0;
+    uint16_t tt_fade_out_time = 0;
+    int8_t previous_tt = 0;
+
+    // user-defined color mode
+    WS2812B_Mode rgb_mode = WS2812B_MODE_SINGLE_COLOR;
     rgb_config_flags flags = {0};
 
+    // user-defined modifiers
     uint8_t default_darkness = 0;
-    int8_t speed = 0;
+    uint8_t idle_brightness = 0;
+    uint8_t idle_animation_speed = 0;
+    int8_t tt_animation_speed = 0;
 
-    CRGB rgb_primary;
-    CRGB rgb_secondary;
-    CRGB rgb_tertiary;
+    // user-defined colors
+    CHSV hsv_primary;
+    CHSV hsv_secondary;
+    CHSV hsv_tertiary;
 
+    // for random hue
+    uint8_t hue_temporary;
+    bool ready_for_new_hue = false;
+
+    // shift values that modify colors, ranges from [0 - UINT16_MAX]
     uint16_t shift_value = 0;
     int8_t shift_direction = 1;
 
     private:    
-        uint8_t apply_darkness(uint8_t color, uint8_t darkness) {
-            uint16_t new_color = color;
-            new_color = new_color * (UINT8_MAX - darkness) / UINT8_MAX;
-            return (uint8_t)new_color;
-        }
-
-        void apply_darkness(CRGB& color, uint8_t darkness) {
-            color.red = apply_darkness(color.red, darkness);
-            color.green = apply_darkness(color.green, darkness);
-            color.blue = apply_darkness(color.blue, darkness);
-        }
-
         void update_static(CHSV& hsv) {
-            CRGB rgb(hsv);
-            this->update_static(rgb);
-        }
-
-        void update_static(CRGB& rgb) {
             for (uint8_t i = 0; i < ws2812b.get_num_leds(); i++) {
-                this->update(rgb, i);
+                this->update(hsv, i);
             }
 
             this->update_complete();
         }
 
-        void update(CHSV& hsv, uint8_t index) {
-            CRGB rgb(hsv);
-            this->update(rgb, index);
+        uint8_t calculate_brightness() {
+            uint16_t brightness;
+            if (flags.ReactToTt) {
+                // start out with max brightness..
+                brightness = UINT8_MAX;
+                // and decrease with TT activity
+                brightness -= scale8(
+                    UINT8_MAX - idle_brightness,
+                    quadwave8(127 + abs(tt_activity)));
+
+            } else {
+                // full brightness
+                brightness = UINT8_MAX;
+            }
+            
+            // finally, apply overall darkness override
+            return scale8(brightness, UINT8_MAX - default_darkness);
         }
 
-        void update(CRGB& rgb, uint8_t index) {
-            CRGB rgb_adjusted = rgb;
-            apply_darkness(rgb_adjusted, default_darkness);
-            ws2812b.update_led_color(rgb_adjusted, index);
+        void update(CHSV& hsv, uint8_t index) {
+            CHSV hsv_adjusted = hsv;
+            hsv_adjusted.value = scale8(hsv_adjusted.value, calculate_brightness());
+            CRGB rgb(hsv_adjusted);
+            ws2812b.update_led_color(rgb, index);
         }
 
         void update_complete() {
@@ -211,15 +279,27 @@ class RGBManager {
         }
 
         void set_off() {
-            CRGB off(0, 0, 0);
+            CHSV off(0, 0, 0);
             this->update_static(off);
         }
 
     public:
         void init(rgb_config_flags flags, uint8_t num_leds) {
             this->flags = flags;
+
+            this->tt_fade_out_time = 0;
+            if (flags.FadeOutFast) {
+                tt_fade_out_time += 400;
+            }
+            if (flags.FadeOutSlow) {
+                tt_fade_out_time += 800;
+            }
+
             ws2812b.init(num_leds, flags.FlipDirection);
             this->set_off();
+
+            // init for color modes
+            hue_temporary = random8();
         }
         
         void set_mode(WS2812B_Mode rgb_mode) {
@@ -227,17 +307,22 @@ class RGBManager {
         }
         
         void set_default_colors(ColorRgb primary, ColorRgb secondary, ColorRgb tertiary) {
-            crgb_from_colorrgb(primary, this->rgb_primary);
-            crgb_from_colorrgb(secondary, this->rgb_secondary);
-            crgb_from_colorrgb(tertiary, this->rgb_tertiary);
+            chsv_from_colorrgb(primary, this->hsv_primary);
+            chsv_from_colorrgb(secondary, this->hsv_secondary);
+            chsv_from_colorrgb(tertiary, this->hsv_tertiary);
         }
 
         void set_darkness(uint8_t darkness) {
             this->default_darkness = darkness;
         }
 
-        void set_speed(int8_t speed) {
-            this->speed = speed;
+        void set_idle_brightness(uint8_t idle_brightness) {
+            this->idle_brightness = idle_brightness;
+        }
+
+        void set_animation_speed(int8_t idle_speed, int8_t tt_speed) {
+            this->idle_animation_speed = idle_speed;
+            this->tt_animation_speed = tt_speed;
         }
         
         void update_from_hid(ColorRgb color) {
@@ -246,16 +331,107 @@ class RGBManager {
             }
             last_hid_report = Time::time();
 
-            CRGB crgb;
-            crgb_from_colorrgb(color, crgb);
-            this->update_static(crgb);
+            CHSV chsv;
+            chsv_from_colorrgb(color, chsv);
+            this->update_static(chsv);
         }
 
+        void update_turntable_activity(uint32_t now, int8_t tt) {
+            // Detect TT activity; framerate dependent, of course.
+            switch (tt) {
+                case 1:
+                    tt_activity = 127;
+                    last_tt_activity_time = now;
+                    break;
+
+                case -1:
+                    tt_activity = -127;
+                    last_tt_activity_time = now;
+                    break;
+
+                case 0:
+                default:
+                    if (last_tt_activity_time == 0) {
+                        tt_activity = 0;
+                    } else if (tt_activity != 0) {
+                        uint16_t time_since_last_tt = now - last_tt_activity_time;
+                        if (time_since_last_tt < tt_fade_out_time) {
+                            uint16_t delta = tt_fade_out_time - time_since_last_tt;
+                            int16_t temp = tt_activity;
+                            if (temp > 0) {
+                                temp = 
+                                    ((int16_t)127) * delta / tt_fade_out_time;
+                            } else {
+                                temp = 
+                                    ((int16_t)-127) * delta / tt_fade_out_time;
+                            }
+
+                            tt_activity = temp;
+
+                        } else {
+                            tt_activity = 0;
+                        }
+                    }
+                    break;
+            }
+        }
+
+        int16_t calculate_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
+            int16_t delta = 0;
+
+            const int16_t idle_animation = idle_animation_speed * idle_multiplier;
+            const int16_t tt_animation = tt_animation_speed * tt_multiplier;
+
+            // if TT movement has no effect, only idle animation is used
+            if (!flags.ReactToTt || tt_activity == 0 || tt_animation == 0) {
+                delta += idle_animation;
+                return delta;
+            }
+
+            delta += tt_animation * tt_activity / 127;
+            
+            // if tt is moving clockwise, use idle animation as well
+            if (tt_activity > 0) {
+                delta += idle_animation;
+                return delta;
+            }
+
+            return delta;
+        }
+
+        void update_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
+            shift_value += calculate_shift(tt, idle_multiplier, tt_multiplier);
+        }
+
+        uint8_t update_and_get_led_number_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
+            int16_t delta = calculate_shift(tt, idle_multiplier, tt_multiplier);
+
+            // possible range is [0... N*0x200) where N = number of LEDs
+            const uint16_t maximum = ws2812b.get_num_leds() * (1 << 10);
+
+            shift_value += delta;
+
+            // did it roll under/over?
+            if (maximum <= shift_value) {
+                if (shift_value < maximum * 2) {
+                    shift_value = shift_value - maximum;
+                } else if ((UINT16_MAX - maximum * 2) < shift_value) {
+                    shift_value = shift_value + maximum;
+                } else {
+                    // way off bounds
+                    shift_value = 0;
+                }
+            }
+
+            return (uint8_t)(shift_value >> 10);
+        }
+
+        // tt +1 is clockwise, -1 is counter-clockwise
         void update_colors(int8_t tt) {
             // prevent frequent updates - use 20ms as the framerate. This framerate will have
             // downstream effects on the various color algorithms below.
             uint32_t now = Time::time();
-            if ((now - last_outdated_hid_check) < 20) {
+            if ((now - last_outdated_hid_check) < RGB_MANAGER_FRAME_MS) {
                 return;
             }
             last_outdated_hid_check = now;
@@ -269,70 +445,38 @@ class RGBManager {
                 return;
             }
 
-            // configurable speed is signed; convert this to unsigned
-            // 0 should be the reasonable default speed.
-            // (slowest / no movement being 0, highest being 255)
-            uint8_t speed = this->speed - INT8_MIN;
+            if (flags.ReactToTt){
+                update_turntable_activity(now, tt);
+            }
 
             switch(rgb_mode) {
-                // Static rainbow mode.
-                //
-                // All LEDs have the same color, but the hue can change.
-                // When TT reactive is on, the turntable adjusts the hue.
-                // In normal mode, hue shifts in one direction.
-                //
-                // Flip affects direction for both.
-                // Speed affects how fast the hue changes.
                 case WS2812B_MODE_STATIC_RAINBOW:
                 {
-                    int32_t tick = speed;
-                    if (flags.FlipDirection) {
-                        tick *= -1;
-                    }
+                    // Directions are good (+ +)
+                    update_shift(tt, 2, 4);
 
-                    if (flags.ReactToTt) {
-                        shift_value += (-tt) * tick;
-                    } else {
-                        shift_value += tick;
-                    }
-
-                    CHSV hsv(shift_value >> 8, 255, 255);
+                    CHSV hsv(((shift_value >> 8) & 0xFF), 255, 255);
                     this->update_static(hsv);
                 }
                 break;
 
-                // Circular rainbow mode.
-                //
-                // Spiral: each LED covers a portion of the hue spectrum, coming full circle.
-                // Wave: like spiral, but not a full spectrum, only a slice.
-                // 
-                // The math depends on the number of LEDs being accurate.
-                //
-                // TT reactive mode causes a hue shift.
-                // Normal mode causes hue to shift over time.
-                //
-                // Flip reverse the entire LED strip direction.
-                // Speed affects how fast the hue shift happens.
                 case WS2812B_MODE_RAINBOW_SPIRAL:
                 case WS2812B_MODE_RAINBOW_WAVE:
                 {
-                    int32_t tick = speed;
-                    if (flags.ReactToTt) {
-                        shift_value += tt * tick;
-                    } else {
-                        // yes, it must go in negative direction
-                        shift_value -= tick;
-                    }
+                    // Directions are good (- -)
+                    update_shift(tt, -3, -5);
 
                     uint16_t number_of_circles = 1;
                     if (rgb_mode == WS2812B_MODE_RAINBOW_WAVE) {
-                        // it doesn't have to be 3, but 3 looks pretty good.
                         number_of_circles = 3;
                     }
 
                     for (uint8_t led = 0; led < ws2812b.get_num_leds(); led++) {
                         uint16_t hue = 255 * led / (ws2812b.get_num_leds() * number_of_circles);
                         hue = (hue + (shift_value >> 6)) % 255;
+                        if (rgb_mode == WS2812B_MODE_RAINBOW_WAVE) {
+                            hue = 255 - hue;
+                        }
                         CHSV hsv(hue, 255, 255);
                         this->update(hsv, led);
                     }
@@ -340,127 +484,127 @@ class RGBManager {
                 }
                 break;
 
-                // Tricolor mode.
-                //
-                // Each LED uses one of three colors, in order.
                 case WS2812B_MODE_TRICOLOR:
                 {
-                    int32_t tick = speed;
-                    if (flags.ReactToTt) {
-                        shift_value += tt * tick;
-                    } else {
-                        // yes, it must go in negative direction
-                        shift_value -= tick;
-                    }
-
-                    uint8_t pixel_shift = (shift_value >> 10) % 3;
+                    // Directions are good (- -)
+                    uint8_t pixel_shift = update_and_get_led_number_shift(tt, -1, -2);
                     for (int led = 0; led < ws2812b.get_num_leds(); led++) {
-                        CRGB* rgb = NULL;
-                        switch ((led + pixel_shift) % 3) {
+                        CHSV* color = NULL;
+                        switch ((led + pixel_shift) % ws2812b.get_num_leds() % 3) {
                             case 0:
                             default:
-                                rgb = &rgb_primary;
+                                color = &hsv_primary;
                                 break;
                             case 1:
-                                rgb = &rgb_secondary;
+                                color = &hsv_secondary;
                                 break;
                             case 2:
-                                rgb = &rgb_tertiary;
+                                color = &hsv_tertiary;
                                 break;
                         }                        
-                        this->update(*rgb, led);
+                        this->update(*color, led);
                     }
                     this->update_complete();
                 }
                 break;
 
-                // One color fade: fade between off and the primary color.
-                // Two color fade: fade between the primary and the secondary color.
-                case WS2812B_MODE_ONE_COLOR_FADE:
                 case WS2812B_MODE_TWO_COLOR_FADE:
                 {
-                    if (flags.ReactToTt) {
-                        uint16_t fade_in_speed = 1024;
-                        uint16_t fade_out_speed = speed * 2;
-                        switch (tt) {
-                            case 1:
-                            case -1:
-                                // when there is TT activity, increase it, but with a soft cap
-                                shift_value += fade_in_speed;
-                                shift_value = min(shift_value, (UINT8_MAX << 4));
-                                break;
-
-                            case 0:
-                            default:
-                                // no activity, slowly wind down
-                                if (shift_value > fade_out_speed) {
-                                    shift_value -= fade_out_speed;
-                                } else {
-                                    shift_value = 0;
-                                }
-                                break;
-                        }
+                    uint16_t progress = 0;
+                    if (this->flags.ReactToTt) {
+                        progress = quadwave8(abs(tt_activity));
                     } else {
-                        uint16_t modifier = speed / 4;
-                        shift_value += (shift_direction * modifier);
-                        if (shift_value >= (UINT8_MAX << 4)) {
-                            shift_direction = -1;
-                            shift_value = (UINT8_MAX << 4);
-                        } else if (shift_value <= modifier) {
-                            shift_direction = 1;
-                        }
+                        update_shift(0, 4, 0);
+                        progress = quadwave8(shift_value >> 8);
                     }
 
-                    uint16_t brightness = (shift_value >> 4);
-                    if (brightness > UINT8_MAX) {
-                        brightness = UINT8_MAX;
+                    // progress 0 => initial color
+                    // progress 1-254 => something in between
+                    // progress 255 => goal color
+
+                    // on the hue spectrum, always travel in the direction that is shorter
+                    int16_t h = (hsv_secondary.h - hsv_primary.h);
+                    if (h > INT8_MAX) {
+                        h = h - UINT8_MAX;
+                    } else if (h < INT8_MIN) {
+                        h = h + UINT8_MAX;
                     }
-
-                    // brightness 0 => primary color
-                    // brightness 1-254 => something in between
-                    // brightness 255 => secondary color
-
-                    CRGB initial_rgb;
-                    CRGB goal_rgb;
-                    if (rgb_mode == WS2812B_MODE_ONE_COLOR_FADE) {
-                        initial_rgb = CRGB(0, 0, 0);
-                        goal_rgb = rgb_primary;
-                    } else {
-                        initial_rgb = rgb_primary;
-                        goal_rgb = rgb_secondary;
-                    }
-
-                    int8_t r = (goal_rgb.r - initial_rgb.r) * brightness / UINT8_MAX;
-                    int8_t g = (goal_rgb.g - initial_rgb.g) * brightness / UINT8_MAX;
-                    int8_t b = (goal_rgb.b - initial_rgb.b) * brightness / UINT8_MAX;
-
-                    CRGB rgb(initial_rgb.r + r, initial_rgb.g + g, initial_rgb.b + b);
-                    this->update_static(rgb);
+                    h = scale8(h, progress);
+                    int8_t s = scale8(hsv_secondary.s - hsv_primary.s, progress);
+                    int8_t v = scale8(hsv_secondary.v - hsv_primary.v, progress);
+                    CHSV hsv(hsv_primary.h + h, hsv_primary.s + s, hsv_primary.v + v);
+                    this->update_static(hsv);
                 }
                 break;
 
-                // Static color mode.
-                //
-                // Same color for all LEDs.
-                // TT reactive mode causes all LEDs to use the secondary or the primary color
-                // Flip only reverses the TT direction.
-                case WS2812B_MODE_STATIC:
+                case WS2812B_MODE_RANDOM_HUE:
+                {
+                    if (this->flags.ReactToTt) {
+                        if (abs8(tt_activity) < 32) {
+                            ready_for_new_hue = true;
+                        }
+                        if ((this->previous_tt == 0) && (tt != 0) && (ready_for_new_hue)) {
+                            // TT triggered, time to pick a new hue value
+                            // pick one that is not too similar to the previous one
+                            hue_temporary = hue_temporary + random8(255-60) + 30;
+                            ready_for_new_hue = false;
+                        }
+                    }
+
+                    CHSV hsv(hue_temporary, 255, 255);
+                    this->update_static(hsv);
+                }
+                break;
+
+                case WS2812B_MODE_SINGLE_DOT:
+                case WS2812B_MODE_TWO_DOTS:
+                case WS2812B_MODE_THREE_DOTS:
+                {
+                    uint8_t dot1 = update_and_get_led_number_shift(tt, 2, 9);
+                    uint8_t dot2 = UINT8_MAX;
+                    uint8_t dot3 = UINT8_MAX;
+                    if (rgb_mode == WS2812B_MODE_TWO_DOTS) {
+                        dot2 = (dot1 + (ws2812b.get_num_leds() / 2)) % ws2812b.get_num_leds();
+                    } else if (rgb_mode == WS2812B_MODE_THREE_DOTS) {
+                        dot2 = (dot1 + (ws2812b.get_num_leds() / 3)) % ws2812b.get_num_leds();
+                        dot3 = (dot1 + (ws2812b.get_num_leds() / 3) * 2) % ws2812b.get_num_leds();
+                    }
+                    CHSV hsv_off(0, 0, 0);
+                    for (uint8_t led = 0; led < ws2812b.get_num_leds(); led++) {
+                        if (led == dot1) {
+                            this->update(hsv_primary, led);
+                        } else if (led == dot2) {
+                            this->update(hsv_secondary, led);
+                        } else if (led == dot3) {
+                            this->update(hsv_tertiary, led);
+                        } else {
+                            this->update(hsv_off, led);
+                        }
+                    }
+                    this->update_complete();
+                }
+                break;
+
+                case WS2812B_MODE_SINGLE_COLOR:
                 default:
                 {
-                    switch (tt) {
-                        case -1:
-                            this->update_static(rgb_secondary);
-                            break;
-                        case 1:
-                            this->update_static(rgb_tertiary);
-                            break;
-                        case 0:
-                        default:
-                            this->update_static(rgb_primary);
-                            break;
+                    if (this->idle_animation_speed == 0 || this->flags.ReactToTt) {
+                        this->update_static(hsv_primary);
+                    } else {
+                        // breathe mode
+                        update_shift(0, 4, 0);
+                        uint8_t brightness = quadwave8(shift_value >> 8);
+                        // make 20 the "floor" since most LEDs have a hard time with really dark values
+                        brightness = scale8(brightness, 255 - 20) + 20;
+                        CHSV hsv(hsv_primary.hue, hsv_primary.sat, brightness);
+                        this->update_static(hsv);
                     }
                 }
                 break;
+            }
+
+            if (flags.ReactToTt){
+                this->previous_tt = tt;
             }
         }
 

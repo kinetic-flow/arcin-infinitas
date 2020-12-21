@@ -20,6 +20,10 @@
 #include "analog_button.h"
 #include "ws2812b.h"
 
+#define DEBUG_TIMING_GAMEPAD 0
+
+uint16_t rand16seed = serial_num();
+
 #define ARRAY_SIZE(x) \
     ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 
@@ -354,6 +358,12 @@ void check_for_outdated_tt_led_report(config_flags *runtime_flags) {
     set_tt_led(global_led_enable, global_led_enable);
 }
 
+#if DEBUG_TIMING_GAMEPAD
+
+uint32_t previous_report_time = 0;
+
+#endif
+
 int main() {
     rcc_init();
     
@@ -473,7 +483,8 @@ int main() {
         rgb_manager.set_default_colors(
             config.rgb.RgbPrimary, config.rgb.RgbSecondary, config.rgb.RgbTertiary);
         rgb_manager.set_darkness(config.rgb.Darkness);
-        rgb_manager.set_speed(config.rgb.Speed);
+        rgb_manager.set_idle_brightness(config.rgb.IdleBrightness);
+        rgb_manager.set_animation_speed(config.rgb.IdleAnimationSpeed, config.rgb.TtAnimationSpeed);
         rgb_manager.set_mode((WS2812B_Mode)config.rgb.Mode);
     }
 
@@ -576,7 +587,7 @@ int main() {
         }
 
         if (config.flags.Ws2812b) {
-            rgb_manager.update_colors(tt1_report);
+            rgb_manager.update_colors(-tt1_report);
         }
 
         // [E2 MULTI-TAP]
@@ -636,6 +647,18 @@ int main() {
             }
 
             report.axis_y = 127;
+
+#if DEBUG_TIMING_GAMEPAD
+
+            uint32_t nownow = Time::time();
+            uint32_t delta = nownow - previous_report_time;
+            // report.buttons = (delta >> 16);
+            // report.axis_x = (delta >> 8);
+            report.axis_y = debug_tt_activity;
+            previous_report_time = nownow;
+
+#endif
+
             usb->write(1, (uint32_t*)&report, sizeof(report));
         }
         

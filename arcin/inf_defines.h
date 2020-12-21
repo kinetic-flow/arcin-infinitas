@@ -45,8 +45,8 @@
 // These are not part of Infinitas controller, but extra generic buttons used
 // for digital TT
 
-#define JOY_BUTTON_13             ((uint16_t)(1 << 12))
-#define JOY_BUTTON_14             ((uint16_t)(1 << 13))
+#define JOY_BUTTON_13             ((uint16_t)(1 << 12)) // CW  (-1)
+#define JOY_BUTTON_14             ((uint16_t)(1 << 13)) // CCW (+1)
 
 // buttons[1-9], start, sel, led1, led2, r, g, b
 #define ARCIN_LED_COUNT           16

@@ -1,9 +1,7 @@
-#ifndef PIXELTYPES_H
-#define PIXELTYPES_H
+#ifndef __INC_PIXELS_H
+#define __INC_PIXELS_H
 
-// pixeltypes.h copied from the FastLED project
-// https://github.com/FastLED/FastLED
-// Copyright (c) 2013 FastLED under the MIT License
+#include "fastled.h"
 
 #include <stdint.h>
 #include <algorithm>
@@ -14,6 +12,18 @@ struct CHSV;
 /// Forward declaration of hsv2rgb_rainbow here,
 /// to avoid circular dependencies.
 extern void hsv2rgb_rainbow( const CHSV& hsv, CRGB& rgb);
+
+/// Pre-defined hue values for HSV objects
+typedef enum {
+    HUE_RED = 0,
+    HUE_ORANGE = 32,
+    HUE_YELLOW = 64,
+    HUE_GREEN = 96,
+    HUE_AQUA = 128,
+    HUE_BLUE = 160,
+    HUE_PURPLE = 192,
+    HUE_PINK = 224
+} HSVHue;
 
 /// Representation of an HSV pixel (hue, saturation, value (aka brightness)).
 struct CHSV {
@@ -116,6 +126,13 @@ struct CRGB {
 	inline CRGB(const CHSV& rhs) __attribute__((always_inline))
     {
         hsv2rgb_rainbow( rhs, *this);
+    }
+
+    /// fadeToBlackBy is a synonym for nscale8( ..., 255-fadefactor)
+    inline CRGB& fadeToBlackBy (uint8_t fadefactor )
+    {
+        nscale8x3( r, g, b, 255 - fadefactor);
+        return *this;
     }
 
     /// allow assignment from one RGB struct to another
