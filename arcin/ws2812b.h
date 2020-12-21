@@ -50,10 +50,15 @@ typedef enum _WS2812B_Mode {
     // tt       - whenever activated, pick a random hue for all LEDs
     WS2812B_MODE_RANDOM_HUE,
 
-    // static   - 
-    // animated - 
-    // tt       - 
+    // static   - single dot using 1
+    // animated - same as static but rotates
+    // tt       - controls animation speed and direction
     WS2812B_MODE_SINGLE_DOT,
+
+    // static   - single dot using 1 and another using 2
+    // animated - same as static but rotates
+    // tt       - controls animation speed and direction
+    WS2812B_MODE_TWO_DOTS,
 } WS2812B_Mode;
 
 void chsv_from_colorrgb(ColorRgb color, CHSV& chsv) {
@@ -387,15 +392,18 @@ class RGBManager {
             // possible range is [0... N*0x200) where N = number of LEDs
             const uint16_t maximum = ws2812b.get_num_leds() * (1 << 10);
 
+            shift_value += delta;
+
             // did it roll under/over?
-            if (maximum <= (shift_value + delta)) {
-                if (0 <= delta) {
-                    shift_value = shift_value + delta - maximum;
+            if (maximum <= shift_value) {
+                if (shift_value < maximum * 2) {
+                    shift_value = shift_value - maximum;
+                } else if ((UINT16_MAX - maximum * 2) < shift_value) {
+                    shift_value = shift_value + maximum;
                 } else {
-                    shift_value = shift_value + delta + maximum;
+                    // way off bounds
+                    shift_value = 0;
                 }
-            } else {
-                shift_value += delta;
             }
 
             return (uint8_t)(shift_value >> 10);
@@ -525,12 +533,19 @@ class RGBManager {
                 break;
 
                 case WS2812B_MODE_SINGLE_DOT:
+                case WS2812B_MODE_TWO_DOTS:
                 {
-                    uint8_t dot = update_and_get_led_number_shift(tt, 2, -8);
+                    uint8_t dot1 = update_and_get_led_number_shift(tt, 2, -9);
+                    uint8_t dot2 = UINT8_MAX;
+                    if (rgb_mode == WS2812B_MODE_TWO_DOTS) {
+                        dot2 = (dot1 + (ws2812b.get_num_leds() / 2)) % ws2812b.get_num_leds();
+                    }
                     CHSV hsv_off(0, 0, 0);
                     for (uint8_t led = 0; led < ws2812b.get_num_leds(); led++) {
-                        if (led == dot) {
+                        if (led == dot1) {
                             this->update(hsv_primary, led);
+                        } else if (led == dot2) {
+                            this->update(hsv_secondary, led);
                         } else {
                             this->update(hsv_off, led);
                         }
