@@ -588,7 +588,7 @@ int main() {
         }
 
         if (config.flags.Ws2812b) {
-            rgb_manager.update_colors(tt1_report);
+            rgb_manager.update_colors(-tt1_report);
         }
 
         // [E2 MULTI-TAP]

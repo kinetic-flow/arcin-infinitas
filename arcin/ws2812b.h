@@ -362,8 +362,8 @@ class RGBManager {
         int16_t calculate_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
             int16_t delta = 0;
 
-            const uint32_t idle_animation = idle_animation_speed * idle_multiplier;
-            const uint32_t tt_animation = tt * tt_animation_speed * tt_multiplier;
+            const int16_t idle_animation = idle_animation_speed * idle_multiplier;
+            const int16_t tt_animation = tt * tt_animation_speed * tt_multiplier;
 
             // if TT movement has no effect, only idle animation is used
             if (!flags.ReactToTt || tt == 0 || tt_animation == 0) {
@@ -371,7 +371,7 @@ class RGBManager {
                 return delta;
             }
 
-            delta += tt_animation;
+            delta += tt_animation * tt_activity / UINT8_MAX;
             
             // if tt is moving clockwise, use idle animation as well
             if (tt > 0) {
@@ -409,6 +409,7 @@ class RGBManager {
             return (uint8_t)(shift_value >> 10);
         }
 
+        // tt +1 is clockwise, -1 is counter-clockwise
         void update_colors(int8_t tt) {
             // prevent frequent updates - use 20ms as the framerate. This framerate will have
             // downstream effects on the various color algorithms below.
@@ -434,9 +435,10 @@ class RGBManager {
             switch(rgb_mode) {
                 case WS2812B_MODE_STATIC_RAINBOW:
                 {
-                    update_shift(tt, 2, -4);
+                    // Directions are good (+ +)
+                    update_shift(tt, 2, 4);
 
-                    CHSV hsv(shift_value >> 8, 255, 255);
+                    CHSV hsv(((shift_value >> 8) & 0xFF), 255, 255);
                     this->update_static(hsv);
                 }
                 break;
@@ -444,7 +446,8 @@ class RGBManager {
                 case WS2812B_MODE_RAINBOW_SPIRAL:
                 case WS2812B_MODE_RAINBOW_WAVE:
                 {
-                    update_shift(tt, -3, 5);
+                    // Directions are good (- -)
+                    update_shift(tt, -3, -5);
 
                     uint16_t number_of_circles = 1;
                     if (rgb_mode == WS2812B_MODE_RAINBOW_WAVE) {
@@ -455,7 +458,7 @@ class RGBManager {
                         uint16_t hue = 255 * led / (ws2812b.get_num_leds() * number_of_circles);
                         hue = (hue + (shift_value >> 6)) % 255;
                         if (rgb_mode == WS2812B_MODE_RAINBOW_WAVE) {
-                            hue = UINT8_MAX - hue;
+                            hue = 255 - hue;
                         }
                         CHSV hsv(hue, 255, 255);
                         this->update(hsv, led);
@@ -466,7 +469,8 @@ class RGBManager {
 
                 case WS2812B_MODE_TRICOLOR:
                 {
-                    uint8_t pixel_shift = update_and_get_led_number_shift(tt, -1, 2);
+                    // Directions are good (- -)
+                    uint8_t pixel_shift = update_and_get_led_number_shift(tt, -1, -2);
                     for (int led = 0; led < ws2812b.get_num_leds(); led++) {
                         CHSV* color = NULL;
                         switch ((led + pixel_shift) % ws2812b.get_num_leds() % 3) {
@@ -535,7 +539,7 @@ class RGBManager {
                 case WS2812B_MODE_SINGLE_DOT:
                 case WS2812B_MODE_TWO_DOTS:
                 {
-                    uint8_t dot1 = update_and_get_led_number_shift(tt, 2, -9);
+                    uint8_t dot1 = update_and_get_led_number_shift(tt, 2, 9);
                     uint8_t dot2 = UINT8_MAX;
                     if (rgb_mode == WS2812B_MODE_TWO_DOTS) {
                         dot2 = (dot1 + (ws2812b.get_num_leds() / 2)) % ws2812b.get_num_leds();
