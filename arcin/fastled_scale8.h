@@ -60,4 +60,15 @@ LIB8STATIC_ALWAYS_INLINE uint8_t scale8_video( uint8_t i, fract8 scale)
     return j;
 }
 
+/// scale a 16-bit unsigned value by an 8-bit value,
+///         considered as numerator of a fraction whose denominator
+///         is 256. In other words, it computes i * (scale / 256)
+
+LIB8STATIC_ALWAYS_INLINE uint16_t scale16by8( uint16_t i, fract8 scale )
+{
+    uint16_t result;
+    result = (i * (1+((uint16_t)scale))) >> 8;
+    return result;
+}
+
 #endif

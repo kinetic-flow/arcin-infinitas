@@ -15,6 +15,20 @@
 
 extern bool global_led_enable;
 
+int8_t abs8(int8_t i) {
+    if (i < 0) {
+        return -i;
+    } else {
+        return i;
+    }
+}
+
+uint8_t shift8(int8_t i) {
+    uint8_t value = INT8_MIN;
+    value += i;
+    return value;
+}
+
 // Here, "0" is off, "1" refers to primary color, "2" is secondary, "3" is tertiary
 typedef enum _WS2812B_Mode {
     // static   - all LEDs on 1
@@ -203,9 +217,9 @@ class RGBManager {
     uint32_t last_outdated_hid_check = 0;
 
     // reacting to tt movement (stationary / moving)
-    // any movement instantly increases it to UINT8_MAX
-    // no movement slowly decreases this value over time
-    uint8_t tt_activity = 0;
+    // any movement instantly increases it to INT8_MAX / INT8_MIN
+    // no movement - slowly reaches 0 over time
+    int8_t tt_activity = 0;
     uint32_t last_tt_activity_time = 0;
     uint16_t tt_fade_out_time = 0;
     int8_t previous_tt = 0;
@@ -245,10 +259,13 @@ class RGBManager {
         uint8_t calculate_brightness() {
             uint16_t brightness;
             if (flags.ReactToTt) {
-                // start out with idle brightness..
-                brightness = idle_brightness;
-                // and increase with TT activity
-                brightness += scale8(UINT8_MAX - idle_brightness, tt_activity);
+                // start out with max brightness..
+                brightness = UINT8_MAX;
+                // and decrease with TT activity
+                brightness -= scale8(
+                    UINT8_MAX - idle_brightness,
+                    quadwave8(128 + abs(tt_activity)));
+
             } else {
                 // full brightness
                 brightness = UINT8_MAX;
@@ -331,8 +348,12 @@ class RGBManager {
             // Detect TT activity; framerate dependent, of course.
             switch (tt) {
                 case 1:
+                    tt_activity = INT8_MAX;
+                    last_tt_activity_time = now;
+                    break;
+
                 case -1:
-                    tt_activity = UINT8_MAX;
+                    tt_activity = INT8_MIN;
                     last_tt_activity_time = now;
                     break;
 
@@ -340,22 +361,23 @@ class RGBManager {
                 default:
                     if (last_tt_activity_time == 0) {
                         tt_activity = 0;
-                    } else {
+                    } else if (tt_activity != 0) {
                         uint32_t delta = now - last_tt_activity_time;
                         if (delta < this->tt_fade_out_time) {
-                            tt_activity = 
-                                UINT8_MAX * (this->tt_fade_out_time - delta) / this->tt_fade_out_time;
 
-                            tt_activity = quadwave8(tt_activity / 2);
+                            if (tt_activity > 0) {
+                                tt_activity = 
+                                    INT8_MAX * (this->tt_fade_out_time - delta) / this->tt_fade_out_time;
+                            } else {
+                                tt_activity = 
+                                    INT8_MIN * (this->tt_fade_out_time - delta) / this->tt_fade_out_time;
+                            }
+
                         } else {
                             tt_activity = 0;
                         }
                     }
                     break;
-            }
-
-            if (tt_activity < 64) {
-                ready_for_new_hue = true;
             }
         }
 
@@ -371,7 +393,7 @@ class RGBManager {
                 return delta;
             }
 
-            delta += tt_animation * tt_activity / UINT8_MAX;
+            delta += tt_animation;
             
             // if tt is moving clockwise, use idle animation as well
             if (tt > 0) {
@@ -495,7 +517,7 @@ class RGBManager {
                 {
                     uint16_t progress = 0;
                     if (this->flags.ReactToTt) {
-                        progress = tt_activity;
+                        progress = quadwave8(abs(tt_activity));
                     } else {
                         update_shift(0, 4, 0);
                         progress = quadwave8(shift_value >> 8);
@@ -523,6 +545,9 @@ class RGBManager {
                 case WS2812B_MODE_RANDOM_HUE:
                 {
                     if (this->flags.ReactToTt) {
+                        if (abs8(tt_activity) < 32) {
+                            ready_for_new_hue = true;
+                        }
                         if ((this->previous_tt == 0) && (tt != 0) && (ready_for_new_hue)) {
                             // TT triggered, time to pick a new hue value
                             // pick one that is not too similar to the previous one
