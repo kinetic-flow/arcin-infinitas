@@ -20,7 +20,7 @@
 #include "analog_button.h"
 #include "ws2812b.h"
 
-#define DEBUG_TIMING_GAMEPAD 0
+#define DEBUG_TIMING_GAMEPAD 1
 
 #define RAND16_SEED  1337
 uint16_t rand16seed = RAND16_SEED;
@@ -653,13 +653,10 @@ int main() {
 
             uint32_t nownow = Time::time();
             uint32_t delta = nownow - previous_report_time;
-            report.buttons = (delta >> 16);
-            report.axis_x = (delta >> 8);
-            report.axis_y = delta;
+            // report.buttons = (delta >> 16);
+            // report.axis_x = (delta >> 8);
+            report.axis_y = debug_tt_activity;
             previous_report_time = nownow;
-            //report.buttons = (nownow >> 16);
-            //report.axis_x = (nownow >> 8);
-            //report.axis_y = nownow;
 
 #endif
 

@@ -23,11 +23,7 @@ int8_t abs8(int8_t i) {
     }
 }
 
-uint8_t shift8(int8_t i) {
-    uint8_t value = INT8_MIN;
-    value += i;
-    return value;
-}
+int8_t debug_tt_activity;
 
 // Here, "0" is off, "1" refers to primary color, "2" is secondary, "3" is tertiary
 typedef enum _WS2812B_Mode {
@@ -217,7 +213,7 @@ class RGBManager {
     uint32_t last_outdated_hid_check = 0;
 
     // reacting to tt movement (stationary / moving)
-    // any movement instantly increases it to INT8_MAX / INT8_MIN
+    // any movement instantly increases it to -127 or +127
     // no movement - slowly reaches 0 over time
     int8_t tt_activity = 0;
     uint32_t last_tt_activity_time = 0;
@@ -264,7 +260,7 @@ class RGBManager {
                 // and decrease with TT activity
                 brightness -= scale8(
                     UINT8_MAX - idle_brightness,
-                    quadwave8(128 + abs(tt_activity)));
+                    quadwave8(127 + abs(tt_activity)));
 
             } else {
                 // full brightness
@@ -295,7 +291,8 @@ class RGBManager {
         void init(rgb_config_flags flags, uint8_t num_leds) {
             this->flags = flags;
 
-            this->tt_fade_out_time = 0;
+            // this->tt_fade_out_time = 0;
+            this->tt_fade_out_time = 1000;
             if (flags.FadeOutFast) {
                 tt_fade_out_time += 200;
             }
@@ -348,12 +345,12 @@ class RGBManager {
             // Detect TT activity; framerate dependent, of course.
             switch (tt) {
                 case 1:
-                    tt_activity = INT8_MAX;
+                    tt_activity = 127;
                     last_tt_activity_time = now;
                     break;
 
                 case -1:
-                    tt_activity = INT8_MIN;
+                    tt_activity = -127;
                     last_tt_activity_time = now;
                     break;
 
@@ -362,16 +359,19 @@ class RGBManager {
                     if (last_tt_activity_time == 0) {
                         tt_activity = 0;
                     } else if (tt_activity != 0) {
-                        uint32_t delta = now - last_tt_activity_time;
-                        if (delta < this->tt_fade_out_time) {
-
-                            if (tt_activity > 0) {
-                                tt_activity = 
-                                    INT8_MAX * (this->tt_fade_out_time - delta) / this->tt_fade_out_time;
+                        uint16_t time_since_last_tt = now - last_tt_activity_time;
+                        if (time_since_last_tt < tt_fade_out_time) {
+                            uint16_t delta = tt_fade_out_time - time_since_last_tt;
+                            int16_t temp = tt_activity;
+                            if (temp > 0) {
+                                temp = 
+                                    ((int16_t)127) * delta / tt_fade_out_time;
                             } else {
-                                tt_activity = 
-                                    INT8_MIN * (this->tt_fade_out_time - delta) / this->tt_fade_out_time;
+                                temp = 
+                                    ((int16_t)-127) * delta / tt_fade_out_time;
                             }
+
+                            tt_activity = temp;
 
                         } else {
                             tt_activity = 0;
@@ -379,24 +379,25 @@ class RGBManager {
                     }
                     break;
             }
+            debug_tt_activity = tt_activity;
         }
 
         int16_t calculate_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
             int16_t delta = 0;
 
             const int16_t idle_animation = idle_animation_speed * idle_multiplier;
-            const int16_t tt_animation = tt * tt_animation_speed * tt_multiplier;
+            const int16_t tt_animation = tt_animation_speed * tt_multiplier;
 
             // if TT movement has no effect, only idle animation is used
-            if (!flags.ReactToTt || tt == 0 || tt_animation == 0) {
+            if (!flags.ReactToTt || tt_activity == 0 || tt_animation == 0) {
                 delta += idle_animation;
                 return delta;
             }
 
-            delta += tt_animation;
+            delta += tt_animation * tt_activity / 127;
             
             // if tt is moving clockwise, use idle animation as well
-            if (tt > 0) {
+            if (tt_activity > 0) {
                 delta += idle_animation;
                 return delta;
             }
