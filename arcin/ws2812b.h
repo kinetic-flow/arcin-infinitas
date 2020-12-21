@@ -23,8 +23,6 @@ int8_t abs8(int8_t i) {
     }
 }
 
-int8_t debug_tt_activity;
-
 // Here, "0" is off, "1" refers to primary color, "2" is secondary, "3" is tertiary
 typedef enum _WS2812B_Mode {
     // static   - all LEDs on 1
@@ -291,13 +289,12 @@ class RGBManager {
         void init(rgb_config_flags flags, uint8_t num_leds) {
             this->flags = flags;
 
-            // this->tt_fade_out_time = 0;
-            this->tt_fade_out_time = 1000;
+            this->tt_fade_out_time = 0;
             if (flags.FadeOutFast) {
-                tt_fade_out_time += 200;
+                tt_fade_out_time += 400;
             }
             if (flags.FadeOutSlow) {
-                tt_fade_out_time += 400;
+                tt_fade_out_time += 800;
             }
 
             ws2812b.init(num_leds, flags.FlipDirection);
@@ -379,7 +376,6 @@ class RGBManager {
                     }
                     break;
             }
-            debug_tt_activity = tt_activity;
         }
 
         int16_t calculate_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {

@@ -20,7 +20,7 @@
 #include "analog_button.h"
 #include "ws2812b.h"
 
-#define DEBUG_TIMING_GAMEPAD 1
+#define DEBUG_TIMING_GAMEPAD 0
 
 #define RAND16_SEED  1337
 uint16_t rand16seed = RAND16_SEED;
