@@ -5,9 +5,7 @@
 
 #include "pixeltypes.h"
 
-#if !FASTLED_LIBONLY
 FASTLED_NAMESPACE_BEGIN
-#endif
 
 // hsv2rgb_rainbow - convert a hue, saturation, and value to RGB
 //                   using a visually balanced rainbow (vs a straight
@@ -88,8 +86,6 @@ void hsv2rgb_raw(const struct CHSV* phsv, struct CRGB * prgb, int numLeds);
 //
 CHSV rgb2hsv_approximate( const CRGB& rgb);
 
-#if !FASTLED_LIBONLY
 FASTLED_NAMESPACE_END
-#endif
 
 #endif

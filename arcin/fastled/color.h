@@ -3,9 +3,7 @@
 
 #include "FastLED.h"
 
-#if !FASTLED_LIBONLY
 FASTLED_NAMESPACE_BEGIN
-#endif
 
 ///@file color.h
 /// contains definitions for color correction and temperature
@@ -80,9 +78,7 @@ typedef enum {
     UncorrectedTemperature=0xFFFFFF
 } ColorTemperature;
 
-#if !FASTLED_LIBONLY
 FASTLED_NAMESPACE_END
-#endif
 
 ///@}
 #endif

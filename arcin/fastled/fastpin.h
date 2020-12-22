@@ -87,7 +87,7 @@ public:
 #else
 // This is the empty code version of the raw pin class, method bodies should be filled in to Do The Right Thing[tm] when making this
 // available on a new platform
-class Pin : public Selectable {
+class PinInternal : public Selectable {
 	volatile RwReg *mPort;
 	volatile RoReg *mInPort;
 	RwReg mPinMask;
@@ -101,7 +101,7 @@ class Pin : public Selectable {
 	}
 
 public:
-	Pin(int pin) : mPin(pin) { _init(); }
+	PinInternal(int pin) : mPin(pin) { _init(); }
 
 	void setPin(int pin) { mPin = pin; _init(); }
 
@@ -133,14 +133,14 @@ public:
 	virtual bool isSelected() { return (*mPort & mPinMask) == mPinMask; }
 };
 
-class OutputPin : public Pin {
+class OutputPin : public PinInternal {
 public:
-	OutputPin(int pin) : Pin(pin) { setOutput(); }
+	OutputPin(int pin) : PinInternal(pin) { setOutput(); }
 };
 
-class InputPin : public Pin {
+class InputPin : public PinInternal {
 public:
-	InputPin(int pin) : Pin(pin) { setInput(); }
+	InputPin(int pin) : PinInternal(pin) { setInput(); }
 };
 
 #endif

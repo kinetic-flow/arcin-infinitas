@@ -1,10 +1,6 @@
 #ifndef __INC_LED_SYSDEFS_ARM_LIBONLY_H
 #define __INC_LED_SYSDEFS_ARM_LIBONLY_H
 
-#define FASTLED_NAMESPACE_BEGIN namespace NSFastLED {
-#define FASTLED_NAMESPACE_END }
-#define FASTLED_USING_NAMESPACE using namespace NSFastLED;
-
 #define cli() @do not use cli
 #define sei() @do not use sei   
 

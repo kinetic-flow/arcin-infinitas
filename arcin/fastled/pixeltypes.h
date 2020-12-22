@@ -7,9 +7,7 @@
 #include "lib8tion.h"
 #include "color.h"
 
-#if !FASTLED_LIBONLY
 FASTLED_NAMESPACE_BEGIN
-#endif
 
 struct CRGB;
 struct CHSV;
@@ -852,9 +850,7 @@ enum EOrder {
 	BGR=0210
 };
 
-#if !FASTLED_LIBONLY
 FASTLED_NAMESPACE_END
-#endif
 ///@}
 
 #endif

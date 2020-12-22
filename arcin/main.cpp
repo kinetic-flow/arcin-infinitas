@@ -22,8 +22,6 @@
 
 #define DEBUG_TIMING_GAMEPAD 0
 
-uint16_t rand16seed = serial_num();
-
 #define ARRAY_SIZE(x) \
     ((sizeof(x)/sizeof(0[x])) / ((size_t)(!(sizeof(x) % sizeof(0[x])))))
 

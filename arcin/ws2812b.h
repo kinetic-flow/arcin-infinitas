@@ -292,6 +292,7 @@ class RGBManager {
             this->set_off();
 
             // init for color modes
+            random16_set_seed(serial_num());
             hue_temporary = random8();
         }
         

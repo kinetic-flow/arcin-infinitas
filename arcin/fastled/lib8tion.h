@@ -7,9 +7,7 @@
 #error WTH?  led_sysdefs needs to be included first
 #endif
 
-#if !FASTLED_LIBONLY
 FASTLED_NAMESPACE_BEGIN
-#endif
 
 /*
 
@@ -1169,9 +1167,7 @@ typedef CEveryNTimePeriods<uint8_t,hours8> CEveryNHours;
 #define EVERY_N_MILLISECONDS(N) EVERY_N_MILLIS(N)
 #define EVERY_N_MILLISECONDS_I(NAME,N) EVERY_N_MILLIS_I(NAME,N)
 
-#if !FASTLED_LIBONLY
 FASTLED_NAMESPACE_END
-#endif
 ///@}
 
 #endif

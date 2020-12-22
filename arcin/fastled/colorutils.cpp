@@ -7,9 +7,7 @@
 #include "FastLED.h"
 
 
-#if !FASTLED_LIBONLY
 FASTLED_NAMESPACE_BEGIN
-#endif
 
 
 
@@ -1196,6 +1194,4 @@ void napplyGamma_video( CRGB* rgbarray, uint16_t count, float gammaR, float gamm
     }
 }
 
-#if !FASTLED_LIBONLY
 FASTLED_NAMESPACE_END
-#endif

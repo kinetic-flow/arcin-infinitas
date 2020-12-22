@@ -8,9 +8,7 @@
 #include "pixeltypes.h"
 #include "fastled_progmem.h"
 
-#if !FASTLED_LIBONLY
 FASTLED_NAMESPACE_BEGIN
-#endif
 
 ///@defgroup Colorutils Color utility functions
 ///A variety of functions for working with color, palletes, and leds
@@ -1702,9 +1700,7 @@ CRGB&  napplyGamma_video( CRGB& rgb, float gammaR, float gammaG, float gammaB);
 void   napplyGamma_video( CRGB* rgbarray, uint16_t count, float gamma);
 void   napplyGamma_video( CRGB* rgbarray, uint16_t count, float gammaR, float gammaG, float gammaB);
 
-#if !FASTLED_LIBONLY
 FASTLED_NAMESPACE_END
-#endif
 
 ///@}
 #endif

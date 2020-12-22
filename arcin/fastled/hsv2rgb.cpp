@@ -3,9 +3,7 @@
 
 #include "FastLED.h"
 
-#if !FASTLED_LIBONLY
 FASTLED_NAMESPACE_BEGIN
-#endif
 
 // Functions to convert HSV colors to RGB colors.
 //
@@ -713,6 +711,4 @@ CHSV rgb2hsv_approximate( const CRGB& rgb)
 //   252,252,0
 //   252,252,126
 
-#if !FASTLED_LIBONLY
 FASTLED_NAMESPACE_END
-#endif
