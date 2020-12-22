@@ -227,14 +227,8 @@ class RGBManager {
 
     private:    
         void update_static(CHSV& hsv) {
-            CHSV hsv_adjusted = hsv;
-            dim_value(hsv_adjusted);
-            fill_solid(ws2812b.leds, ws2812b.get_num_leds(), hsv_adjusted);
-            this->show_skip_fade_to_black();
-        }
-
-        void dim_value(CHSV& hsv) {
-            hsv.value = scale8(hsv.value, dim8_lin(calculate_brightness()));
+            fill_solid(ws2812b.leds, ws2812b.get_num_leds(), hsv);
+            this->show();
         }
 
         uint8_t calculate_brightness() {
@@ -257,26 +251,22 @@ class RGBManager {
         }
 
         void update(CHSV& hsv, uint8_t index) {
-            CHSV hsv_adjusted = hsv;
-            dim_value(hsv_adjusted);
-            ws2812b.leds[index] = hsv_adjusted;
-        }
-
-        void show_skip_fade_to_black() {
-            ws2812b.show();
+            ws2812b.leds[index] = hsv;
         }
 
         void show() {
             fadeToBlackBy(
                 ws2812b.leds,
                 ws2812b.get_num_leds(),
+                255 - dim8_raw(calculate_brightness())
+                );
 
             ws2812b.show();
         }
 
         void set_off() {
             fill_solid(ws2812b.leds, ws2812b.get_num_leds(), CRGB::Black);
-            this->show_skip_fade_to_black();
+            ws2812b.show();
         }
 
     public:
