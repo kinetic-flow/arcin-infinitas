@@ -247,6 +247,9 @@ class RGBManager {
     // for palette-based RGB modes
     CRGBPalette16 current_palette;
 
+    // for gradient-based RGB modes
+    CHSV current_gradient[UINT8_MAX];
+
     private:    
         void update_static(CHSV& hsv) {
             fill_solid(ws2812b.leds, ws2812b.get_num_leds(), hsv);
@@ -296,9 +299,9 @@ class RGBManager {
         }
 
     public:
-        void init(rgb_config_flags flags, uint8_t num_leds) {
+        void init(rgb_config* config) {
+            // parse flags
             this->flags = flags;
-
             tt_fade_out_time = 0;
             if (flags.FadeOutFast) {
                 tt_fade_out_time += 400;
@@ -307,12 +310,19 @@ class RGBManager {
                 tt_fade_out_time += 800;
             }
 
-            ws2812b.init(num_leds, flags.FlipDirection);
-            set_off();
+            chsv_from_colorrgb(config->RgbPrimary, this->hsv_primary);
+            chsv_from_colorrgb(config->RgbSecondary, this->hsv_secondary);
+            chsv_from_colorrgb(config->RgbTertiary, this->hsv_tertiary);
 
-            // init for color modes
-            random16_set_seed(serial_num());
-            hue_temporary = random8();
+            this->default_darkness = config->Darkness;
+            this->idle_brightness = config->IdleBrightness;
+            this->idle_animation_speed = config->IdleAnimationSpeed;
+            this->tt_animation_speed = config->TtAnimationSpeed;
+
+            set_mode((WS2812B_Mode)config->Mode);
+
+            ws2812b.init(config->NumberOfLeds, config->Flags.FlipDirection);
+            set_off();
         }
         
         void set_mode(WS2812B_Mode rgb_mode) {
@@ -323,6 +333,21 @@ class RGBManager {
                 case WS2812B_MODE_RAINBOW_WAVE:
                     current_palette = RainbowColors_reverse_p;
                     break;
+
+                case WS2812B_MODE_TWO_COLOR_FADE:
+                    fill_gradient(
+                        current_gradient,
+                        UINT8_MAX,
+                        hsv_primary,
+                        hsv_secondary,
+                        SHORTEST_HUES);
+                    break;
+
+                case WS2812B_MODE_RANDOM_HUE:
+                    random16_add_entropy(serial_num() >> 16);
+                    random16_add_entropy(serial_num());
+                    hue_temporary = random8();
+                    break;
                 
                 case WS2812B_MODE_STATIC_RAINBOW:
                 case WS2812B_MODE_RAINBOW_SPIRAL:
@@ -330,25 +355,6 @@ class RGBManager {
                     current_palette = RainbowColors_p;
                     break;
             }
-        }
-        
-        void set_default_colors(ColorRgb primary, ColorRgb secondary, ColorRgb tertiary) {
-            chsv_from_colorrgb(primary, this->hsv_primary);
-            chsv_from_colorrgb(secondary, this->hsv_secondary);
-            chsv_from_colorrgb(tertiary, this->hsv_tertiary);
-        }
-
-        void set_darkness(uint8_t darkness) {
-            this->default_darkness = darkness;
-        }
-
-        void set_idle_brightness(uint8_t idle_brightness) {
-            this->idle_brightness = idle_brightness;
-        }
-
-        void set_animation_speed(int8_t idle_speed, int8_t tt_speed) {
-            this->idle_animation_speed = idle_speed;
-            this->tt_animation_speed = tt_speed;
         }
         
         void update_from_hid(ColorRgb color) {
@@ -538,7 +544,7 @@ class RGBManager {
 
                 case WS2812B_MODE_TWO_COLOR_FADE:
                 {
-                    uint16_t progress = 0;
+                    uint8_t progress = 0;
                     if (this->flags.ReactToTt) {
                         progress = quadwave8(abs(tt_activity));
                     } else {
@@ -549,19 +555,9 @@ class RGBManager {
                     // progress 0 => initial color
                     // progress 1-254 => something in between
                     // progress 255 => goal color
+                    // (to be completely clear quadwave8 only produces values [0, 254] but oh well)
 
-                    // on the hue spectrum, always travel in the direction that is shorter
-                    int16_t h = (hsv_secondary.h - hsv_primary.h);
-                    if (h > INT8_MAX) {
-                        h = h - UINT8_MAX;
-                    } else if (h < INT8_MIN) {
-                        h = h + UINT8_MAX;
-                    }
-                    h = scale8(h, progress);
-                    int8_t s = scale8(hsv_secondary.s - hsv_primary.s, progress);
-                    int8_t v = scale8(hsv_secondary.v - hsv_primary.v, progress);
-                    CHSV hsv(hsv_primary.h + h, hsv_primary.s + s, hsv_primary.v + v);
-                    this->update_static(hsv);
+                    this->update_static(current_gradient[progress]);
                 }
                 break;
 
