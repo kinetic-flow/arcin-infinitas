@@ -230,7 +230,7 @@ class RGBManager {
             CHSV hsv_adjusted = hsv;
             dim_value(hsv_adjusted);
             fill_solid(ws2812b.leds, ws2812b.get_num_leds(), hsv_adjusted);
-            this->show();
+            this->show_skip_fade_to_black();
         }
 
         void dim_value(CHSV& hsv) {
@@ -262,13 +262,21 @@ class RGBManager {
             ws2812b.leds[index] = hsv_adjusted;
         }
 
+        void show_skip_fade_to_black() {
+            ws2812b.show();
+        }
+
         void show() {
+            fadeToBlackBy(
+                ws2812b.leds,
+                ws2812b.get_num_leds(),
+
             ws2812b.show();
         }
 
         void set_off() {
             fill_solid(ws2812b.leds, ws2812b.get_num_leds(), CRGB::Black);
-            this->show();
+            this->show_skip_fade_to_black();
         }
 
     public:
@@ -444,7 +452,7 @@ class RGBManager {
                     // Directions are good (+ +)
                     update_shift(tt, 2, 4);
 
-                    CHSV hsv(((shift_value >> 8) & 0xFF), 255, 255);
+                    CHSV hsv(((shift_value >> 8) & 0xFF), 240, 255);
                     this->update_static(hsv);
                 }
                 break;
@@ -452,7 +460,6 @@ class RGBManager {
                 case WS2812B_MODE_RAINBOW_SPIRAL:
                 case WS2812B_MODE_RAINBOW_WAVE:
                 {
-                    // Directions are good (- -)
                     update_shift(tt, -3, -5);
 
                     uint16_t number_of_circles = 1;
@@ -460,15 +467,14 @@ class RGBManager {
                         number_of_circles = 3;
                     }
 
-                    for (uint8_t led = 0; led < ws2812b.get_num_leds(); led++) {
-                        uint16_t hue = 255 * led / (ws2812b.get_num_leds() * number_of_circles);
-                        hue = (hue + (shift_value >> 6)) % 255;
-                        if (rgb_mode == WS2812B_MODE_RAINBOW_WAVE) {
-                            hue = 255 - hue;
-                        }
-                        CHSV hsv(hue, 255, 255);
-                        this->update(hsv, led);
-                    }
+                    uint8_t initial_hue = (shift_value >> 6) % 255;
+                    fill_rainbow(
+                        ws2812b.leds,
+                        ws2812b.get_num_leds(),
+                        initial_hue,
+                        255 / (ws2812b.get_num_leds() * number_of_circles)
+                        );
+
                     this->show();
                 }
                 break;
