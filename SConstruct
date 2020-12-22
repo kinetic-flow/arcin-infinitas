@@ -8,9 +8,9 @@ SConscript('laks/build_rules')
 
 env.SelectMCU('stm32f303rc')
 
-env.Prepend(CPPPATH = Dir('arcin/fastled'))
+env.Prepend(CPPPATH = Dir('fastled/src'))
 
-sources = Glob('arcin/*.cpp') + Glob('arcin/fastled/*.cpp')
+sources = Glob('arcin/*.cpp') + Glob('fastled/src/*.cpp')
 
 env.Firmware('arcin.elf', sources, LINK_SCRIPT = 'arcin/arcin.ld')
 
