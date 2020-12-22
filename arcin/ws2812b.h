@@ -15,6 +15,8 @@
 #define WS2812B_MAX_LEDS 180
 #define WS2812B_DEFAULT_LEDS 12
 
+typedef uint32_t TProgmemRGBPalette16[16], *PPalette;
+
 // duration of each frame, in milliseconds
 //
 // https://github.com/FastLED/FastLED/wiki/Interrupt-problems
@@ -70,6 +72,15 @@ typedef enum _WS2812B_Mode {
     WS2812B_MODE_THREE_DOTS,
 } WS2812B_Mode;
 
+// Same as FastLED RainbowColors_p but in reverse order
+extern const TProgmemRGBPalette16 RainbowColors_reverse_p FL_PROGMEM =
+{
+   0xD5002B, 0xAB0055, 0x7F0081, 0x5500AB,
+   0x2A00D5, 0x0000FF, 0x0056AA, 0x00AB55,
+   0x00D52A, 0x00FF00, 0x56D500, 0xABAB00,
+   0xAB7F00, 0xAB5500, 0xD52A00, 0xFF0000
+};
+
 void chsv_from_colorrgb(ColorRgb color, CHSV& chsv) {
     CRGB crgb(color.Red, color.Green, color.Blue);
     chsv = rgb2hsv_approximate(crgb);
@@ -82,6 +93,7 @@ class WS2812B {
         volatile bool busy;
         uint8_t num_leds = WS2812B_MAX_LEDS;
         bool order_reversed = false;
+        uint8_t brightness = UINT8_MAX;
 
         void schedule_dma() {
             cnt--;
@@ -89,14 +101,17 @@ class WS2812B {
             DMA1.reg.C[6].NDTR = WS2812B_DMA_BUFFER_LEN;
             DMA1.reg.C[6].MAR = (uint32_t)&dmabuf;
             DMA1.reg.C[6].PAR = (uint32_t)&TIM4.CCR3;
-            DMA1.reg.C[6].CR = (0 << 10) | (1 << 8) | (1 << 7) | (0 << 6) | (1 << 4) | (1 << 1) | (1 << 0);
+            DMA1.reg.C[6].CR =
+                (0 << 10) | (1 << 8) | (1 << 7) | (0 << 6) | (1 << 4) | (1 << 1) | (1 << 0);
         }
 
         void set_color(CRGB rgb) {
-            this->set_color(rgb.red, rgb.green, rgb.blue);
+            CRGB rgb_adjusted = rgb;
+            rgb_adjusted.fadeToBlackBy(UINT8_MAX - this->brightness);
+            this->set_color_raw(rgb_adjusted.red, rgb_adjusted.green, rgb_adjusted.blue);
         }
         
-        void set_color(uint8_t r, uint8_t g, uint8_t b) {
+        void set_color_raw(uint8_t r, uint8_t g, uint8_t b) {
             uint32_t n = 0;
             
             dmabuf[0] = 0;
@@ -166,6 +181,10 @@ class WS2812B {
             schedule_dma();
         }
 
+        void set_brightness(uint8_t brightness) {
+            this->brightness = dim8_lin(brightness);
+        }
+
         uint8_t get_num_leds() {
             return this->num_leds;
         }
@@ -225,10 +244,18 @@ class RGBManager {
     uint16_t shift_value = 0;
     int8_t shift_direction = 1;
 
+    // for palette-based RGB modes
+    CRGBPalette16 current_palette;
+
     private:    
         void update_static(CHSV& hsv) {
             fill_solid(ws2812b.leds, ws2812b.get_num_leds(), hsv);
-            this->show();
+            show();
+        }
+
+        void update_static(CRGB& rgb) {
+            fill_solid(ws2812b.leds, ws2812b.get_num_leds(), rgb);
+            show();
         }
 
         uint8_t calculate_brightness() {
@@ -246,7 +273,7 @@ class RGBManager {
                 brightness = UINT8_MAX;
             }
             
-            // finally, apply overall darkness override
+            // finally, scale everything down by overall brightness override
             return scale8(brightness, UINT8_MAX - default_darkness);
         }
 
@@ -255,25 +282,24 @@ class RGBManager {
         }
 
         void show() {
-            fadeToBlackBy(
-                ws2812b.leds,
-                ws2812b.get_num_leds(),
-                255 - dim8_raw(calculate_brightness())
-                );
+            ws2812b.set_brightness(calculate_brightness());
+            show_without_dimming();
+        }
 
+        void show_without_dimming() {
             ws2812b.show();
         }
 
         void set_off() {
             fill_solid(ws2812b.leds, ws2812b.get_num_leds(), CRGB::Black);
-            ws2812b.show();
+            show_without_dimming();
         }
 
     public:
         void init(rgb_config_flags flags, uint8_t num_leds) {
             this->flags = flags;
 
-            this->tt_fade_out_time = 0;
+            tt_fade_out_time = 0;
             if (flags.FadeOutFast) {
                 tt_fade_out_time += 400;
             }
@@ -282,7 +308,7 @@ class RGBManager {
             }
 
             ws2812b.init(num_leds, flags.FlipDirection);
-            this->set_off();
+            set_off();
 
             // init for color modes
             random16_set_seed(serial_num());
@@ -291,6 +317,19 @@ class RGBManager {
         
         void set_mode(WS2812B_Mode rgb_mode) {
             this->rgb_mode = rgb_mode;
+
+            // pre-initialize color palette
+            switch(rgb_mode) {
+                case WS2812B_MODE_RAINBOW_WAVE:
+                    current_palette = RainbowColors_reverse_p;
+                    break;
+                
+                case WS2812B_MODE_STATIC_RAINBOW:
+                case WS2812B_MODE_RAINBOW_SPIRAL:
+                default:
+                    current_palette = RainbowColors_p;
+                    break;
+            }
         }
         
         void set_default_colors(ColorRgb primary, ColorRgb secondary, ColorRgb tertiary) {
@@ -442,14 +481,16 @@ class RGBManager {
                     // Directions are good (+ +)
                     update_shift(tt, 2, 4);
 
-                    CHSV hsv(((shift_value >> 8) & 0xFF), 240, 255);
-                    this->update_static(hsv);
+                    uint8_t index = (shift_value >> 8) & 0xFF;
+                    CRGB color = ColorFromPalette(current_palette, index, UINT8_MAX, LINEARBLEND);
+                    this->update_static(color);
                 }
                 break;
 
                 case WS2812B_MODE_RAINBOW_SPIRAL:
                 case WS2812B_MODE_RAINBOW_WAVE:
                 {
+                    // Directions are good (+ +)
                     update_shift(tt, -3, -5);
 
                     uint16_t number_of_circles = 1;
@@ -457,15 +498,17 @@ class RGBManager {
                         number_of_circles = 3;
                     }
 
-                    uint8_t initial_hue = (shift_value >> 6) % 255;
-                    fill_rainbow(
+                    uint8_t initial_index = (shift_value >> 6) & 0xFF;
+                    fill_palette(
                         ws2812b.leds,
                         ws2812b.get_num_leds(),
-                        initial_hue,
-                        255 / (ws2812b.get_num_leds() * number_of_circles)
+                        initial_index,
+                        255 / (ws2812b.get_num_leds() * number_of_circles),
+                        current_palette,
+                        UINT8_MAX,
+                        LINEARBLEND
                         );
-
-                    this->show();
+                    show();
                 }
                 break;
 
@@ -531,12 +574,12 @@ class RGBManager {
                         if ((this->previous_tt == 0) && (tt != 0) && (ready_for_new_hue)) {
                             // TT triggered, time to pick a new hue value
                             // pick one that is not too similar to the previous one
-                            hue_temporary = hue_temporary + random8(255-60) + 30;
+                            hue_temporary = hue_temporary + random8(30, UINT8_MAX-30);
                             ready_for_new_hue = false;
                         }
                     }
 
-                    CHSV hsv(hue_temporary, 255, 255);
+                    CHSV hsv(hue_temporary, 240, 255);
                     this->update_static(hsv);
                 }
                 break;
