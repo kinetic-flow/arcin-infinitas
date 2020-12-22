@@ -8,8 +8,12 @@ SConscript('laks/build_rules')
 
 env.SelectMCU('stm32f303rc')
 
-env.Firmware('arcin.elf', Glob('arcin/*.cpp'), LINK_SCRIPT = 'arcin/arcin.ld')
+env.Prepend(CPPPATH = Dir('arcin/fastled'))
 
-env.Firmware('bootloader.elf', Glob('bootloader/*.cpp'), LINK_SCRIPT = 'bootloader/bootloader.ld')
+sources = Glob('arcin/*.cpp') + Glob('arcin/fastled/*.cpp')
 
-env.Firmware('test.elf', Glob('test/*.cpp'))
+env.Firmware('arcin.elf', sources, LINK_SCRIPT = 'arcin/arcin.ld')
+
+# env.Firmware('bootloader.elf', Glob('bootloader/*.cpp'), LINK_SCRIPT = 'bootloader/bootloader.ld')
+
+# env.Firmware('test.elf', Glob('test/*.cpp'))

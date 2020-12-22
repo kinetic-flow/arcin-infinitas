@@ -3,7 +3,8 @@
 
 #include <stdint.h>
 #include <os/time.h>
-#include "fastled.h"
+#include "fastled_shim.h"
+#include "FastLED.h"
 #include "color.h"
 
 #define min(x, y) (((x) < (y)) ? (x) : (y))
@@ -25,14 +26,6 @@
 #define RGB_MANAGER_FRAME_MS 20
 
 extern bool global_led_enable;
-
-int8_t abs8(int8_t i) {
-    if (i < 0) {
-        return -i;
-    } else {
-        return i;
-    }
-}
 
 // Here, "0" is off, "1" refers to primary color, "2" is secondary, "3" is tertiary
 typedef enum _WS2812B_Mode {
