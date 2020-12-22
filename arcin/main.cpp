@@ -475,15 +475,17 @@ int main() {
         Time::time() + 1000, ARCIN_PIN_BUTTON_WHITE, ARCIN_PIN_BUTTON_WHITE);
 
     if (config.flags.Ws2812b) {
-        // power
-        button9_led.on();
-        rgb_manager.init(config.rgb.Flags, config.rgb.NumberOfLeds);
         rgb_manager.set_default_colors(
             config.rgb.RgbPrimary, config.rgb.RgbSecondary, config.rgb.RgbTertiary);
         rgb_manager.set_darkness(config.rgb.Darkness);
         rgb_manager.set_idle_brightness(config.rgb.IdleBrightness);
         rgb_manager.set_animation_speed(config.rgb.IdleAnimationSpeed, config.rgb.TtAnimationSpeed);
         rgb_manager.set_mode((WS2812B_Mode)config.rgb.Mode);
+
+        // turn on the power before initializing
+        button9_led.on();
+        // must be called last
+        rgb_manager.init(config.rgb.Flags, config.rgb.NumberOfLeds);
     }
 
     while(1) {

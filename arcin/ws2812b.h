@@ -82,7 +82,6 @@ class WS2812B {
         volatile bool busy;
         uint8_t num_leds = WS2812B_MAX_LEDS;
         bool order_reversed = false;
-        CRGB colors[WS2812B_MAX_LEDS];
 
         void schedule_dma() {
             cnt--;
@@ -119,6 +118,8 @@ class WS2812B {
         }
         
     public:
+        CRGB leds[WS2812B_MAX_LEDS];
+
         void init(uint8_t num_leds, bool order_reversed) {
             this->busy = false;
             this->cnt = 0;
@@ -151,29 +152,17 @@ class WS2812B {
             Time::sleep(1);
         }
 
-        void update_led_color(CRGB rgb, uint8_t index) {
-            if (busy) {
-                return;
-            }
-
-            if (this->num_leds <= index) {
-                return;
-            }
-
-            if (this->order_reversed) {
-                colors[this->num_leds - 1 - index] = rgb;
-            } else {
-                colors[index] = rgb;
-            }
-        }
-
-        void update_complete() {
+        void show() {
             if (busy) {
                 return;
             }
             busy = true;
             cnt = this->num_leds;
-            set_color(this->colors[0]);
+            if (order_reversed) {
+                set_color(this->leds[cnt - 1]);
+            } else {
+                set_color(this->leds[0]);
+            }
             schedule_dma();
         }
 
@@ -186,7 +175,11 @@ class WS2812B {
             DMA1.reg.IFCR = 1 << 24;
             
             if (cnt) {
-                set_color(this->colors[this->num_leds - this->cnt]);
+                if (order_reversed) {
+                    set_color(this->leds[this->cnt - 1]);
+                } else {
+                    set_color(this->leds[this->num_leds - this->cnt]);
+                }
                 schedule_dma();
             } else {
                 busy = false;
@@ -234,11 +227,14 @@ class RGBManager {
 
     private:    
         void update_static(CHSV& hsv) {
-            for (uint8_t i = 0; i < ws2812b.get_num_leds(); i++) {
-                this->update(hsv, i);
-            }
+            CHSV hsv_adjusted = hsv;
+            dim_value(hsv_adjusted);
+            fill_solid(ws2812b.leds, ws2812b.get_num_leds(), hsv_adjusted);
+            this->show();
+        }
 
-            this->update_complete();
+        void dim_value(CHSV& hsv) {
+            hsv.value = scale8(hsv.value, dim8_lin(calculate_brightness()));
         }
 
         uint8_t calculate_brightness() {
@@ -262,18 +258,17 @@ class RGBManager {
 
         void update(CHSV& hsv, uint8_t index) {
             CHSV hsv_adjusted = hsv;
-            hsv_adjusted.value = scale8(hsv_adjusted.value, calculate_brightness());
-            CRGB rgb(hsv_adjusted);
-            ws2812b.update_led_color(rgb, index);
+            dim_value(hsv_adjusted);
+            ws2812b.leds[index] = hsv_adjusted;
         }
 
-        void update_complete() {
-            ws2812b.update_complete();
+        void show() {
+            ws2812b.show();
         }
 
         void set_off() {
-            CHSV off(0, 0, 0);
-            this->update_static(off);
+            fill_solid(ws2812b.leds, ws2812b.get_num_leds(), CRGB::Black);
+            this->show();
         }
 
     public:
@@ -474,7 +469,7 @@ class RGBManager {
                         CHSV hsv(hue, 255, 255);
                         this->update(hsv, led);
                     }
-                    this->update_complete();
+                    this->show();
                 }
                 break;
 
@@ -498,7 +493,7 @@ class RGBManager {
                         }                        
                         this->update(*color, led);
                     }
-                    this->update_complete();
+                    this->show();
                 }
                 break;
 
@@ -575,7 +570,7 @@ class RGBManager {
                             this->update(hsv_off, led);
                         }
                     }
-                    this->update_complete();
+                    this->show();
                 }
                 break;
 
