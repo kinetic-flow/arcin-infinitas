@@ -358,7 +358,14 @@ void check_for_outdated_tt_led_report(config_flags *runtime_flags) {
 
 #if DEBUG_TIMING_GAMEPAD
 
+#warning "----------- DEBUG OUTPUT ENABLED!!! -----------"
+#warning "----------- DEBUG OUTPUT ENABLED!!! -----------"
+#warning "----------- DEBUG OUTPUT ENABLED!!! -----------"
+#warning "----------- DEBUG OUTPUT ENABLED!!! -----------"
+#warning "----------- DEBUG OUTPUT ENABLED!!! -----------"
+
 uint32_t previous_report_time = 0;
+uint32_t debug_value;
 
 #endif
 
@@ -645,9 +652,12 @@ int main() {
 
             uint32_t nownow = Time::time();
             uint32_t delta = nownow - previous_report_time;
-            // report.buttons = (delta >> 16);
-            // report.axis_x = (delta >> 8);
-            report.axis_y = debug_tt_activity;
+            // report.buttons = (debug_value >> 16);
+            // report.axis_x = (debug_value >> 8);
+            // report.axis_y = debug_value;
+            report.buttons = (delta >> 16);
+            report.axis_x = (delta >> 8);
+            report.axis_y = delta;
             previous_report_time = nownow;
 
 #endif

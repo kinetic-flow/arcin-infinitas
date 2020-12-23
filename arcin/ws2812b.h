@@ -17,6 +17,8 @@
 
 typedef uint32_t TProgmemRGBPalette16[16], *PPalette;
 
+extern uint32_t debug_value;
+
 // duration of each frame, in milliseconds
 //
 // https://github.com/FastLED/FastLED/wiki/Interrupt-problems
@@ -234,7 +236,10 @@ class RGBManager {
     uint8_t default_darkness = 0;
     uint8_t idle_brightness = 0;
     accum88 idle_animation_speed = 0;
-    int16_t tt_animation_speed_10x = 0; // divide by 10 to get actual multiplier
+
+    // ranges are [-100, 100]
+    // divide by 10 to get actual multiplier (100 => 10x) from UI   
+    int16_t tt_animation_speed_10x = 0;
 
     // user-defined colors
     CHSV hsv_primary;
@@ -245,9 +250,14 @@ class RGBManager {
     uint8_t hue_temporary;
     bool ready_for_new_hue = false;
 
-    // shift values that modify colors, ranges from [0 - UINT16_MAX]
+    // shift values that modify colors, ranges from [0, UINT16_MAX]
     uint16_t shift_value = 0;
     uint32_t tt_time_travel_base_ms = 0;
+
+    // discrete shifts, ranges from [0, num_leds)
+    uint8_t shift_value_discrete = 0;
+    // timer that is armed in the future, and when it expires, it increases shift_value_discrete
+    uint32_t time_for_next_increment;
 
     // for palette-based RGB modes
     CRGBPalette256 current_palette;
@@ -311,9 +321,9 @@ class RGBManager {
                     raw_value_1k = raw_value_1k * raw_value / UINT8_MAX;
                     break;
 
-                case WS2812B_MODE_TRICOLOR:
                 case WS2812B_MODE_DOTS:
                 case WS2812B_MODE_RAINBOW_WAVE:
+                case WS2812B_MODE_TRICOLOR:
                     // RPM. Must match UI calculation
                     raw_value_1k = raw_value_1k / 2;
                     break;
@@ -491,27 +501,31 @@ class RGBManager {
             shift_value += calculate_shift(tt, tt_multiplier);
         }
 
-        uint8_t update_and_get_led_number_shift(int8_t tt, int8_t tt_multiplier) {
-            int16_t delta = calculate_shift(tt, tt_multiplier);
-
-            // possible range is [0... N*0x200) where N = number of LEDs
-            const uint16_t maximum = ws2812b.get_num_leds() * (1 << 10);
-
-            shift_value += delta;
-
-            // did it roll under/over?
-            if (maximum <= shift_value) {
-                if (shift_value < maximum * 2) {
-                    shift_value = shift_value - maximum;
-                } else if ((UINT16_MAX - maximum * 2) < shift_value) {
-                    shift_value = shift_value + maximum;
-                } else {
-                    // way off bounds
-                    shift_value = 0;
-                }
+        uint8_t update_discrete_shift() {
+            // did the timer expire?
+            uint32_t now = Time::time();
+            if ((time_for_next_increment - now) < UINT16_MAX) {
+                return shift_value_discrete;
             }
 
-            return (uint8_t)(shift_value >> 10);
+            // increment the counter
+            shift_value_discrete += 1;
+            // (yes, this is faster than modulo)
+            if (ws2812b.get_num_leds() <= shift_value_discrete) {
+                shift_value_discrete = 0;
+            }
+
+            // idle_animation_speed is RPM (in accum88 format)
+            // Frequency = [N] rotations per minute = [N * NUM_LED] shifts per minute
+            // Period = 1 minute / [N * NUM_LED] shifts
+            uint32_t period_in_ms =
+                (60 * 1000) /
+                ((idle_animation_speed >> 8) * ws2812b.get_num_leds());
+
+            // arm the timer for future
+            time_for_next_increment = now + period_in_ms;
+
+            return shift_value_discrete;
         }
 
         // tt +1 is clockwise, -1 is counter-clockwise
@@ -578,8 +592,8 @@ class RGBManager {
 
                 case WS2812B_MODE_TRICOLOR:
                 {
-                    // -12 seems good
-                    uint8_t pixel_shift = update_and_get_led_number_shift(tt, -12);
+                    uint8_t pixel_shift = UINT8_MAX - update_discrete_shift();
+                    // TODO tt action
                     for (int led = 0; led < ws2812b.get_num_leds(); led++) {
                         CHSV* color = NULL;
                         switch ((led + pixel_shift) % ws2812b.get_num_leds() % 3) {
@@ -638,8 +652,8 @@ class RGBManager {
 
                 case WS2812B_MODE_DOTS:
                 {
-                    // 16 seems good
-                    uint8_t dot1 = update_and_get_led_number_shift(tt, 16);
+                    uint8_t dot1 = update_discrete_shift();
+                    // TODO tt action
                     uint8_t dot2 = UINT8_MAX;
                     uint8_t dot3 = UINT8_MAX;
                     if (2 == multiplicity) {
