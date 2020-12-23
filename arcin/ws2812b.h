@@ -636,13 +636,18 @@ class RGBManager {
                     if (this->idle_animation_speed == 0 || this->flags.ReactToTt) {
                         this->update_static(hsv_primary);
                     } else {
-                        // breathe mode
-                        update_shift(0, 4, 0);
-                        uint8_t brightness = quadwave8(shift_value >> 8);
-                        // make 20 the "floor" since most LEDs have a hard time with really dark values
-                        brightness = scale8(brightness, 255 - 20) + 20;
+
+                        uint8_t brightness = beatsin8(idle_animation_speed, 20, UINT8_MAX);
                         CHSV hsv(hsv_primary.hue, hsv_primary.sat, brightness);
                         this->update_static(hsv);
+
+                        // // breathe mode
+                        // update_shift(0, 4, 0);
+                        // uint8_t brightness = quadwave8(shift_value >> 8);
+                        // // make 20 the "floor" since most LEDs have a hard time with really dark values
+                        // brightness = scale8(brightness, 255 - 20) + 20;
+                        // CHSV hsv(hsv_primary.hue, hsv_primary.sat, brightness);
+                        // this->update_static(hsv);
                     }
                 }
                 break;
