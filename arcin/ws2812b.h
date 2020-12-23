@@ -233,7 +233,7 @@ class RGBManager {
     // user-defined modifiers
     uint8_t default_darkness = 0;
     uint8_t idle_brightness = 0;
-    uint8_t idle_animation_speed = 0;
+    accum88 idle_animation_speed = 0;
     int8_t tt_animation_speed = 0;
 
     // user-defined colors
@@ -300,13 +300,15 @@ class RGBManager {
             show_without_dimming();
         }
 
-        uint8_t calculate_adjusted_speed(WS2812B_Mode rgb_mode, uint8_t raw_value) {
-            uint8_t adjusted;
+        accum88 calculate_adjusted_speed(WS2812B_Mode rgb_mode, uint8_t raw_value) {
+            // temporarily add precision
+            uint32_t raw_value_1k = raw_value * 1000;
+            accum88 adjusted;
             switch(rgb_mode) {
                 case WS2812B_MODE_SINGLE_COLOR:
                 case WS2812B_MODE_TWO_COLOR_FADE:
                     // BPM
-                    adjusted = scale8(raw_value, raw_value);
+                    raw_value_1k = raw_value_1k * raw_value / UINT8_MAX;
                     break;
 
                 case WS2812B_MODE_TRICOLOR:
@@ -314,14 +316,22 @@ class RGBManager {
                 case WS2812B_MODE_STATIC_RAINBOW:
                 case WS2812B_MODE_RAINBOW_WAVE:
                     // RPM
-                    adjusted = (raw_value / 3);
+                    raw_value_1k = raw_value_1k / 3;
                     break;
 
                 case WS2812B_MODE_RANDOM_HUE:
                 default:
-                    // don't know
-                    adjusted = raw_value;
                     break;
+            }
+
+            adjusted = 0;
+            adjusted |= (raw_value_1k / 1000) << 8;
+            adjusted |= ((raw_value_1k % 1000) * 255 / 1000) & 0xFF;
+
+            // 0 bpm is OK, but don't let it fall between 0-1 bpm since the library will convert
+            // accum88 into uint8
+            if (adjusted < 256) {
+                adjusted = 0;
             }
 
             return adjusted;
@@ -347,7 +357,7 @@ class RGBManager {
             this->idle_brightness = config->IdleBrightness;
             this->idle_animation_speed =
                 calculate_adjusted_speed((WS2812B_Mode)config->Mode, config->IdleAnimationSpeed);
-
+            
             this->tt_animation_speed = config->TtAnimationSpeed;
 
             set_mode(
@@ -455,7 +465,7 @@ class RGBManager {
         int16_t calculate_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
             int16_t delta = 0;
 
-            const int16_t idle_animation = idle_animation_speed * idle_multiplier;
+            const int16_t idle_animation = (idle_animation_speed >> 8) * idle_multiplier;
             const int16_t tt_animation = tt_animation_speed * tt_multiplier;
 
             // if TT movement has no effect, only idle animation is used
