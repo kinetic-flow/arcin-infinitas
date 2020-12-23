@@ -313,10 +313,14 @@ class RGBManager {
 
                 case WS2812B_MODE_TRICOLOR:
                 case WS2812B_MODE_DOTS:
-                case WS2812B_MODE_STATIC_RAINBOW:
                 case WS2812B_MODE_RAINBOW_WAVE:
                     // RPM. Must match UI calculation
                     raw_value_1k = raw_value_1k / 2;
+                    break;
+
+                case WS2812B_MODE_STATIC_RAINBOW:                
+                    // it's way too distracting otherwise
+                    raw_value_1k = raw_value_1k / 8;
                     break;
 
                 case WS2812B_MODE_RANDOM_HUE:
@@ -471,48 +475,24 @@ class RGBManager {
             if (tt_activity != 0) {
                 tt_time_travel_base_ms -= scale8(RGB_MANAGER_FRAME_MS, quadwave8(abs(tt_activity)));
             }
-
-            // update shift_value from turntable velocity
-            int16_t delta = quadwave8(abs(tt_activity));
-            if (tt_activity < 0) {
-                // fix up direction since we took the absolute value above
-                delta *= -1;
-            } else {
-                // clockwise movement is 1.44x faster
-                delta = delta * 144 / 100;
-            }
-            shift_value += delta * tt_animation_speed_10x / 10;
         }
 
-        int16_t calculate_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
-            int16_t delta = 0;
-
-            const int16_t idle_animation = (idle_animation_speed >> 8) * idle_multiplier;
+        int16_t calculate_shift(int8_t tt, int8_t tt_multiplier) {
             const int16_t tt_animation = tt_animation_speed_10x * tt_multiplier;
-
-            // if TT movement has no effect, only idle animation is used
             if (!flags.ReactToTt || tt_activity == 0 || tt_animation == 0) {
-                delta += idle_animation;
-                return delta;
+                // TT movement has no effect
+                return 0;
             }
 
-            delta += tt_animation * tt_activity / 127;
-            
-            // if tt is moving clockwise, use idle animation as well
-            if (tt_activity > 0) {
-                delta += idle_animation;
-                return delta;
-            }
-
-            return delta;
+            return tt_animation * tt_activity / 127;            
         }
 
-        void update_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
-            shift_value += calculate_shift(tt, idle_multiplier, tt_multiplier);
+        void update_shift(int8_t tt, int8_t tt_multiplier) {
+            shift_value += calculate_shift(tt, tt_multiplier);
         }
 
-        uint8_t update_and_get_led_number_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
-            int16_t delta = calculate_shift(tt, idle_multiplier, tt_multiplier);
+        uint8_t update_and_get_led_number_shift(int8_t tt, int8_t tt_multiplier) {
+            int16_t delta = calculate_shift(tt, tt_multiplier);
 
             // possible range is [0... N*0x200) where N = number of LEDs
             const uint16_t maximum = ws2812b.get_num_leds() * (1 << 10);
@@ -560,10 +540,12 @@ class RGBManager {
             switch(rgb_mode) {
                 case WS2812B_MODE_STATIC_RAINBOW:
                 {
-                    // Directions are good (+ +)
-                    update_shift(tt, 2, 4);
+                    uint8_t index = beat8(idle_animation_speed, tt_time_travel_base_ms);
 
-                    uint8_t index = (shift_value >> 8) & 0xFF;
+                    // +20 seems good
+                    update_shift(tt, 20);
+                    index += shift_value >> 8;
+
                     CRGB color = ColorFromPalette(current_palette, index, UINT8_MAX, NOBLEND);
                     this->update_static(color);
                 }
@@ -571,14 +553,16 @@ class RGBManager {
 
                 case WS2812B_MODE_RAINBOW_WAVE:
                 {
-                    
                     uint8_t step = 255 / (ws2812b.get_num_leds() * (multiplicity + 1) / 2);
 
                     // we actually want to go "backwards" so that each color seem to be rotating clockwise.
                     uint8_t start_index =
                         UINT8_MAX - beat8(idle_animation_speed, -tt_time_travel_base_ms);
 
-                    start_index -= (shift_value >> 7) & 0xFF;
+                    // -60 seems good
+                    update_shift(tt, -60);
+                    start_index += shift_value >> 8;
+
                     fill_palette(
                         ws2812b.leds,
                         ws2812b.get_num_leds(),
@@ -594,8 +578,8 @@ class RGBManager {
 
                 case WS2812B_MODE_TRICOLOR:
                 {
-                    // Directions are good (- -)
-                    uint8_t pixel_shift = update_and_get_led_number_shift(tt, -1, -2);
+                    // -12 seems good
+                    uint8_t pixel_shift = update_and_get_led_number_shift(tt, -12);
                     for (int led = 0; led < ws2812b.get_num_leds(); led++) {
                         CHSV* color = NULL;
                         switch ((led + pixel_shift) % ws2812b.get_num_leds() % 3) {
@@ -654,7 +638,8 @@ class RGBManager {
 
                 case WS2812B_MODE_DOTS:
                 {
-                    uint8_t dot1 = update_and_get_led_number_shift(tt, 2, 9);
+                    // 16 seems good
+                    uint8_t dot1 = update_and_get_led_number_shift(tt, 16);
                     uint8_t dot2 = UINT8_MAX;
                     uint8_t dot3 = UINT8_MAX;
                     if (2 == multiplicity) {
