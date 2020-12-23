@@ -513,30 +513,14 @@ class RGBManager {
                     // Directions are good (+ +)
                     update_shift(tt, -3, -5);
 
-                    // multiplicity : resulting fraction
-                    // 1 : 1/1
-                    // 2 : 3/2 (=1.5)
-                    // 3 : 2/1 (=2.0)
-                    // 4 : 5/2 (=2.5)
-                    // 5 : 3/1 (=3.0)
-                    // 6 : 7/2 (=3.5)
-                    uint16_t numerator;
-                    uint16_t denominator;
-                    if (multiplicity % 2 == 0) {
-                        numerator = multiplicity / 2;
-                        denominator = 2;
-                    } else {
-                        numerator = multiplicity + 1;
-                        denominator = 1;
-                    }
-
-                    uint8_t progress = (ws2812b.get_num_leds() * numerator / denominator);
                     uint8_t initial_index = (shift_value >> 6) & 0xFF;
+                    uint8_t delta = (ws2812b.get_num_leds() * (multiplicity + 1) / 2);
+
                     fill_palette(
                         ws2812b.leds,
                         ws2812b.get_num_leds(),
                         initial_index,
-                        255 / progress,
+                        255 / delta,
                         current_palette,
                         UINT8_MAX,
                         NOBLEND
@@ -571,12 +555,14 @@ class RGBManager {
 
                 case WS2812B_MODE_TWO_COLOR_FADE:
                 {
-                    uint8_t progress = 0;
+                    uint8_t progress;
                     if (this->flags.ReactToTt) {
+                        // normally, all LEDs are primary color
+                        // any turntable activity instantly changes to secondary color, then it
+                        //     graudally fades back to the primary color
                         progress = quadwave8(abs(tt_activity));
                     } else {
-                        update_shift(0, 4, 0);
-                        progress = quadwave8((shift_value >> 8) & 0xFF);
+                        progress = ease8InOutQuad(beatsin8(idle_animation_speed));
                     }
 
                     CRGB rgb = ColorFromPalette(current_palette, progress, UINT8_MAX, NOBLEND);
@@ -634,20 +620,13 @@ class RGBManager {
                 default:
                 {
                     if (this->idle_animation_speed == 0 || this->flags.ReactToTt) {
+                        // just use a solid color, and let the turntable dimming logic take care of
+                        // fade in/out
                         this->update_static(hsv_primary);
                     } else {
-
-                        uint8_t brightness = beatsin8(idle_animation_speed, 20, UINT8_MAX);
+                        uint8_t brightness = beatsin8(idle_animation_speed, 20);
                         CHSV hsv(hsv_primary.hue, hsv_primary.sat, brightness);
                         this->update_static(hsv);
-
-                        // // breathe mode
-                        // update_shift(0, 4, 0);
-                        // uint8_t brightness = quadwave8(shift_value >> 8);
-                        // // make 20 the "floor" since most LEDs have a hard time with really dark values
-                        // brightness = scale8(brightness, 255 - 20) + 20;
-                        // CHSV hsv(hsv_primary.hue, hsv_primary.sat, brightness);
-                        // this->update_static(hsv);
                     }
                 }
                 break;
