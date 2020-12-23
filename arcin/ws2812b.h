@@ -234,7 +234,7 @@ class RGBManager {
     uint8_t default_darkness = 0;
     uint8_t idle_brightness = 0;
     accum88 idle_animation_speed = 0;
-    int8_t tt_animation_speed = 0;
+    int16_t tt_animation_speed = 0; // divide by 10 to get actual multiplier
 
     // user-defined colors
     CHSV hsv_primary;
@@ -247,7 +247,8 @@ class RGBManager {
 
     // shift values that modify colors, ranges from [0 - UINT16_MAX]
     uint16_t shift_value = 0;
-    int8_t shift_direction = 1;
+
+    uint32_t tt_time_travel_base_ms = 0;
 
     // for palette-based RGB modes
     CRGBPalette256 current_palette;
@@ -355,6 +356,7 @@ class RGBManager {
 
             this->default_darkness = config->Darkness;
             this->idle_brightness = config->IdleBrightness;
+
             this->idle_animation_speed =
                 calculate_adjusted_speed((WS2812B_Mode)config->Mode, config->IdleAnimationSpeed);
             
@@ -377,10 +379,15 @@ class RGBManager {
 
                 case WS2812B_PALETTE_RAINBOW:
                 default:
-                    // This makes the rainbow go counter-clockwise
-                    // It "looks" more correct in wave (multiple circle) configuration than the
-                    // clockwise.
-                    current_palette = RainbowColors_reverse_p;
+                    if (rgb_mode == WS2812B_MODE_RAINBOW_WAVE){
+                        // This makes the rainbow go counter-clockwise
+                        // It "looks" more correct in wave (multiple circle) configuration than the
+                        // clockwise.
+                        current_palette = RainbowColors_reverse_p;
+                    } else {
+                        current_palette = RainbowColors_p;
+                    }
+                    
                     break;
             }
         }
@@ -460,6 +467,24 @@ class RGBManager {
                     }
                     break;
             }
+
+            // update time travel - deal with absolutes for now, check signs later
+            int16_t time_travel_delta = RGB_MANAGER_FRAME_MS * abs(tt_animation_speed) * abs(tt_animation_speed) / 300;
+            // scale down (recent TT activity = more delta)
+            time_travel_delta = scale16by8(time_travel_delta, quadwave8(abs(tt_activity)));
+            // check directions
+            if (tt_animation_speed < 0) {
+                time_travel_delta *= -1;
+            }
+            if (tt_activity < 0) {
+                time_travel_delta *= -1;
+            }
+            if (time_travel_delta < 0) {
+                // going agains the idle animation, so try to cancel out the idle animation
+                time_travel_delta -= RGB_MANAGER_FRAME_MS;
+            }
+            // finally, calculate the new time base
+            tt_time_travel_base_ms += time_travel_delta;
         }
 
         int16_t calculate_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
@@ -549,17 +574,26 @@ class RGBManager {
 
                 case WS2812B_MODE_RAINBOW_WAVE:
                 {
-                    // Directions are good (+ +)
-                    update_shift(tt, -3, -5);
+                    
+                    uint8_t wavelength = (multiplicity + 1) / 2;
+                    uint8_t step = 255 * wavelength / ws2812b.get_num_leds();
 
-                    uint8_t initial_index = (shift_value >> 6) & 0xFF;
-                    uint8_t delta = (ws2812b.get_num_leds() * (multiplicity + 1) / 2);
+                    // we actually want to go "backwards" so that each color seem to be rotating clockwise.
+                    uint8_t start_index =
+                        UINT8_MAX - beat8(idle_animation_speed, -tt_time_travel_base_ms);
+
+                    // Directions are good (+ +)
+                    // update_shift(tt, -3, -5);
+
+                    // uint8_t initial_index = (shift_value >> 6) & 0xFF;
+                    // uint8_t step = (255 /
+                    //     (ws2812b.get_num_leds() * (multiplicity + 1) / 2))
 
                     fill_palette(
                         ws2812b.leds,
                         ws2812b.get_num_leds(),
-                        initial_index,
-                        255 / delta,
+                        start_index,
+                        step,
                         current_palette,
                         UINT8_MAX,
                         NOBLEND
