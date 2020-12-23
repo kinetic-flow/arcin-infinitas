@@ -234,7 +234,7 @@ class RGBManager {
     uint8_t default_darkness = 0;
     uint8_t idle_brightness = 0;
     accum88 idle_animation_speed = 0;
-    int16_t tt_animation_speed = 0; // divide by 10 to get actual multiplier
+    int16_t tt_animation_speed_10x = 0; // divide by 10 to get actual multiplier
 
     // user-defined colors
     CHSV hsv_primary;
@@ -247,7 +247,6 @@ class RGBManager {
 
     // shift values that modify colors, ranges from [0 - UINT16_MAX]
     uint16_t shift_value = 0;
-
     uint32_t tt_time_travel_base_ms = 0;
 
     // for palette-based RGB modes
@@ -360,7 +359,7 @@ class RGBManager {
             this->idle_animation_speed =
                 calculate_adjusted_speed((WS2812B_Mode)config->Mode, config->IdleAnimationSpeed);
             
-            this->tt_animation_speed = config->TtAnimationSpeed;
+            this->tt_animation_speed_10x = config->TtAnimationSpeed;
 
             set_mode(
                 (WS2812B_Mode)config->Mode,
@@ -468,30 +467,28 @@ class RGBManager {
                     break;
             }
 
-            // update time travel - deal with absolutes for now, check signs later
-            int16_t time_travel_delta = RGB_MANAGER_FRAME_MS * abs(tt_animation_speed) * abs(tt_animation_speed) / 300;
-            // scale down (recent TT activity = more delta)
-            time_travel_delta = scale16by8(time_travel_delta, quadwave8(abs(tt_activity)));
-            // check directions
-            if (tt_animation_speed < 0) {
-                time_travel_delta *= -1;
+            // when turntable is CCW, pause idle animation by "stopping" time progression
+            if (tt_activity != 0) {
+                tt_time_travel_base_ms -= scale8(RGB_MANAGER_FRAME_MS, quadwave8(abs(tt_activity)));
             }
+
+            // update shift_value from turntable velocity
+            int16_t delta = quadwave8(abs(tt_activity));
             if (tt_activity < 0) {
-                time_travel_delta *= -1;
+                // fix up direction since we took the absolute value above
+                delta *= -1;
+            } else {
+                // clockwise movement is 1.44x faster
+                delta = delta * 144 / 100;
             }
-            if (time_travel_delta < 0) {
-                // going agains the idle animation, so try to cancel out the idle animation
-                time_travel_delta -= RGB_MANAGER_FRAME_MS;
-            }
-            // finally, calculate the new time base
-            tt_time_travel_base_ms += time_travel_delta;
+            shift_value += delta * tt_animation_speed_10x / 10;
         }
 
         int16_t calculate_shift(int8_t tt, int8_t idle_multiplier, int8_t tt_multiplier) {
             int16_t delta = 0;
 
             const int16_t idle_animation = (idle_animation_speed >> 8) * idle_multiplier;
-            const int16_t tt_animation = tt_animation_speed * tt_multiplier;
+            const int16_t tt_animation = tt_animation_speed_10x * tt_multiplier;
 
             // if TT movement has no effect, only idle animation is used
             if (!flags.ReactToTt || tt_activity == 0 || tt_animation == 0) {
@@ -582,13 +579,7 @@ class RGBManager {
                     uint8_t start_index =
                         UINT8_MAX - beat8(idle_animation_speed, -tt_time_travel_base_ms);
 
-                    // Directions are good (+ +)
-                    // update_shift(tt, -3, -5);
-
-                    // uint8_t initial_index = (shift_value >> 6) & 0xFF;
-                    // uint8_t step = (255 /
-                    //     (ws2812b.get_num_leds() * (multiplicity + 1) / 2))
-
+                    start_index -= shift_value >> 7;
                     fill_palette(
                         ws2812b.leds,
                         ws2812b.get_num_leds(),
