@@ -300,6 +300,33 @@ class RGBManager {
             show_without_dimming();
         }
 
+        uint8_t calculate_adjusted_speed(WS2812B_Mode rgb_mode, uint8_t raw_value) {
+            uint8_t adjusted;
+            switch(rgb_mode) {
+                case WS2812B_MODE_SINGLE_COLOR:
+                case WS2812B_MODE_TWO_COLOR_FADE:
+                    // BPM
+                    adjusted = scale8(raw_value, raw_value);
+                    break;
+
+                case WS2812B_MODE_TRICOLOR:
+                case WS2812B_MODE_DOTS:
+                case WS2812B_MODE_STATIC_RAINBOW:
+                case WS2812B_MODE_RAINBOW_WAVE:
+                    // RPM
+                    adjusted = (raw_value / 3);
+                    break;
+
+                case WS2812B_MODE_RANDOM_HUE:
+                default:
+                    // don't know
+                    adjusted = raw_value;
+                    break;
+            }
+
+            return adjusted;
+        }
+
     public:
         void init(rgb_config* config) {
             // parse flags
@@ -318,7 +345,9 @@ class RGBManager {
 
             this->default_darkness = config->Darkness;
             this->idle_brightness = config->IdleBrightness;
-            this->idle_animation_speed = config->IdleAnimationSpeed;
+            this->idle_animation_speed =
+                calculate_adjusted_speed((WS2812B_Mode)config->Mode, config->IdleAnimationSpeed);
+
             this->tt_animation_speed = config->TtAnimationSpeed;
 
             set_mode(
