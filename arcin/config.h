@@ -65,6 +65,13 @@ typedef struct _rgb_config {
     uint8_t IdleAnimationSpeed;
     uint8_t IdleBrightness;
     int8_t TtAnimationSpeed;
+    union {
+        uint8_t ModeOptions;
+        struct {
+            uint8_t ColorPalette : 5;
+            uint8_t Multiplicity : 3;
+        };
+    };
 } rgb_config;
 
 struct config_t {
@@ -90,7 +97,7 @@ struct config_t {
 
     rgb_config rgb;
 
-    uint8_t reserved2[4];
+    uint8_t reserved2[3];
 };
 
 // From config_report_t.data[60]

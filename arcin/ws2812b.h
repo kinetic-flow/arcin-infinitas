@@ -72,6 +72,15 @@ typedef enum _WS2812B_Mode {
     WS2812B_MODE_THREE_DOTS,
 } WS2812B_Mode;
 
+typedef enum _WS2812B_Palette {
+    WS2812B_PALETTE_RAINBOW,
+    WS2812B_PALETTE_PARTY,
+    WS2812B_PALETTE_HEAT,
+    WS2812B_PALETTE_LAVA,
+    WS2812B_PALETTE_OCEAN,
+    WS2812B_PALETTE_FOREST,
+} WS2812B_Palette;
+
 // Same as FastLED RainbowColors_p but in reverse order
 extern const TProgmemRGBPalette16 RainbowColors_reverse_p FL_PROGMEM =
 {
@@ -236,7 +245,7 @@ class RGBManager {
     CHSV hsv_secondary;
     CHSV hsv_tertiary;
 
-    // for random hue
+    // for random hue (from palette)
     uint8_t hue_temporary;
     bool ready_for_new_hue = false;
 
@@ -245,10 +254,7 @@ class RGBManager {
     int8_t shift_direction = 1;
 
     // for palette-based RGB modes
-    CRGBPalette16 current_palette;
-
-    // for gradient-based RGB modes
-    CHSV current_gradient[UINT8_MAX];
+    CRGBPalette256 current_palette;
 
     private:    
         void update_static(CHSV& hsv) {
@@ -301,13 +307,13 @@ class RGBManager {
     public:
         void init(rgb_config* config) {
             // parse flags
-            this->flags = flags;
-            tt_fade_out_time = 0;
-            if (flags.FadeOutFast) {
-                tt_fade_out_time += 400;
+            this->flags = config->Flags;
+            this->tt_fade_out_time = 0;
+            if (config->Flags.FadeOutFast) {
+                this->tt_fade_out_time += 400;
             }
-            if (flags.FadeOutSlow) {
-                tt_fade_out_time += 800;
+            if (config->Flags.FadeOutSlow) {
+                this->tt_fade_out_time += 800;
             }
 
             chsv_from_colorrgb(config->RgbPrimary, this->hsv_primary);
@@ -319,40 +325,50 @@ class RGBManager {
             this->idle_animation_speed = config->IdleAnimationSpeed;
             this->tt_animation_speed = config->TtAnimationSpeed;
 
-            set_mode((WS2812B_Mode)config->Mode);
+            set_mode((WS2812B_Mode)config->Mode, (WS2812B_Palette)config->ColorPalette);
 
             ws2812b.init(config->NumberOfLeds, config->Flags.FlipDirection);
             set_off();
         }
+
+        void set_palette(WS2812B_Mode rgb_mode, WS2812B_Palette palette) {
+            switch(palette) {
+                case WS2812B_PALETTE_PARTY:
+                    current_palette = PartyColors_p;
+                    break;
+
+                case WS2812B_PALETTE_RAINBOW:
+                default:
+                    // This makes the rainbow go counter-clockwise
+                    // It "looks" more correct in wave (multiple circle) configuration than the
+                    // clockwise.
+                    current_palette = RainbowColors_reverse_p;
+                    break;
+            }
+        }
         
-        void set_mode(WS2812B_Mode rgb_mode) {
+        void set_mode(WS2812B_Mode rgb_mode, WS2812B_Palette palette) {
             this->rgb_mode = rgb_mode;
+
+            // seed random
+            random16_add_entropy(serial_num() >> 16);
+            random16_add_entropy(serial_num());
+            hue_temporary = random8();
 
             // pre-initialize color palette
             switch(rgb_mode) {
-                case WS2812B_MODE_RAINBOW_WAVE:
-                    current_palette = RainbowColors_reverse_p;
-                    break;
-
                 case WS2812B_MODE_TWO_COLOR_FADE:
-                    fill_gradient(
-                        current_gradient,
-                        UINT8_MAX,
-                        hsv_primary,
-                        hsv_secondary,
-                        SHORTEST_HUES);
+                    current_palette = CRGBPalette256(hsv_primary, hsv_secondary);
                     break;
 
                 case WS2812B_MODE_RANDOM_HUE:
-                    random16_add_entropy(serial_num() >> 16);
-                    random16_add_entropy(serial_num());
-                    hue_temporary = random8();
-                    break;
-                
                 case WS2812B_MODE_STATIC_RAINBOW:
+                case WS2812B_MODE_RAINBOW_WAVE:                
                 case WS2812B_MODE_RAINBOW_SPIRAL:
+                    set_palette(rgb_mode, palette);
+                    break;
+
                 default:
-                    current_palette = RainbowColors_p;
                     break;
             }
         }
@@ -488,7 +504,7 @@ class RGBManager {
                     update_shift(tt, 2, 4);
 
                     uint8_t index = (shift_value >> 8) & 0xFF;
-                    CRGB color = ColorFromPalette(current_palette, index, UINT8_MAX, LINEARBLEND);
+                    CRGB color = ColorFromPalette(current_palette, index, UINT8_MAX, NOBLEND);
                     this->update_static(color);
                 }
                 break;
@@ -512,7 +528,7 @@ class RGBManager {
                         255 / (ws2812b.get_num_leds() * number_of_circles),
                         current_palette,
                         UINT8_MAX,
-                        LINEARBLEND
+                        NOBLEND
                         );
                     show();
                 }
@@ -549,15 +565,11 @@ class RGBManager {
                         progress = quadwave8(abs(tt_activity));
                     } else {
                         update_shift(0, 4, 0);
-                        progress = quadwave8(shift_value >> 8);
+                        progress = quadwave8((shift_value >> 8) & 0xFF);
                     }
 
-                    // progress 0 => initial color
-                    // progress 1-254 => something in between
-                    // progress 255 => goal color
-                    // (to be completely clear quadwave8 only produces values [0, 254] but oh well)
-
-                    this->update_static(current_gradient[progress]);
+                    CRGB rgb = ColorFromPalette(current_palette, progress, UINT8_MAX, NOBLEND);
+                    this->update_static(rgb);
                 }
                 break;
 
@@ -575,8 +587,8 @@ class RGBManager {
                         }
                     }
 
-                    CHSV hsv(hue_temporary, 240, 255);
-                    this->update_static(hsv);
+                    CRGB rgb = ColorFromPalette(current_palette, hue_temporary, UINT8_MAX, NOBLEND);
+                    this->update_static(rgb);
                 }
                 break;
 
