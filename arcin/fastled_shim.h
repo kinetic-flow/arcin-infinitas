@@ -1,6 +1,8 @@
 #ifndef FASTLED_SHIM_DEFINES_H
 #define FASTLED_SHIM_DEFINES_H
 
+#include "time.h"
+
 extern "C" {
 
 unsigned long millis() {
@@ -17,6 +19,10 @@ void delay(unsigned long ms) {
 
 void yield() {
     return;
+}
+
+uint32_t get_millisecond_timer() {
+    return Time::time();
 }
 
 }

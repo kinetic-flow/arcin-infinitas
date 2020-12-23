@@ -36,40 +36,35 @@ typedef enum _WS2812B_Mode {
     // tt       - same as static (with default fade in/out only)
     WS2812B_MODE_SINGLE_COLOR,
 
+    // same as single color, except with (1 and 2) instead of (0 and 1)
+    WS2812B_MODE_TWO_COLOR_FADE,
+
     // static   - each LED takes 1/2/3
     // animated - each LED cycles through 1/2/3
     // tt       - controls animation speed and direction
     WS2812B_MODE_TRICOLOR,
+
+    // static   - dots using 1/2/3
+    // animated - same as static but rotates
+    // tt       - controls animation speed and direction
+    // mult     - controls the number of dots
+    WS2812B_MODE_DOTS,
 
     // static   - all LEDs have the same color (somewhere on the hue spectrum)
     // animated - all LEDs cycle through hue spectrum
     // tt       - controls animation speed and direction
     WS2812B_MODE_STATIC_RAINBOW,
 
-    // static   - each LED represents hue value on the rainbow spectrum
+    // static   - each LED represents hue value on the palette
     // animated - static, but rotates through
     // tt       - controls animation speed and direction
-    WS2812B_MODE_RAINBOW_SPIRAL,
-
-    // static   - same as rainbow spiral except hue specturm spans three circles
-    // animated - static, but rotates through
-    // tt       - controls animation speed and direction
+    // mult     - controls the wave length
     WS2812B_MODE_RAINBOW_WAVE,
-
-    // same as single color, except with (1 and 2) instead of (0 and 1)
-    WS2812B_MODE_TWO_COLOR_FADE,
 
     // static   - picks a random color at boot and all LEDs use this
     // animated - n/a (same as static)
     // tt       - whenever activated, pick a random hue for all LEDs
     WS2812B_MODE_RANDOM_HUE,
-
-    // static   - dots using 1/2/3
-    // animated - same as static but rotates
-    // tt       - controls animation speed and direction
-    WS2812B_MODE_SINGLE_DOT,
-    WS2812B_MODE_TWO_DOTS,
-    WS2812B_MODE_THREE_DOTS,
 } WS2812B_Mode;
 
 typedef enum _WS2812B_Palette {
@@ -233,6 +228,7 @@ class RGBManager {
     // user-defined color mode
     WS2812B_Mode rgb_mode = WS2812B_MODE_SINGLE_COLOR;
     rgb_config_flags flags = {0};
+    uint8_t multiplicity = 0;
 
     // user-defined modifiers
     uint8_t default_darkness = 0;
@@ -325,7 +321,10 @@ class RGBManager {
             this->idle_animation_speed = config->IdleAnimationSpeed;
             this->tt_animation_speed = config->TtAnimationSpeed;
 
-            set_mode((WS2812B_Mode)config->Mode, (WS2812B_Palette)config->ColorPalette);
+            set_mode(
+                (WS2812B_Mode)config->Mode,
+                (WS2812B_Palette)config->ColorPalette,
+                config->Multiplicity);
 
             ws2812b.init(config->NumberOfLeds, config->Flags.FlipDirection);
             set_off();
@@ -347,8 +346,9 @@ class RGBManager {
             }
         }
         
-        void set_mode(WS2812B_Mode rgb_mode, WS2812B_Palette palette) {
+        void set_mode(WS2812B_Mode rgb_mode, WS2812B_Palette palette, uint8_t multiplicity) {
             this->rgb_mode = rgb_mode;
+            this->multiplicity = max(1, multiplicity);
 
             // seed random
             random16_add_entropy(serial_num() >> 16);
@@ -364,7 +364,6 @@ class RGBManager {
                 case WS2812B_MODE_RANDOM_HUE:
                 case WS2812B_MODE_STATIC_RAINBOW:
                 case WS2812B_MODE_RAINBOW_WAVE:                
-                case WS2812B_MODE_RAINBOW_SPIRAL:
                     set_palette(rgb_mode, palette);
                     break;
 
@@ -509,23 +508,35 @@ class RGBManager {
                 }
                 break;
 
-                case WS2812B_MODE_RAINBOW_SPIRAL:
                 case WS2812B_MODE_RAINBOW_WAVE:
                 {
                     // Directions are good (+ +)
                     update_shift(tt, -3, -5);
 
-                    uint16_t number_of_circles = 1;
-                    if (rgb_mode == WS2812B_MODE_RAINBOW_WAVE) {
-                        number_of_circles = 3;
+                    // multiplicity : resulting fraction
+                    // 1 : 1/1
+                    // 2 : 3/2 (=1.5)
+                    // 3 : 2/1 (=2.0)
+                    // 4 : 5/2 (=2.5)
+                    // 5 : 3/1 (=3.0)
+                    // 6 : 7/2 (=3.5)
+                    uint16_t numerator;
+                    uint16_t denominator;
+                    if (multiplicity % 2 == 0) {
+                        numerator = multiplicity / 2;
+                        denominator = 2;
+                    } else {
+                        numerator = multiplicity + 1;
+                        denominator = 1;
                     }
 
+                    uint8_t progress = (ws2812b.get_num_leds() * numerator / denominator);
                     uint8_t initial_index = (shift_value >> 6) & 0xFF;
                     fill_palette(
                         ws2812b.leds,
                         ws2812b.get_num_leds(),
                         initial_index,
-                        255 / (ws2812b.get_num_leds() * number_of_circles),
+                        255 / progress,
                         current_palette,
                         UINT8_MAX,
                         NOBLEND
@@ -592,16 +603,14 @@ class RGBManager {
                 }
                 break;
 
-                case WS2812B_MODE_SINGLE_DOT:
-                case WS2812B_MODE_TWO_DOTS:
-                case WS2812B_MODE_THREE_DOTS:
+                case WS2812B_MODE_DOTS:
                 {
                     uint8_t dot1 = update_and_get_led_number_shift(tt, 2, 9);
                     uint8_t dot2 = UINT8_MAX;
                     uint8_t dot3 = UINT8_MAX;
-                    if (rgb_mode == WS2812B_MODE_TWO_DOTS) {
+                    if (2 == multiplicity) {
                         dot2 = (dot1 + (ws2812b.get_num_leds() / 2)) % ws2812b.get_num_leds();
-                    } else if (rgb_mode == WS2812B_MODE_THREE_DOTS) {
+                    } else if (3 <= multiplicity) {
                         dot2 = (dot1 + (ws2812b.get_num_leds() / 3)) % ws2812b.get_num_leds();
                         dot3 = (dot1 + (ws2812b.get_num_leds() / 3) * 2) % ws2812b.get_num_leds();
                     }
