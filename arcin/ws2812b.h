@@ -572,8 +572,7 @@ class RGBManager {
                 case WS2812B_MODE_RAINBOW_WAVE:
                 {
                     
-                    uint8_t wavelength = (multiplicity + 1) / 2;
-                    uint8_t step = 255 / (ws2812b.get_num_leds() * wavelength);
+                    uint8_t step = 255 / (ws2812b.get_num_leds() * (multiplicity + 1) / 2);
 
                     // we actually want to go "backwards" so that each color seem to be rotating clockwise.
                     uint8_t start_index =
