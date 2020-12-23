@@ -307,7 +307,7 @@ class RGBManager {
             switch(rgb_mode) {
                 case WS2812B_MODE_SINGLE_COLOR:
                 case WS2812B_MODE_TWO_COLOR_FADE:
-                    // BPM
+                    // BPM. Must match UI calculation
                     raw_value_1k = raw_value_1k * raw_value / UINT8_MAX;
                     break;
 
@@ -315,8 +315,8 @@ class RGBManager {
                 case WS2812B_MODE_DOTS:
                 case WS2812B_MODE_STATIC_RAINBOW:
                 case WS2812B_MODE_RAINBOW_WAVE:
-                    // RPM
-                    raw_value_1k = raw_value_1k / 3;
+                    // RPM. Must match UI calculation
+                    raw_value_1k = raw_value_1k / 2;
                     break;
 
                 case WS2812B_MODE_RANDOM_HUE:
@@ -573,13 +573,13 @@ class RGBManager {
                 {
                     
                     uint8_t wavelength = (multiplicity + 1) / 2;
-                    uint8_t step = 255 * wavelength / ws2812b.get_num_leds();
+                    uint8_t step = 255 / (ws2812b.get_num_leds() * wavelength);
 
                     // we actually want to go "backwards" so that each color seem to be rotating clockwise.
                     uint8_t start_index =
                         UINT8_MAX - beat8(idle_animation_speed, -tt_time_travel_base_ms);
 
-                    start_index -= shift_value >> 7;
+                    start_index -= (shift_value >> 7) & 0xFF;
                     fill_palette(
                         ws2812b.leds,
                         ws2812b.get_num_leds(),
