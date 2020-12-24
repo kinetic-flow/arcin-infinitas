@@ -21,13 +21,25 @@ DEFINE_GRADIENT_PALETTE( HappySky_gp ) {
     255, 0xff, 0xff, 0xff
 };
 
-DEFINE_GRADIENT_PALETTE( Lincle_gp ) {
-    0, 0x34, 0xb1, 0xe0,
-    12, 0x60, 0xc7, 0xea,
-    35, 0xd3, 0xee, 0xf0,
-    63, 0xff, 0xff, 0xff,
-    127, 0xe5, 0xa0, 0x1e,
-    186, 0xff, 0xff, 0xff,
-    201, 0xd3, 0xee, 0xf0,
-    255, 0x34, 0xb1, 0xe0
+extern const TProgmemRGBPalette16 Lincle_p FL_PROGMEM =
+{
+    CRGB::White,
+    CRGB::OrangeRed,
+    CRGB::OrangeRed,
+    CRGB::OrangeRed,
+
+    CRGB::OrangeRed,
+    CRGB::OrangeRed,
+    CRGB::OrangeRed,
+    CRGB::OrangeRed,
+
+    CRGB::OrangeRed,
+    CRGB::OrangeRed,
+    CRGB::SkyBlue,
+    CRGB::SkyBlue,
+
+    CRGB::SkyBlue,
+    CRGB::SkyBlue,
+    CRGB::SkyBlue,
+    CRGB::White,
 };

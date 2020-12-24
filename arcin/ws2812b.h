@@ -16,8 +16,6 @@
 #define WS2812B_MAX_LEDS 180
 #define WS2812B_DEFAULT_LEDS 12
 
-typedef uint32_t TProgmemRGBPalette16[16], *PPalette;
-
 extern uint32_t debug_value;
 
 // duration of each frame, in milliseconds
@@ -79,9 +77,8 @@ typedef enum _WS2812B_Palette {
     WS2812B_PALETTE_LINCLE
 } WS2812B_Palette;
 
-void chsv_from_colorrgb(ColorRgb color, CHSV& chsv) {
-    CRGB crgb(color.Red, color.Green, color.Blue);
-    chsv = rgb2hsv_approximate(crgb);
+void crgb_from_colorrgb(ColorRgb color, CRGB& crgb) {
+    crgb = CRGB(color.Red, color.Green, color.Blue);
 }
 
 uint8_t pick_led_number(uint8_t num_leds, fract16 fract) {
@@ -245,9 +242,9 @@ class RGBManager {
     int16_t tt_animation_speed_10x = 0;
 
     // user-defined colors
-    CHSV hsv_primary;
-    CHSV hsv_secondary;
-    CHSV hsv_tertiary;
+    CRGB rgb_primary;
+    CRGB rgb_secondary;
+    CRGB rgb_tertiary;
 
     // for random hue (from palette)
     uint8_t hue_temporary;
@@ -289,6 +286,10 @@ class RGBManager {
             
             // finally, scale everything down by overall brightness override
             return scale8(brightness, UINT8_MAX - default_darkness);
+        }
+
+        void update(CRGB& rgb, uint8_t index) {
+            ws2812b.leds[index] = rgb;
         }
 
         void update(CHSV& hsv, uint8_t index) {
@@ -359,7 +360,7 @@ class RGBManager {
                     current_palette = HappySky_gp;
                     break;
                 case WS2812B_PALETTE_LINCLE:
-                    current_palette = Lincle_gp;
+                    current_palette = Lincle_p;
                     break;
 
                 case WS2812B_PALETTE_RAINBOW:
@@ -389,7 +390,7 @@ class RGBManager {
             // pre-initialize color palette
             switch(rgb_mode) {
                 case WS2812B_MODE_TWO_COLOR_FADE:
-                    current_palette = CRGBPalette256(hsv_primary, hsv_secondary);
+                    current_palette = CRGBPalette256(rgb_primary, rgb_secondary);
                     break;
 
                 case WS2812B_MODE_RANDOM_HUE:
@@ -481,9 +482,9 @@ class RGBManager {
                 this->tt_fade_out_time += 800;
             }
 
-            chsv_from_colorrgb(config->RgbPrimary, this->hsv_primary);
-            chsv_from_colorrgb(config->RgbSecondary, this->hsv_secondary);
-            chsv_from_colorrgb(config->RgbTertiary, this->hsv_tertiary);
+            crgb_from_colorrgb(config->RgbPrimary, this->rgb_primary);
+            crgb_from_colorrgb(config->RgbSecondary, this->rgb_secondary);
+            crgb_from_colorrgb(config->RgbTertiary, this->rgb_tertiary);
 
             this->default_darkness = config->Darkness;
             this->idle_brightness = config->IdleBrightness;
@@ -508,9 +509,9 @@ class RGBManager {
             }
             last_hid_report = Time::time();
 
-            CHSV chsv;
-            chsv_from_colorrgb(color, chsv);
-            this->update_static(chsv);
+            CRGB crgb;
+            crgb_from_colorrgb(color, crgb);
+            this->update_static(crgb);
         }
 
         // tt +1 is clockwise, -1 is counter-clockwise
@@ -572,7 +573,7 @@ class RGBManager {
                         step,
                         current_palette,
                         UINT8_MAX,
-                        NOBLEND
+                        LINEARBLEND
                         );
                     show();
                 }
@@ -589,17 +590,17 @@ class RGBManager {
                     uint8_t current_pixel = initial_pixel;
                     uint8_t color_index = 0;
                     while (true) {
-                        CHSV* color = NULL;
+                        CRGB* color = NULL;
                         switch (color_index % 3) {
                             case 0:
                             default:
-                                color = &hsv_primary;
+                                color = &rgb_primary;
                                 break;
                             case 1:
-                                color = &hsv_secondary;
+                                color = &rgb_secondary;
                                 break;
                             case 2:
-                                color = &hsv_tertiary;
+                                color = &rgb_tertiary;
                                 break;
                         }   
                         this->update(*color, current_pixel);
@@ -685,11 +686,11 @@ class RGBManager {
                     CHSV hsv_off(0, 0, 0);
                     for (uint8_t led = 0; led < ws2812b.get_num_leds(); led++) {
                         if (led == dot1) {
-                            this->update(hsv_primary, led);
+                            this->update(rgb_primary, led);
                         } else if (led == dot2) {
-                            this->update(hsv_secondary, led);
+                            this->update(rgb_secondary, led);
                         } else if (led == dot3) {
-                            this->update(hsv_tertiary, led);
+                            this->update(rgb_tertiary, led);
                         } else {
                             this->update(hsv_off, led);
                         }
@@ -704,11 +705,12 @@ class RGBManager {
                     if (this->idle_animation_speed == 0 || this->flags.ReactToTt) {
                         // just use a solid color, and let the turntable dimming logic take care of
                         // fade in/out
-                        this->update_static(hsv_primary);
+                        this->update_static(rgb_primary);
                     } else {
                         uint8_t brightness = beatsin8(idle_animation_speed, 20);
-                        CHSV hsv(hsv_primary.hue, hsv_primary.sat, brightness);
-                        this->update_static(hsv);
+                        CRGB rgb = rgb_primary;
+                        rgb.fadeToBlackBy(UINT8_MAX - brightness);
+                        this->update_static(rgb);
                     }
                 }
                 break;
