@@ -514,6 +514,15 @@ class RGBManager {
             if (ws2812b.get_num_leds() <= shift_value_discrete) {
                 shift_value_discrete = 0;
             }
+            
+            if (tt_activity > 0) {
+                // positive direction is simple, since there is no risk of overflow
+                shift_value_discrete =
+                    (shift_value_discrete + (abs(tt_activity) >> 4)) % ws2812b.get_num_leds();
+
+            } else if (tt_activity < 0) {
+
+            }
 
             // idle_animation_speed is RPM (in accum88 format)
             // Frequency = [N] rotations per minute = [N * NUM_LED] shifts per minute
@@ -593,7 +602,6 @@ class RGBManager {
                 case WS2812B_MODE_TRICOLOR:
                 {
                     uint8_t pixel_shift = UINT8_MAX - update_discrete_shift();
-                    // TODO tt action
                     for (int led = 0; led < ws2812b.get_num_leds(); led++) {
                         CHSV* color = NULL;
                         switch ((led + pixel_shift) % ws2812b.get_num_leds() % 3) {
