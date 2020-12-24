@@ -154,13 +154,14 @@ class ArcinController : public CPixelLEDController<RGB_ORDER> {
 
     protected:
         virtual void showPixels(PixelController<RGB_ORDER> & pixels) {
-            uint8_t count;
+            uint8_t count = 0;
             while (pixels.has(1)) {
                 uint8_t r = pixels.loadAndScale0();
                 uint8_t g = pixels.loadAndScale1();
                 uint8_t b = pixels.loadAndScale2();
 
                 ws2812b_global.leds[count] = CRGB(r, g, b);
+                count += 1;
 
                 pixels.advanceData();
                 pixels.stepDithering();

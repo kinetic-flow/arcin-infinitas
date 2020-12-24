@@ -364,6 +364,7 @@ class RGBManager {
                 config->Multiplicity);
 
             this->num_leds = config->NumberOfLeds;
+            ws2812b_global.init(config->NumberOfLeds, config->Flags.FlipDirection);
             FastLED.addLeds<ArcinController>(leds, num_leds);
             set_off();
         }
@@ -566,14 +567,14 @@ class RGBManager {
 
                 case WS2812B_MODE_PRIDE:
                 {
-                    //animation_pride_2015(ws2812b);
+                    animation_pride_2015();
                     this->show();
                 }
                 break;
 
                 case WS2812B_MODE_PACIFICA:
                 {
-                    //animation_pacifica(ws2812b);
+                    animation_pacifica();
                     this->show();
                 }
                 break;
