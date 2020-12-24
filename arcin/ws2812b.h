@@ -576,15 +576,17 @@ class RGBManager {
 
                 case WS2812B_MODE_TRICOLOR:
                 {
-                    update_shift(-60);
+                    // +60 seems good
+                    update_shift(60);
 
                     const uint16_t beat = beat16(idle_animation_speed, tt_time_travel_base_ms) + shift_value;
-                    const uint8_t initial_pixel = ((uint32_t)beat) / ((UINT16_MAX+1) / ws2812b.get_num_leds());
+                    const uint8_t initial_pixel = pick_led_number(ws2812b.get_num_leds(), beat);
 
                     uint8_t current_pixel = initial_pixel;
+                    uint8_t color_index = 0;
                     while (true) {
                         CHSV* color = NULL;
-                        switch (current_pixel % 3) {
+                        switch (color_index % 3) {
                             case 0:
                             default:
                                 color = &hsv_primary;
@@ -607,6 +609,8 @@ class RGBManager {
                         if (current_pixel == initial_pixel) {
                             break;
                         }
+
+                        color_index = (color_index + 1) % 3;
                     }
                     this->show();
                 }
@@ -652,9 +656,6 @@ class RGBManager {
                 {
                     // +80 seems good.
                     update_shift(80);
-
-                    // const uint16_t beat = beat16(idle_animation_speed, tt_time_travel_base_ms) + shift_value;
-                    // const uint8_t dot1 = ((uint32_t)beat) / ((UINT16_MAX+1) / ws2812b.get_num_leds());
 
                     const fract16 beat = beat16(idle_animation_speed, tt_time_travel_base_ms) + shift_value;
                     const uint8_t dot1 = pick_led_number(ws2812b.get_num_leds(), beat);
