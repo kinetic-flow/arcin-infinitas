@@ -247,7 +247,7 @@ class RGBManager {
     CRGB rgb_tertiary;
 
     // for random hue (from palette)
-    uint8_t hue_temporary;
+    uint8_t current_random8;
     bool ready_for_new_hue = false;
     uint8_t previous_value;
 
@@ -356,12 +356,6 @@ class RGBManager {
                 case WS2812B_PALETTE_PARTY:
                     current_palette = PartyColors_p;
                     break;
-                case WS2812B_PALETTE_HAPPY_SKY:
-                    current_palette = HappySky_gp;
-                    break;
-                case WS2812B_PALETTE_LINCLE:
-                    current_palette = Lincle_p;
-                    break;
 
                 case WS2812B_PALETTE_RAINBOW:
                 default:
@@ -385,7 +379,7 @@ class RGBManager {
             // seed random
             random16_add_entropy(serial_num() >> 16);
             random16_add_entropy(serial_num());
-            hue_temporary = random8();
+            current_random8 = random8();
 
             // pre-initialize color palette
             switch(rgb_mode) {
@@ -465,9 +459,9 @@ class RGBManager {
             shift_value += calculate_shift(tt_multiplier);
         }
 
-        void pick_new_random_hue() {
+        void next_random8() {
             // pick one that is not too similar to the previous one
-            hue_temporary = hue_temporary + random8(30, UINT8_MAX-30);
+            current_random8 = current_random8 + random8(30, UINT8_MAX-30);
         }
 
     public:
@@ -548,7 +542,7 @@ class RGBManager {
                     // +20 seems good
                     index += (shift_value >> 8);
 
-                    CRGB color = ColorFromPalette(current_palette, index, UINT8_MAX, NOBLEND);
+                    CRGB color = ColorFromPalette(current_palette, index);
                     this->update_static(color);
                 }
                 break;
@@ -634,7 +628,7 @@ class RGBManager {
                         progress = UINT8_MAX - ease8InOutQuad(beat8(idle_animation_speed));
                     }
 
-                    CRGB rgb = ColorFromPalette(current_palette, progress, UINT8_MAX, NOBLEND);
+                    CRGB rgb = ColorFromPalette(current_palette, progress);
                     this->update_static(rgb);
                 }
                 break;
@@ -644,10 +638,10 @@ class RGBManager {
                     if (this->flags.ReactToTt) {
                         if ((this->previous_tt == 0) && (124 <= abs(tt_activity))) {
                             // TT triggered, time to pick a new hue value
-                            pick_new_random_hue();
+                            next_random8();
                         }
 
-                        CRGB rgb = ColorFromPalette(current_palette, hue_temporary, UINT8_MAX, NOBLEND);
+                        CRGB rgb = ColorFromPalette(current_palette, current_random8);
                         this->update_static(rgb);
 
                     } else {
@@ -656,11 +650,11 @@ class RGBManager {
 
                         // detect spikes
                         if (darkness < previous_value) {
-                            pick_new_random_hue();
+                            next_random8();
                         }
                         previous_value = darkness;
 
-                        CRGB rgb = ColorFromPalette(current_palette, hue_temporary, UINT8_MAX, NOBLEND);
+                        CRGB rgb = ColorFromPalette(current_palette, current_random8);
                         rgb.fadeToBlackBy(darkness);
                         this->update_static(rgb);
                     }
