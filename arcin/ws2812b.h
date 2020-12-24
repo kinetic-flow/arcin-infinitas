@@ -92,6 +92,17 @@ void chsv_from_colorrgb(ColorRgb color, CHSV& chsv) {
     chsv = rgb2hsv_approximate(crgb);
 }
 
+uint8_t pick_led_number(uint8_t num_leds, fract16 fract) {
+    uint16_t val = lerp16by16(0, num_leds, fract);
+
+    // it's possible for lerp16by16 to return exactly the max value; clamp it
+    if (num_leds <= val) {
+        val = 0;
+    }
+
+    return val;
+}
+
 class WS2812B {
     private:
         uint8_t dmabuf[WS2812B_DMA_BUFFER_LEN];
@@ -253,11 +264,6 @@ class RGBManager {
     // shift values that modify colors, ranges from [0, UINT16_MAX]
     uint16_t shift_value = 0;
     uint32_t tt_time_travel_base_ms = 0;
-
-    // discrete shifts, ranges from [0, num_leds)
-    uint8_t shift_value_discrete = 0;
-    // timer that is armed in the future, and when it expires, it increases shift_value_discrete
-    uint32_t time_for_next_increment;
 
     // for palette-based RGB modes
     CRGBPalette256 current_palette;
@@ -481,15 +487,17 @@ class RGBManager {
                     break;
             }
 
-            // when turntable is CCW, pause idle animation by "stopping" time progression
+            // while turntable animation is active, pause idle animation by "stopping"
+            // time progression. We always *increment* here to cancel out the effect of the
+            // wall-clock.
             if (tt_activity != 0) {
-                tt_time_travel_base_ms -= scale8(RGB_MANAGER_FRAME_MS, quadwave8(abs(tt_activity)));
+                tt_time_travel_base_ms += scale8(RGB_MANAGER_FRAME_MS, quadwave8(abs(tt_activity)));
             }
         }
 
-        int16_t calculate_shift(int8_t tt, int8_t tt_multiplier) {
+        int16_t calculate_shift(int8_t tt_multiplier) {
             const int16_t tt_animation = tt_animation_speed_10x * tt_multiplier;
-            if (!flags.ReactToTt || tt_activity == 0 || tt_animation == 0) {
+            if (tt_activity == 0 || tt_animation == 0) {
                 // TT movement has no effect
                 return 0;
             }
@@ -497,44 +505,8 @@ class RGBManager {
             return tt_animation * tt_activity / 127;            
         }
 
-        void update_shift(int8_t tt, int8_t tt_multiplier) {
-            shift_value += calculate_shift(tt, tt_multiplier);
-        }
-
-        uint8_t update_discrete_shift() {
-            // did the timer expire?
-            uint32_t now = Time::time();
-            if ((time_for_next_increment - now) < UINT16_MAX) {
-                return shift_value_discrete;
-            }
-
-            // increment the counter
-            shift_value_discrete += 1;
-            // (yes, this is faster than modulo)
-            if (ws2812b.get_num_leds() <= shift_value_discrete) {
-                shift_value_discrete = 0;
-            }
-            
-            if (tt_activity > 0) {
-                // positive direction is simple, since there is no risk of overflow
-                shift_value_discrete =
-                    (shift_value_discrete + (abs(tt_activity) >> 4)) % ws2812b.get_num_leds();
-
-            } else if (tt_activity < 0) {
-
-            }
-
-            // idle_animation_speed is RPM (in accum88 format)
-            // Frequency = [N] rotations per minute = [N * NUM_LED] shifts per minute
-            // Period = 1 minute / [N * NUM_LED] shifts
-            uint32_t period_in_ms =
-                (60 * 1000) /
-                ((idle_animation_speed >> 8) * ws2812b.get_num_leds());
-
-            // arm the timer for future
-            time_for_next_increment = now + period_in_ms;
-
-            return shift_value_discrete;
+        void update_shift(int8_t tt_multiplier) {
+            shift_value += calculate_shift(tt_multiplier);
         }
 
         // tt +1 is clockwise, -1 is counter-clockwise
@@ -563,11 +535,13 @@ class RGBManager {
             switch(rgb_mode) {
                 case WS2812B_MODE_STATIC_RAINBOW:
                 {
+                    // +20 seems good
+                    update_shift(20);
+
                     uint8_t index = beat8(idle_animation_speed, tt_time_travel_base_ms);
 
                     // +20 seems good
-                    update_shift(tt, 20);
-                    index += shift_value >> 8;
+                    index += (shift_value >> 8);
 
                     CRGB color = ColorFromPalette(current_palette, index, UINT8_MAX, NOBLEND);
                     this->update_static(color);
@@ -576,15 +550,16 @@ class RGBManager {
 
                 case WS2812B_MODE_RAINBOW_WAVE:
                 {
+                    // -60 seems good
+                    update_shift(-60);
+
                     uint8_t step = 255 / (ws2812b.get_num_leds() * (multiplicity + 1) / 2);
 
                     // we actually want to go "backwards" so that each color seem to be rotating clockwise.
                     uint8_t start_index =
-                        UINT8_MAX - beat8(idle_animation_speed, -tt_time_travel_base_ms);
+                        UINT8_MAX - beat8(idle_animation_speed, tt_time_travel_base_ms);
 
-                    // -60 seems good
-                    update_shift(tt, -60);
-                    start_index += shift_value >> 8;
+                    start_index += (shift_value >> 8);
 
                     fill_palette(
                         ws2812b.leds,
@@ -601,10 +576,15 @@ class RGBManager {
 
                 case WS2812B_MODE_TRICOLOR:
                 {
-                    uint8_t pixel_shift = UINT8_MAX - update_discrete_shift();
-                    for (int led = 0; led < ws2812b.get_num_leds(); led++) {
+                    update_shift(-60);
+
+                    const uint16_t beat = beat16(idle_animation_speed, tt_time_travel_base_ms) + shift_value;
+                    const uint8_t initial_pixel = ((uint32_t)beat) / ((UINT16_MAX+1) / ws2812b.get_num_leds());
+
+                    uint8_t current_pixel = initial_pixel;
+                    while (true) {
                         CHSV* color = NULL;
-                        switch ((led + pixel_shift) % ws2812b.get_num_leds() % 3) {
+                        switch (current_pixel % 3) {
                             case 0:
                             default:
                                 color = &hsv_primary;
@@ -615,8 +595,18 @@ class RGBManager {
                             case 2:
                                 color = &hsv_tertiary;
                                 break;
-                        }                        
-                        this->update(*color, led);
+                        }   
+                        this->update(*color, current_pixel);
+
+                        // move to the next pixel
+                        current_pixel += 1;
+                        if (current_pixel == ws2812b.get_num_leds()) {
+                            current_pixel = 0;
+                        }
+
+                        if (current_pixel == initial_pixel) {
+                            break;
+                        }
                     }
                     this->show();
                 }
@@ -631,7 +621,7 @@ class RGBManager {
                         //     graudally fades back to the primary color
                         progress = quadwave8(abs(tt_activity));
                     } else {
-                        progress = ease8InOutQuad(beatsin8(idle_animation_speed));
+                        progress = UINT8_MAX - ease8InOutQuad(beat8(idle_animation_speed));
                     }
 
                     CRGB rgb = ColorFromPalette(current_palette, progress, UINT8_MAX, NOBLEND);
@@ -660,8 +650,15 @@ class RGBManager {
 
                 case WS2812B_MODE_DOTS:
                 {
-                    uint8_t dot1 = update_discrete_shift();
-                    // TODO tt action
+                    // +80 seems good.
+                    update_shift(80);
+
+                    // const uint16_t beat = beat16(idle_animation_speed, tt_time_travel_base_ms) + shift_value;
+                    // const uint8_t dot1 = ((uint32_t)beat) / ((UINT16_MAX+1) / ws2812b.get_num_leds());
+
+                    const fract16 beat = beat16(idle_animation_speed, tt_time_travel_base_ms) + shift_value;
+                    const uint8_t dot1 = pick_led_number(ws2812b.get_num_leds(), beat);
+
                     uint8_t dot2 = UINT8_MAX;
                     uint8_t dot3 = UINT8_MAX;
                     if (2 == multiplicity) {
