@@ -8,18 +8,10 @@
 #include "ws2812b.h"
 #include "color.h"
 #include "color_palettes.h"
+#include "rgb_pacifica.h"
+#include "rgb_pride2015.h"
 
 extern uint32_t debug_value;
-
-// duration of each frame, in milliseconds
-//
-// https://github.com/FastLED/FastLED/wiki/Interrupt-problems
-// Each pixel takes 30 microseconds.
-//  60 LEDs = 1800 us = 1.8ms
-// 180 LEDs = 5400 us = 5.4ms
-// So 20ms is more than enough to handle the worst case.
-
-#define RGB_MANAGER_FRAME_MS 20
 
 extern bool global_led_enable;
 
@@ -87,9 +79,6 @@ uint8_t pick_led_number(uint8_t num_leds, fract16 fract) {
 
     return val;
 }
-
-void animation_pride_2015(WS2812B& ws2812b);
-void animation_pacifica(WS2812B& ws2812b);
 
 class RGBManager {
 
@@ -578,6 +567,7 @@ class RGBManager {
                     this->show();
                 }
                 break;
+
                 case WS2812B_MODE_PACIFICA:
                 {
                     animation_pacifica(ws2812b);
@@ -612,169 +602,5 @@ class RGBManager {
         }
 };
 
-// from FastLED example:
-// Pride2015
-// Animated, ever-changing rainbows.
-// by Mark Kriegsman
-void animation_pride_2015(WS2812B& ws2812b) {
-    static uint16_t sPseudotime = 0;
-    static uint16_t sLastMillis = 0;
-    static uint16_t sHue16 = 0;
-
-    uint8_t sat8 = beatsin88( 87, 220, 250);
-    uint8_t brightdepth = beatsin88( 341, 96, 224);
-    uint16_t brightnessthetainc16 = beatsin88( 203, (25 * 256), (40 * 256));
-    uint8_t msmultiplier = beatsin88(147, 23, 60);
-
-    uint16_t hue16 = sHue16;//gHue * 256;
-    uint16_t hueinc16 = beatsin88(113, 1, 3000);
-
-    uint16_t ms = GET_MILLIS();
-    uint16_t deltams = ms - sLastMillis ;
-    sLastMillis  = ms;
-    sPseudotime += deltams * msmultiplier;
-    sHue16 += deltams * beatsin88( 400, 5,9);
-    uint16_t brightnesstheta16 = sPseudotime;
-
-    for( uint16_t i = 0 ; i < ws2812b.get_num_leds(); i++) {
-        hue16 += hueinc16;
-        uint8_t hue8 = hue16 / 256;
-
-        brightnesstheta16  += brightnessthetainc16;
-        uint16_t b16 = sin16( brightnesstheta16  ) + 32768;
-
-        uint16_t bri16 = (uint32_t)((uint32_t)b16 * (uint32_t)b16) / 65536;
-        uint8_t bri8 = (uint32_t)(((uint32_t)bri16) * brightdepth) / 65536;
-        bri8 += (255 - brightdepth);
-
-        CRGB newcolor = CHSV( hue8, sat8, bri8);
-
-        uint16_t pixelnumber = i;
-        pixelnumber = (ws2812b.get_num_leds()-1) - pixelnumber;
-
-        nblend( ws2812b.leds[pixelnumber], newcolor, 64);
-    }
-}
-
-
-//////////////////////////////////////////////////////////////////////////
-//
-// The code for this animation is more complicated than other examples, and 
-// while it is "ready to run", and documented in general, it is probably not 
-// the best starting point for learning.  Nevertheless, it does illustrate some
-// useful techniques.
-//
-//////////////////////////////////////////////////////////////////////////
-//
-// In this animation, there are four "layers" of waves of light.  
-//
-// Each layer moves independently, and each is scaled separately.
-//
-// All four wave layers are added together on top of each other, and then 
-// another filter is applied that adds "whitecaps" of brightness where the 
-// waves line up with each other more.  Finally, another pass is taken
-// over the led array to 'deepen' (dim) the blues and greens.
-//
-// The speed and scale and motion each layer varies slowly within independent 
-// hand-chosen ranges, which is why the code has a lot of low-speed 'beatsin8' functions
-// with a lot of oddly specific numeric ranges.
-//
-// These three custom blue-green color palettes were inspired by the colors found in
-// the waters off the southern coast of California, https://goo.gl/maps/QQgd97jjHesHZVxQ7
-//
-CRGBPalette16 pacifica_palette_1 = 
-    { 0x000507, 0x000409, 0x00030B, 0x00030D, 0x000210, 0x000212, 0x000114, 0x000117, 
-      0x000019, 0x00001C, 0x000026, 0x000031, 0x00003B, 0x000046, 0x14554B, 0x28AA50 };
-CRGBPalette16 pacifica_palette_2 = 
-    { 0x000507, 0x000409, 0x00030B, 0x00030D, 0x000210, 0x000212, 0x000114, 0x000117, 
-      0x000019, 0x00001C, 0x000026, 0x000031, 0x00003B, 0x000046, 0x0C5F52, 0x19BE5F };
-CRGBPalette16 pacifica_palette_3 = 
-    { 0x000208, 0x00030E, 0x000514, 0x00061A, 0x000820, 0x000927, 0x000B2D, 0x000C33, 
-      0x000E39, 0x001040, 0x001450, 0x001860, 0x001C70, 0x002080, 0x1040BF, 0x2060FF };
-
-void pacifica_one_layer( WS2812B& ws2812b, CRGBPalette16& p, uint16_t cistart, uint16_t wavescale, uint8_t bri, uint16_t ioff);
-void pacifica_add_whitecaps( WS2812B& ws2812b );
-void pacifica_deepen_colors( WS2812B& ws2812b );
-
-void animation_pacifica( WS2812B& ws2812b )
-{
-  // Increment the four "color index start" counters, one for each wave layer.
-  // Each is incremented at a different speed, and the speeds vary over time.
-  static uint16_t sCIStart1, sCIStart2, sCIStart3, sCIStart4;
-  static uint32_t sLastms = 0;
-  uint32_t ms = GET_MILLIS();
-  uint32_t deltams = ms - sLastms;
-  sLastms = ms;
-  uint16_t speedfactor1 = beatsin16(3, 179, 269);
-  uint16_t speedfactor2 = beatsin16(4, 179, 269);
-  uint32_t deltams1 = (deltams * speedfactor1) / 256;
-  uint32_t deltams2 = (deltams * speedfactor2) / 256;
-  uint32_t deltams21 = (deltams1 + deltams2) / 2;
-  sCIStart1 += (deltams1 * beatsin88(1011,10,13));
-  sCIStart2 -= (deltams21 * beatsin88(777,8,11));
-  sCIStart3 -= (deltams1 * beatsin88(501,5,7));
-  sCIStart4 -= (deltams2 * beatsin88(257,4,6));
-
-  // Clear out the LED array to a dim background blue-green
-  fill_solid( ws2812b.leds, ws2812b.get_num_leds(), CRGB( 2, 6, 10));
-
-  // Render each of four layers, with different scales and speeds, that vary over time
-  pacifica_one_layer( ws2812b, pacifica_palette_1, sCIStart1, beatsin16( 3, 11 * 256, 14 * 256), beatsin8( 10, 70, 130), 0-beat16( 301) );
-  pacifica_one_layer( ws2812b, pacifica_palette_2, sCIStart2, beatsin16( 4,  6 * 256,  9 * 256), beatsin8( 17, 40,  80), beat16( 401) );
-  pacifica_one_layer( ws2812b, pacifica_palette_3, sCIStart3, 6 * 256, beatsin8( 9, 10,38), 0-beat16(503));
-  pacifica_one_layer( ws2812b, pacifica_palette_3, sCIStart4, 5 * 256, beatsin8( 8, 10,28), beat16(601));
-
-  // Add brighter 'whitecaps' where the waves lines up more
-  pacifica_add_whitecaps(ws2812b);
-
-  // Deepen the blues and greens a bit
-  pacifica_deepen_colors(ws2812b);
-}
-
-// Add one layer of waves into the led array
-void pacifica_one_layer(WS2812B& ws2812b, CRGBPalette16& p, uint16_t cistart, uint16_t wavescale, uint8_t bri, uint16_t ioff)
-{
-  uint16_t ci = cistart;
-  uint16_t waveangle = ioff;
-  uint16_t wavescale_half = (wavescale / 2) + 20;
-  for( uint16_t i = 0; i < ws2812b.get_num_leds(); i++) {
-    waveangle += 250;
-    uint16_t s16 = sin16( waveangle ) + 32768;
-    uint16_t cs = scale16( s16 , wavescale_half ) + wavescale_half;
-    ci += cs;
-    uint16_t sindex16 = sin16( ci) + 32768;
-    uint8_t sindex8 = scale16( sindex16, 240);
-    CRGB c = ColorFromPalette( p, sindex8, bri, LINEARBLEND);
-    ws2812b.leds[i] += c;
-  }
-}
-
-// Add extra 'white' to areas where the four layers of light have lined up brightly
-void pacifica_add_whitecaps(WS2812B& ws2812b)
-{
-  uint8_t basethreshold = beatsin8( 9, 55, 65);
-  uint8_t wave = beat8( 7 );
-  
-  for( uint16_t i = 0; i < ws2812b.get_num_leds(); i++) {
-    uint8_t threshold = scale8( sin8( wave), 20) + basethreshold;
-    wave += 7;
-    uint8_t l = ws2812b.leds[i].getAverageLight();
-    if( l > threshold) {
-      uint8_t overage = l - threshold;
-      uint8_t overage2 = qadd8( overage, overage);
-      ws2812b.leds[i] += CRGB( overage, overage2, qadd8( overage2, overage2));
-    }
-  }
-}
-
-// Deepen the blues and greens
-void pacifica_deepen_colors(WS2812B& ws2812b)
-{
-  for( uint16_t i = 0; i < ws2812b.get_num_leds(); i++) {
-    ws2812b.leds[i].blue = scale8( ws2812b.leds[i].blue,  145); 
-    ws2812b.leds[i].green= scale8( ws2812b.leds[i].green, 200); 
-    ws2812b.leds[i] |= CRGB( 2, 5, 7);
-  }
-}
 
 #endif

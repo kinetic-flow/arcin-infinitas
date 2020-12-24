@@ -11,6 +11,16 @@
 #define min(x, y) (((x) < (y)) ? (x) : (y))
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 
+// duration of each frame, in milliseconds
+//
+// https://github.com/FastLED/FastLED/wiki/Interrupt-problems
+// Each pixel takes 30 microseconds.
+//  60 LEDs = 1800 us = 1.8ms
+// 180 LEDs = 5400 us = 5.4ms
+// So 20ms is more than enough to handle the worst case.
+
+#define RGB_MANAGER_FRAME_MS 20
+
 #define WS2812B_DMA_BUFFER_LEN 26
 #define WS2812B_MAX_LEDS 180
 #define WS2812B_DEFAULT_LEDS 12
