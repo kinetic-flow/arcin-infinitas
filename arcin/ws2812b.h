@@ -6,6 +6,7 @@
 #include "fastled_shim.h"
 #include "FastLED.h"
 #include "color.h"
+#include "color_palettes.h"
 
 #define min(x, y) (((x) < (y)) ? (x) : (y))
 #define max(a,b) (((a) > (b)) ? (a) : (b))
@@ -74,20 +75,9 @@ typedef enum _WS2812B_Mode {
 typedef enum _WS2812B_Palette {
     WS2812B_PALETTE_RAINBOW,
     WS2812B_PALETTE_PARTY,
-    WS2812B_PALETTE_HEAT,
-    WS2812B_PALETTE_LAVA,
-    WS2812B_PALETTE_OCEAN,
-    WS2812B_PALETTE_FOREST,
+    WS2812B_PALETTE_HAPPY_SKY,
+    WS2812B_PALETTE_LINCLE
 } WS2812B_Palette;
-
-// Same as FastLED RainbowColors_p but in reverse order
-extern const TProgmemRGBPalette16 RainbowColors_reverse_p FL_PROGMEM =
-{
-   0xD5002B, 0xAB0055, 0x7F0081, 0x5500AB,
-   0x2A00D5, 0x0000FF, 0x0056AA, 0x00AB55,
-   0x00D52A, 0x00FF00, 0x56D500, 0xABAB00,
-   0xAB7F00, 0xAB5500, 0xD52A00, 0xFF0000
-};
 
 void chsv_from_colorrgb(ColorRgb color, CHSV& chsv) {
     CRGB crgb(color.Red, color.Green, color.Blue);
@@ -364,6 +354,12 @@ class RGBManager {
             switch(palette) {
                 case WS2812B_PALETTE_PARTY:
                     current_palette = PartyColors_p;
+                    break;
+                case WS2812B_PALETTE_HAPPY_SKY:
+                    current_palette = HappySky_gp;
+                    break;
+                case WS2812B_PALETTE_LINCLE:
+                    current_palette = Lincle_gp;
                     break;
 
                 case WS2812B_PALETTE_RAINBOW:
