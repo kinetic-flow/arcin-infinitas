@@ -52,6 +52,6 @@
 #define ARCIN_LED_COUNT           16
 
 void set_hid_lights(uint16_t leds);
-void schedule_led(uint32_t end_time, uint16_t leds_a, uint16_t leds_b);
+void schedule_led(uint16_t time_from_now_ms, uint16_t leds_a, uint16_t leds_b);
 
 #endif

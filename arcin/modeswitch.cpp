@@ -80,7 +80,7 @@ void process_input_mode_switch() {
         current_flags.JoyInputForceDisable = 1;
         
         schedule_led(
-            Time::time() + 2500,
+            2500,
             (mode_lights | ARCIN_PIN_BUTTON_4),
             mode_lights);
 
@@ -91,7 +91,7 @@ void process_input_mode_switch() {
     current_flags.KeyboardEnable = 0;
     current_flags.JoyInputForceDisable = 0;
     schedule_led(
-        Time::time() + 2500,
+        2500,
         (mode_lights | ARCIN_PIN_BUTTON_2),
         mode_lights);
 
@@ -109,7 +109,7 @@ void process_tt_mode_switch() {
 
         current_flags.DigitalTTEnable = 1;
         schedule_led(
-            Time::time() + 2500,
+            2500,
             (mode_lights | ARCIN_PIN_BUTTON_4),
             mode_lights);
 
@@ -121,7 +121,7 @@ void process_tt_mode_switch() {
         current_flags.DigitalTTEnable = 0;
         analog_tt_reverse_direction = true;
         schedule_led(
-            Time::time() + 2500,
+            2500,
             (mode_lights | ARCIN_PIN_BUTTON_6),
             mode_lights);
 
@@ -133,7 +133,7 @@ void process_tt_mode_switch() {
     current_flags.AnalogTTForceEnable = 0;
     analog_tt_reverse_direction = false;
     schedule_led(
-        Time::time() + 2500,
+        2500,
         (mode_lights | ARCIN_PIN_BUTTON_2),
         mode_lights);
 
@@ -148,7 +148,7 @@ void process_led_mode_switch() {
     if (current_flags.LedOff) {
         current_flags.LedOff = 0;
         schedule_led(
-            Time::time() + 2500,
+            2500,
             (mode_lights | ARCIN_PIN_BUTTON_2),
             mode_lights);
 
@@ -158,7 +158,7 @@ void process_led_mode_switch() {
     // LED on => LED Off
     current_flags.LedOff = 1;
     schedule_led(
-        Time::time() + 2500,
+        2500,
         (mode_lights | ARCIN_PIN_BUTTON_4),
         mode_lights);
 
