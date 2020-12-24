@@ -18,7 +18,7 @@
 #include "debounce.h"
 #include "modeswitch.h"
 #include "analog_button.h"
-#include "ws2812b.h"
+#include "rgbmanager.h"
 
 #define DEBUG_TIMING_GAMEPAD 0
 
