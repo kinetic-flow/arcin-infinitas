@@ -85,3 +85,26 @@ DEFINE_GRADIENT_PALETTE(HeroicVerse_gp) {
     186, 0xda, 0x07, 0xda,
     255, 0x80, 0x00, 0x80
 };
+
+extern const TProgmemRGBPalette16 Rootage_p FL_PROGMEM =
+{
+    CRGB::DarkOrange,
+    CRGB::Gold,
+    CRGB::Gold,
+    CRGB::Gold,
+
+    CRGB::Yellow,
+    CRGB::Yellow,
+    CRGB::LightYellow,
+    CRGB::Yellow,
+
+    CRGB::Yellow,
+    CRGB::Gold,
+    CRGB::Gold,
+    CRGB::Gold,
+
+    CRGB::DarkOrange,
+    CRGB::DarkOrange,
+    CRGB::DarkOrange,
+    CRGB::DarkOrange,
+};

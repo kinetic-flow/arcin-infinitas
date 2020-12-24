@@ -73,11 +73,12 @@ typedef enum _WS2812B_Mode {
 typedef enum _WS2812B_Palette {
     WS2812B_PALETTE_RAINBOW,
     WS2812B_PALETTE_DREAM,
-    WS2812B_PALETTE_CANNON_BALLERS,
     WS2812B_PALETTE_HAPPYSKY,
     WS2812B_PALETTE_TRICORO,
-    WS2812B_PALETTE_BISTROVER,
+    WS2812B_PALETTE_CANNON_BALLERS,
+    WS2812B_PALETTE_ROOTAGE,
     WS2812B_PALETTE_HEROIC_VERSE,
+    WS2812B_PALETTE_BISTROVER,
 } WS2812B_Palette;
 
 void crgb_from_colorrgb(ColorRgb color, CRGB& crgb) {
@@ -259,6 +260,10 @@ class RGBManager {
 
                 case WS2812B_PALETTE_HEROIC_VERSE:
                     current_palette = HeroicVerse_gp;
+                    break;
+
+                case WS2812B_PALETTE_ROOTAGE:
+                    current_palette = Rootage_p;
                     break;
 
                 case WS2812B_PALETTE_RAINBOW:
