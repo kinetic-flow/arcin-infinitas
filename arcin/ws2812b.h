@@ -357,39 +357,6 @@ class RGBManager {
             return adjusted;
         }
 
-    public:
-        void init(rgb_config* config) {
-            // parse flags
-            this->flags = config->Flags;
-            this->tt_fade_out_time = 0;
-            if (config->Flags.FadeOutFast) {
-                this->tt_fade_out_time += 400;
-            }
-            if (config->Flags.FadeOutSlow) {
-                this->tt_fade_out_time += 800;
-            }
-
-            chsv_from_colorrgb(config->RgbPrimary, this->hsv_primary);
-            chsv_from_colorrgb(config->RgbSecondary, this->hsv_secondary);
-            chsv_from_colorrgb(config->RgbTertiary, this->hsv_tertiary);
-
-            this->default_darkness = config->Darkness;
-            this->idle_brightness = config->IdleBrightness;
-
-            this->idle_animation_speed =
-                calculate_adjusted_speed((WS2812B_Mode)config->Mode, config->IdleAnimationSpeed);
-            
-            this->tt_animation_speed_10x = config->TtAnimationSpeed;
-
-            set_mode(
-                (WS2812B_Mode)config->Mode,
-                (WS2812B_Palette)config->ColorPalette,
-                config->Multiplicity);
-
-            ws2812b.init(config->NumberOfLeds, config->Flags.FlipDirection);
-            set_off();
-        }
-
         void set_palette(WS2812B_Mode rgb_mode, WS2812B_Palette palette) {
             switch(palette) {
                 case WS2812B_PALETTE_PARTY:
@@ -437,17 +404,6 @@ class RGBManager {
             }
         }
         
-        void update_from_hid(ColorRgb color) {
-            if (!global_led_enable || !flags.EnableHidControl) {
-                return;
-            }
-            last_hid_report = Time::time();
-
-            CHSV chsv;
-            chsv_from_colorrgb(color, chsv);
-            this->update_static(chsv);
-        }
-
         void update_turntable_activity(uint32_t now, int8_t tt) {
             // Detect TT activity; framerate dependent, of course.
             switch (tt) {
@@ -507,6 +463,50 @@ class RGBManager {
 
         void update_shift(int8_t tt_multiplier) {
             shift_value += calculate_shift(tt_multiplier);
+        }
+
+    public:
+        void init(rgb_config* config) {
+            // parse flags
+            this->flags = config->Flags;
+            this->tt_fade_out_time = 0;
+            if (config->Flags.FadeOutFast) {
+                this->tt_fade_out_time += 400;
+            }
+            if (config->Flags.FadeOutSlow) {
+                this->tt_fade_out_time += 800;
+            }
+
+            chsv_from_colorrgb(config->RgbPrimary, this->hsv_primary);
+            chsv_from_colorrgb(config->RgbSecondary, this->hsv_secondary);
+            chsv_from_colorrgb(config->RgbTertiary, this->hsv_tertiary);
+
+            this->default_darkness = config->Darkness;
+            this->idle_brightness = config->IdleBrightness;
+
+            this->idle_animation_speed =
+                calculate_adjusted_speed((WS2812B_Mode)config->Mode, config->IdleAnimationSpeed);
+            
+            this->tt_animation_speed_10x = config->TtAnimationSpeed;
+
+            set_mode(
+                (WS2812B_Mode)config->Mode,
+                (WS2812B_Palette)config->ColorPalette,
+                config->Multiplicity);
+
+            ws2812b.init(config->NumberOfLeds, config->Flags.FlipDirection);
+            set_off();
+        }
+
+        void update_from_hid(ColorRgb color) {
+            if (!global_led_enable || !flags.EnableHidControl) {
+                return;
+            }
+            last_hid_report = Time::time();
+
+            CHSV chsv;
+            chsv_from_colorrgb(color, chsv);
+            this->update_static(chsv);
         }
 
         // tt +1 is clockwise, -1 is counter-clockwise
