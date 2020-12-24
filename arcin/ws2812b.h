@@ -38,7 +38,9 @@ typedef enum _WS2812B_Mode {
     // tt       - same as static (with default fade in/out only)
     WS2812B_MODE_SINGLE_COLOR,
 
-    // same as single color, except with (1 and 2) instead of (0 and 1)
+    // static   - all LEDs on 1
+    // animated - reverse sawtooth (flash all with 2, fade out to 1, repeat)
+    // tt       - tt movement turns all LED to 2, fade out to 1
     WS2812B_MODE_TWO_COLOR_FADE,
 
     // static   - each LED takes 1/2/3
@@ -63,9 +65,9 @@ typedef enum _WS2812B_Mode {
     // mult     - controls the wave length
     WS2812B_MODE_RAINBOW_WAVE,
 
-    // static   - picks a random color at boot and all LEDs use this
-    // animated - n/a (same as static)
-    // tt       - whenever activated, pick a random hue for all LEDs
+    // static   - all LEDs on random color
+    // animated - reverse sawtooth (flash all with random color, fade out to 0, repeat)
+    // tt       - tt movement turns all LED to a new random color
     WS2812B_MODE_RANDOM_HUE,
 } WS2812B_Mode;
 
@@ -260,6 +262,7 @@ class RGBManager {
     // for random hue (from palette)
     uint8_t hue_temporary;
     bool ready_for_new_hue = false;
+    uint8_t previous_value;
 
     // shift values that modify colors, ranges from [0, UINT16_MAX]
     uint16_t shift_value = 0;
@@ -465,6 +468,11 @@ class RGBManager {
             shift_value += calculate_shift(tt_multiplier);
         }
 
+        void pick_new_random_hue() {
+            // pick one that is not too similar to the previous one
+            hue_temporary = hue_temporary + random8(30, UINT8_MAX-30);
+        }
+
     public:
         void init(rgb_config* config) {
             // parse flags
@@ -625,6 +633,7 @@ class RGBManager {
                         //     graudally fades back to the primary color
                         progress = quadwave8(abs(tt_activity));
                     } else {
+                        // reverse sawtooth (spike and ease out) + smoothing
                         progress = UINT8_MAX - ease8InOutQuad(beat8(idle_animation_speed));
                     }
 
@@ -636,19 +645,28 @@ class RGBManager {
                 case WS2812B_MODE_RANDOM_HUE:
                 {
                     if (this->flags.ReactToTt) {
-                        if (abs8(tt_activity) < 32) {
-                            ready_for_new_hue = true;
-                        }
-                        if ((this->previous_tt == 0) && (tt != 0) && (ready_for_new_hue)) {
+                        if ((this->previous_tt == 0) && (124 <= abs(tt_activity))) {
                             // TT triggered, time to pick a new hue value
-                            // pick one that is not too similar to the previous one
-                            hue_temporary = hue_temporary + random8(30, UINT8_MAX-30);
-                            ready_for_new_hue = false;
+                            pick_new_random_hue();
                         }
-                    }
 
-                    CRGB rgb = ColorFromPalette(current_palette, hue_temporary, UINT8_MAX, NOBLEND);
-                    this->update_static(rgb);
+                        CRGB rgb = ColorFromPalette(current_palette, hue_temporary, UINT8_MAX, NOBLEND);
+                        this->update_static(rgb);
+
+                    } else {
+                        // sawtooth (drop to 0 and ease up) + smoothing
+                        uint8_t darkness = ease8InOutQuad(beat8(idle_animation_speed));
+
+                        // detect spikes
+                        if (darkness < previous_value) {
+                            pick_new_random_hue();
+                        }
+                        previous_value = darkness;
+
+                        CRGB rgb = ColorFromPalette(current_palette, hue_temporary, UINT8_MAX, NOBLEND);
+                        rgb.fadeToBlackBy(darkness);
+                        this->update_static(rgb);
+                    }
                 }
                 break;
 
