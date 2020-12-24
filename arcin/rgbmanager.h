@@ -12,7 +12,18 @@
 #include "rgb_pride2015.h"
 
 extern uint32_t debug_value;
+
 WS2812B ws2812b_global;
+
+// duration of each frame, in milliseconds
+//
+// https://github.com/FastLED/FastLED/wiki/Interrupt-problems
+// Each pixel takes 30 microseconds.
+//  60 LEDs = 1800 us = 1.8ms
+// 180 LEDs = 5400 us = 5.4ms
+// So 20ms is more than enough to handle the worst case.
+
+#define RGB_MANAGER_FRAME_MS 20
 
 extern bool global_led_enable;
 
@@ -366,6 +377,9 @@ class RGBManager {
             this->num_leds = config->NumberOfLeds;
             ws2812b_global.init(config->NumberOfLeds, config->Flags.FlipDirection);
             FastLED.addLeds<ArcinController>(leds, num_leds);
+            FastLED.setCorrection(TypicalLEDStrip);
+            // we can't afford to call into FastLED too often, so disable temporal dithering
+            FastLED.setDither(DISABLE_DITHER);
             set_off();
         }
 
@@ -567,14 +581,14 @@ class RGBManager {
 
                 case WS2812B_MODE_PRIDE:
                 {
-                    animation_pride_2015();
+                    animation_pride_2015(leds, num_leds);
                     this->show();
                 }
                 break;
 
                 case WS2812B_MODE_PACIFICA:
                 {
-                    animation_pacifica();
+                    animation_pacifica(leds, num_leds);
                     this->show();
                 }
                 break;

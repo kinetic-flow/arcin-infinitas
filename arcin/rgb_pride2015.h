@@ -2,7 +2,6 @@
 #define RGB_PRIDE2015 DEFINES_H
 
 #include "FastLED.h"
-#include "ws2812b.h"
 
 // from FastLED example:
 
@@ -10,7 +9,7 @@
 // Animated, ever-changing rainbows.
 // by Mark Kriegsman
 
-void animation_pride_2015(WS2812B& ws2812b) {
+void animation_pride_2015(CRGB* leds, int num_leds) {
   static uint16_t sPseudotime = 0;
   static uint16_t sLastMillis = 0;
   static uint16_t sHue16 = 0;
@@ -30,7 +29,7 @@ void animation_pride_2015(WS2812B& ws2812b) {
   sHue16 += deltams * beatsin88( 400, 5,9);
   uint16_t brightnesstheta16 = sPseudotime;
 
-  for( uint16_t i = 0 ; i < ws2812b.get_num_leds(); i++) {
+  for( uint16_t i = 0 ; i < num_leds; i++) {
     hue16 += hueinc16;
     uint8_t hue8 = hue16 / 256;
 
@@ -44,9 +43,9 @@ void animation_pride_2015(WS2812B& ws2812b) {
     CRGB newcolor = CHSV( hue8, sat8, bri8);
 
     uint16_t pixelnumber = i;
-    pixelnumber = (ws2812b.get_num_leds()-1) - pixelnumber;
+    pixelnumber = (num_leds-1) - pixelnumber;
 
-    nblend( ws2812b.leds[pixelnumber], newcolor, 64);
+    nblend( leds[pixelnumber], newcolor, 64);
   }
 }
 

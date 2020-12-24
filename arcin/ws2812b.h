@@ -11,16 +11,6 @@
 #define min(x, y) (((x) < (y)) ? (x) : (y))
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 
-// duration of each frame, in milliseconds
-//
-// https://github.com/FastLED/FastLED/wiki/Interrupt-problems
-// Each pixel takes 30 microseconds.
-//  60 LEDs = 1800 us = 1.8ms
-// 180 LEDs = 5400 us = 5.4ms
-// So 20ms is more than enough to handle the worst case.
-
-#define RGB_MANAGER_FRAME_MS 20
-
 #define WS2812B_DMA_BUFFER_LEN 26
 #define WS2812B_MAX_LEDS 180
 #define WS2812B_DEFAULT_LEDS 12
@@ -32,7 +22,6 @@ class WS2812B {
         volatile bool busy;
         uint8_t num_leds = WS2812B_MAX_LEDS;
         bool order_reversed = false;
-        uint8_t brightness = UINT8_MAX;
 
         void schedule_dma() {
             cnt--;
@@ -45,9 +34,7 @@ class WS2812B {
         }
 
         void set_color(CRGB rgb) {
-            CRGB rgb_adjusted = rgb;
-            rgb_adjusted.fadeToBlackBy(UINT8_MAX - this->brightness);
-            this->set_color_raw(rgb_adjusted.red, rgb_adjusted.green, rgb_adjusted.blue);
+            this->set_color_raw(rgb.red, rgb.green, rgb.blue);
         }
         
         void set_color_raw(uint8_t r, uint8_t g, uint8_t b) {
@@ -118,14 +105,6 @@ class WS2812B {
                 set_color(this->leds[0]);
             }
             schedule_dma();
-        }
-
-        void set_brightness(uint8_t brightness) {
-            this->brightness = dim8_lin(brightness);
-        }
-
-        uint8_t get_num_leds() {
-            return this->num_leds;
         }
 
         void irq() {
