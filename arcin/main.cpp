@@ -652,12 +652,12 @@ int main() {
 
             uint32_t nownow = Time::time();
             uint32_t delta = nownow - previous_report_time;
-            // report.buttons = (debug_value >> 16);
-            // report.axis_x = (debug_value >> 8);
-            // report.axis_y = debug_value;
-            report.buttons = (delta >> 16);
-            report.axis_x = (delta >> 8);
-            report.axis_y = delta;
+             report.buttons = (debug_value >> 16);
+             report.axis_x = (debug_value >> 8);
+             report.axis_y = debug_value;
+            // report.buttons = (delta >> 16);
+            // report.axis_x = (delta >> 8);
+            // report.axis_y = delta;
             previous_report_time = nownow;
 
 #endif

@@ -2,33 +2,51 @@
 #include "multifunc.h"
 #include "inf_defines.h"
 
-// Window that begins on the first falling edge of E2. At the end of the window
-// the number of taps is calculated and the resulting button combination will
-// begin to assert.
-// i.e., any multi-taps must be done within this window in order to count
-#define MULTITAP_DETECTION_WINDOW_MS           500
+extern uint32_t debug_value;
 
+// Window that begins on the first rising edge of E2
+// i.e., any multi-taps must be done within this window in order to count
+#define MULTITAP_DETECTION_WINDOW_MS 500
+
+// assert button combination for this duration
+#define EFFECTOR_COMBO_HOLD_DURATION_MS 100
+
+typedef enum _MF_CURRENT_WINDOW {
+    MF_IDLE,
+    MF_CAPTURING_INPUT,
+    MF_ASSERTING_INPUT
+} MF_CURRENT_WINDOW;
+
+static MF_CURRENT_WINDOW current_window = MF_IDLE;
+
+// marks the beginning of capture window
 static uint32_t first_e2_rising_edge_time = 0;
 
-static uint32_t e2_rising_edge_count = 0;
+// how many times was E2 pressed during the capture window?
+static uint8_t e2_rising_edge_count = 0;
 
 static bool last_e2_status = false;
 void capture_e2_presses(bool pressed) {
     // rising edge (detect off-on sequence)
     if (!last_e2_status && pressed) {
-        if (first_e2_rising_edge_time == 0) {
+
+        // if we were idle, start capturing input now.
+        if (current_window == MF_IDLE) {
+            e2_rising_edge_count = 0;
             first_e2_rising_edge_time = Time::time();
+            current_window = MF_CAPTURING_INPUT;
         }
 
+        // count every rising edge
         e2_rising_edge_count += 1;
     }
 
     last_e2_status = pressed;
 }
 
-uint16_t get_multitap_output() {
+uint16_t get_multitap_output(uint8_t num_rising_edges) {
     uint16_t button;
-    switch (e2_rising_edge_count) {
+    switch (num_rising_edges) {
     case 0:
         button = 0;
         break;
@@ -54,54 +72,56 @@ uint16_t get_multitap_output() {
     return button;
 }
 
-bool is_capture_window_past_due() {
-    uint32_t diff;
+// used as a limiter
+static uint32_t last_update_time = 0;
 
-    // We are not in the capture window
-    if (first_e2_rising_edge_time == 0) {
-        return false;
-    }
+// button combination to assert
+static uint16_t effector_buttons_being_asserted = 0;
 
-    diff = Time::time() - first_e2_rising_edge_time;
-    return diff > MULTITAP_DETECTION_WINDOW_MS;
+// when MF_ASSERTING_INPUT started
+static uint32_t effector_buttons_assertion_start = 0;
+
+bool is_capture_window_past_due(uint32_t now) {
+    uint32_t diff = now - first_e2_rising_edge_time;
+    return (MULTITAP_DETECTION_WINDOW_MS < diff);
 }
 
-#define EFFECTOR_COMBO_HOLD_DURATION_MS 100
+bool is_assert_window_past_due(uint32_t now) {
+    uint32_t diff = now - effector_buttons_assertion_start;
+    return (EFFECTOR_COMBO_HOLD_DURATION_MS < diff);
+}
 
-static uint32_t last_update_time = 0;
-static uint16_t effector_buttons_being_asserted = 0;
-static uint32_t effector_buttons_assertion_start = 0;
 uint16_t get_multi_function_keys(bool is_e2_pressed) {
+    uint32_t now = Time::time();
+
     // Update at most once per 1ms. Otherwise, just return the last calculated
     // result.
-    if (Time::time() == last_update_time) {
+    if (now == last_update_time) {
         return effector_buttons_being_asserted;
     }
-    last_update_time = Time::time();
+    last_update_time = now;
 
-    if (effector_buttons_being_asserted == 0) {
+    // capture button presses
+    if (current_window == MF_IDLE || current_window == MF_CAPTURING_INPUT) {
         capture_e2_presses(is_e2_pressed);
     }
 
-    if (is_capture_window_past_due()) {
+    // are we past capture window?
+    if (current_window == MF_CAPTURING_INPUT && is_capture_window_past_due(now)) {
         // Start asserting button combo
-        effector_buttons_being_asserted = get_multitap_output();
-        effector_buttons_assertion_start = Time::time();
-        
-        // Reset
-        first_e2_rising_edge_time = 0;
-        e2_rising_edge_count = 0;
+        current_window = MF_ASSERTING_INPUT;
+        effector_buttons_assertion_start = now;
+        effector_buttons_being_asserted = get_multitap_output(e2_rising_edge_count);
     }
 
-    if (effector_buttons_assertion_start > 0 &&
-        (Time::time() - effector_buttons_assertion_start) >= EFFECTOR_COMBO_HOLD_DURATION_MS) {
-
+    // are we past assertion window?
+    if (current_window == MF_ASSERTING_INPUT && is_assert_window_past_due(now)) {
         if (is_e2_pressed) {
             // Extend the time since the button is still pressed
-            effector_buttons_assertion_start = Time::time() - (EFFECTOR_COMBO_HOLD_DURATION_MS - 10);
+            effector_buttons_assertion_start = now - (EFFECTOR_COMBO_HOLD_DURATION_MS - 10);
         } else {
+            current_window = MF_IDLE;
             effector_buttons_being_asserted = 0;
-            effector_buttons_assertion_start = 0;
         }
     }
 
