@@ -12,6 +12,7 @@
 #include "rgb_pride2015.h"
 
 extern uint32_t debug_value;
+WS2812B ws2812b_global;
 
 extern bool global_led_enable;
 
@@ -82,7 +83,8 @@ uint8_t pick_led_number(uint8_t num_leds, fract16 fract) {
 
 class RGBManager {
 
-    WS2812B ws2812b;
+    CRGB leds[WS2812B_MAX_LEDS];
+    uint8_t num_leds;
 
     uint32_t last_hid_report = 0;
     uint32_t last_outdated_hid_check = 0;
@@ -128,12 +130,12 @@ class RGBManager {
 
     private:    
         void update_static(CHSV& hsv) {
-            fill_solid(ws2812b.leds, ws2812b.get_num_leds(), hsv);
+            fill_solid(leds, num_leds, hsv);
             show();
         }
 
         void update_static(CRGB& rgb) {
-            fill_solid(ws2812b.leds, ws2812b.get_num_leds(), rgb);
+            fill_solid(leds, num_leds, rgb);
             show();
         }
 
@@ -157,24 +159,24 @@ class RGBManager {
         }
 
         void update(CRGB& rgb, uint8_t index) {
-            ws2812b.leds[index] = rgb;
+            leds[index] = rgb;
         }
 
         void update(CHSV& hsv, uint8_t index) {
-            ws2812b.leds[index] = hsv;
+            leds[index] = hsv;
         }
 
         void show() {
-            ws2812b.set_brightness(calculate_brightness());
+            FastLED.setBrightness(calculate_brightness());
             show_without_dimming();
         }
 
         void show_without_dimming() {
-            ws2812b.show();
+            FastLED.show();
         }
 
         void set_off() {
-            fill_solid(ws2812b.leds, ws2812b.get_num_leds(), CRGB::Black);
+            fill_solid(leds, num_leds, CRGB::Black);
             show_without_dimming();
         }
 
@@ -361,7 +363,8 @@ class RGBManager {
                 (WS2812B_Palette)config->ColorPalette,
                 config->Multiplicity);
 
-            ws2812b.init(config->NumberOfLeds, config->Flags.FlipDirection);
+            this->num_leds = config->NumberOfLeds;
+            FastLED.addLeds<ArcinController>(leds, num_leds);
             set_off();
         }
 
@@ -420,7 +423,7 @@ class RGBManager {
                     // -60 seems good
                     update_shift(-60);
 
-                    uint8_t step = 255 / (ws2812b.get_num_leds() * (multiplicity + 1) / 2);
+                    uint8_t step = 255 / (num_leds * (multiplicity + 1) / 2);
 
                     // we actually want to go "backwards" so that each color seem to be rotating clockwise.
                     uint8_t start_index =
@@ -429,8 +432,8 @@ class RGBManager {
                     start_index += (shift_value >> 8);
 
                     fill_palette(
-                        ws2812b.leds,
-                        ws2812b.get_num_leds(),
+                        leds,
+                        num_leds,
                         start_index,
                         step,
                         current_palette,
@@ -447,7 +450,7 @@ class RGBManager {
                     update_shift(60);
 
                     const uint16_t beat = beat16(idle_animation_speed, tt_time_travel_base_ms) + shift_value;
-                    const uint8_t initial_pixel = pick_led_number(ws2812b.get_num_leds(), beat);
+                    const uint8_t initial_pixel = pick_led_number(num_leds, beat);
 
                     uint8_t current_pixel = initial_pixel;
                     uint8_t color_index = 0;
@@ -469,7 +472,7 @@ class RGBManager {
 
                         // move to the next pixel
                         current_pixel += 1;
-                        if (current_pixel == ws2812b.get_num_leds()) {
+                        if (current_pixel == num_leds) {
                             current_pixel = 0;
                         }
 
@@ -535,18 +538,18 @@ class RGBManager {
                     update_shift(80);
 
                     const fract16 beat = beat16(idle_animation_speed, tt_time_travel_base_ms) + shift_value;
-                    const uint8_t dot1 = pick_led_number(ws2812b.get_num_leds(), beat);
+                    const uint8_t dot1 = pick_led_number(num_leds, beat);
 
                     uint8_t dot2 = UINT8_MAX;
                     uint8_t dot3 = UINT8_MAX;
                     if (2 == multiplicity) {
-                        dot2 = (dot1 + (ws2812b.get_num_leds() / 2)) % ws2812b.get_num_leds();
+                        dot2 = (dot1 + (num_leds / 2)) % num_leds;
                     } else if (3 <= multiplicity) {
-                        dot2 = (dot1 + (ws2812b.get_num_leds() / 3)) % ws2812b.get_num_leds();
-                        dot3 = (dot1 + (ws2812b.get_num_leds() / 3) * 2) % ws2812b.get_num_leds();
+                        dot2 = (dot1 + (num_leds / 3)) % num_leds;
+                        dot3 = (dot1 + (num_leds / 3) * 2) % num_leds;
                     }
                     CHSV hsv_off(0, 0, 0);
-                    for (uint8_t led = 0; led < ws2812b.get_num_leds(); led++) {
+                    for (uint8_t led = 0; led < num_leds; led++) {
                         if (led == dot1) {
                             this->update(rgb_primary, led);
                         } else if (led == dot2) {
@@ -563,14 +566,14 @@ class RGBManager {
 
                 case WS2812B_MODE_PRIDE:
                 {
-                    animation_pride_2015(ws2812b);
+                    //animation_pride_2015(ws2812b);
                     this->show();
                 }
                 break;
 
                 case WS2812B_MODE_PACIFICA:
                 {
-                    animation_pacifica(ws2812b);
+                    //animation_pacifica(ws2812b);
                     this->show();
                 }
                 break;
@@ -598,7 +601,7 @@ class RGBManager {
         }
 
         void irq() {
-            ws2812b.irq();
+            ws2812b_global.irq();
         }
 };
 

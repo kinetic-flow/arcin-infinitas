@@ -145,4 +145,29 @@ class WS2812B {
         }
 };
 
+extern WS2812B ws2812b_global;
+
+template<EOrder RGB_ORDER = RGB>
+class ArcinController : public CPixelLEDController<RGB_ORDER> {
+    public:
+        virtual void init() { }
+
+    protected:
+        virtual void showPixels(PixelController<RGB_ORDER> & pixels) {
+            uint8_t count;
+            while (pixels.has(1)) {
+                uint8_t r = pixels.loadAndScale0();
+                uint8_t g = pixels.loadAndScale1();
+                uint8_t b = pixels.loadAndScale2();
+
+                ws2812b_global.leds[count] = CRGB(r, g, b);
+
+                pixels.advanceData();
+                pixels.stepDithering();
+            }
+
+            ws2812b_global.show();
+        }
+};
+
 #endif
