@@ -6,7 +6,7 @@ A custom arcin firmware, written for broad compatibility with various games, inc
 
 ### Demo
 
-![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/610d9c0db1423963800d516a8681b79609dd0599/res/screenshot.png)
+![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/c29a50343532a660fc1e9a92380b83ffd167aef0/res/screenshot.png)
 
 [![screenshot](https://raw.githubusercontent.com/minsang-github/arcin-infinitas-conf/e9d2e171b3c819968162a47f1296eef2a8701e3d/res/video_thumbnail.png)](https://www.youtube.com/watch?v=y9fGt4nZhUo)
 
