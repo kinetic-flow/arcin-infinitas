@@ -18,7 +18,7 @@
 #include "debounce.h"
 #include "modeswitch.h"
 #include "analog_button.h"
-#include "ws2812b.h"
+#include "rgbmanager.h"
 
 #define DEBUG_TIMING_GAMEPAD 0
 
@@ -280,18 +280,14 @@ debounce_state debounce_state_keys;
 debounce_state debounce_state_effectors;
 uint8_t debounce_window_effectors;
 
+bool scheduled_leds = false;
 uint32_t scheduled_led_time = 0;
 uint16_t scheduled_leds_aside = 0;
 uint16_t scheduled_leds_bside = 0;
 
-void schedule_led(uint32_t end_time, uint16_t leds_a, uint16_t leds_b) {
-    // If scheduling in the past, nothing to do
-    // This also guards against wallclock rollover
-    if (end_time < Time::time()) {
-        return;
-    }
-
-    scheduled_led_time = end_time;
+void schedule_led(uint16_t time_from_now_ms, uint16_t leds_a, uint16_t leds_b) {
+    scheduled_leds = true;
+    scheduled_led_time = Time::time() + time_from_now_ms;
     scheduled_leds_aside = leds_a;
     scheduled_leds_bside = leds_b;
 }
@@ -332,7 +328,7 @@ void set_hid_lights(uint16_t leds) {
     }
 
     // if LED overrides are in effect, ignore HID lights
-    if (Time::time() < scheduled_led_time) {
+    if (scheduled_leds) {
         return;
     }
 
@@ -358,7 +354,14 @@ void check_for_outdated_tt_led_report(config_flags *runtime_flags) {
 
 #if DEBUG_TIMING_GAMEPAD
 
+#warning "----------- DEBUG OUTPUT ENABLED!!! -----------"
+#warning "----------- DEBUG OUTPUT ENABLED!!! -----------"
+#warning "----------- DEBUG OUTPUT ENABLED!!! -----------"
+#warning "----------- DEBUG OUTPUT ENABLED!!! -----------"
+#warning "----------- DEBUG OUTPUT ENABLED!!! -----------"
+
 uint32_t previous_report_time = 0;
+uint32_t debug_value;
 
 #endif
 
@@ -470,20 +473,14 @@ int main() {
     // debounce for raw input
     debounce_init(&debounce_state_raw, 4);
 
-    // Init done, flash some lights for 2 seconds
-    schedule_led(
-        Time::time() + 1000, ARCIN_PIN_BUTTON_WHITE, ARCIN_PIN_BUTTON_WHITE);
+    // Init done, flash some lights for 1 second
+    schedule_led(1000, ARCIN_PIN_BUTTON_WHITE, ARCIN_PIN_BUTTON_WHITE);
 
     if (config.flags.Ws2812b) {
-        // power
+        // turn on the power before initializing
         button9_led.on();
-        rgb_manager.init(config.rgb.Flags, config.rgb.NumberOfLeds);
-        rgb_manager.set_default_colors(
-            config.rgb.RgbPrimary, config.rgb.RgbSecondary, config.rgb.RgbTertiary);
-        rgb_manager.set_darkness(config.rgb.Darkness);
-        rgb_manager.set_idle_brightness(config.rgb.IdleBrightness);
-        rgb_manager.set_animation_speed(config.rgb.IdleAnimationSpeed, config.rgb.TtAnimationSpeed);
-        rgb_manager.set_mode((WS2812B_Mode)config.rgb.Mode);
+        // must be called last
+        rgb_manager.init(&config.rgb);
     }
 
     while(1) {
@@ -506,13 +503,19 @@ int main() {
         }
         
         // Non-HID controlled handling of button LEDs
-        if (now < scheduled_led_time) {
-            uint16_t diff = now - scheduled_led_time;
-            if ((diff / 200) % 2 == 0) {
-                set_button_lights(scheduled_leds_aside);
+        if (scheduled_leds) {
+            int32_t diff = scheduled_led_time - now;
+            if (diff > 0) {
+                if ((diff / 200) % 2 == 0) {
+                    set_button_lights(scheduled_leds_aside);
+                } else {
+                    set_button_lights(scheduled_leds_bside);
+                }
             } else {
-                set_button_lights(scheduled_leds_bside);
+                // we went past it; no more scheduled lights
+                scheduled_leds = false;
             }
+
         } else if (now - last_led_time > 1000) {
             // If it's been a while since the last HID lights, use the raw
             // button input for lights
@@ -650,9 +653,12 @@ int main() {
 
             uint32_t nownow = Time::time();
             uint32_t delta = nownow - previous_report_time;
+             report.buttons = (debug_value >> 16);
+             report.axis_x = (debug_value >> 8);
+             report.axis_y = debug_value;
             // report.buttons = (delta >> 16);
             // report.axis_x = (delta >> 8);
-            report.axis_y = debug_tt_activity;
+            // report.axis_y = delta;
             previous_report_time = nownow;
 
 #endif
