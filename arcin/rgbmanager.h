@@ -49,6 +49,8 @@ typedef enum _WS2812B_Mode {
     // tt       - controls animation speed and direction
     // mult     - controls the number of dots
     WS2812B_MODE_DOTS,
+    WS2812B_MODE_DIVISIONS,
+    WS2812B_MODE_WAVES,
 
     // static   - all LEDs have the same color (somewhere on the hue spectrum)
     // animated - all LEDs cycle through hue spectrum
@@ -116,6 +118,7 @@ class RGBManager {
     int16_t tt_animation_speed_10x = 0;
 
     // user-defined colors
+    CRGB rgb_off = CRGB(0, 0, 0);
     CRGB rgb_primary;
     CRGB rgb_secondary;
     CRGB rgb_tertiary;
@@ -196,6 +199,7 @@ class RGBManager {
                     break;
 
                 case WS2812B_MODE_DOTS:
+                case WS2812B_MODE_DIVISIONS:
                 case WS2812B_MODE_RAINBOW_WAVE:
                 case WS2812B_MODE_TRICOLOR:
                     // RPM. Must match UI calculation
@@ -324,6 +328,23 @@ class RGBManager {
             current_random8 = current_random8 + random8(30, UINT8_MAX-30);
         }
 
+        CRGB& get_user_color(uint8_t color) {
+            switch (color) {
+                case 0:
+                default:
+                    return rgb_off;
+
+                case 1:
+                    return rgb_primary;
+
+                case 2:
+                    return rgb_secondary;
+
+                case 3:
+                    return rgb_tertiary;
+            }
+        }
+
     public:
         void init(rgb_config* config) {
             // parse flags
@@ -449,20 +470,8 @@ class RGBManager {
                     uint8_t current_pixel = initial_pixel;
                     uint8_t color_index = 0;
                     while (true) {
-                        CRGB* color = NULL;
-                        switch (color_index % 3) {
-                            case 0:
-                            default:
-                                color = &rgb_primary;
-                                break;
-                            case 1:
-                                color = &rgb_secondary;
-                                break;
-                            case 2:
-                                color = &rgb_tertiary;
-                                break;
-                        }   
-                        this->update(*color, current_pixel);
+                        CRGB color = get_user_color((color_index % 3) + 1);
+                        this->update(color, current_pixel);
 
                         // move to the next pixel
                         current_pixel += 1;
@@ -527,6 +536,7 @@ class RGBManager {
                 break;
 
                 case WS2812B_MODE_DOTS:
+                case WS2812B_MODE_DIVISIONS:
                 {
                     // +80 seems good.
                     update_shift(80);
@@ -534,24 +544,66 @@ class RGBManager {
                     const fract16 beat = beat16(idle_animation_speed, tt_time_travel_base_ms) + shift_value;
                     const uint8_t dot1 = pick_led_number(num_leds, beat);
 
+                    // distance between dot1 and dot2
+                    uint8_t dot2_delta = 0;
+                    // distance between dot1 and dot3
+                    uint8_t dot3_delta = 0;
+                    if (2 == multiplicity) {
+                        dot2_delta = (num_leds / 2);
+                    } else if (3 <= multiplicity) {
+                        dot2_delta = (num_leds / 3);
+                        dot3_delta = (num_leds / 3) * 2;
+                    }
+
                     uint8_t dot2 = UINT8_MAX;
                     uint8_t dot3 = UINT8_MAX;
-                    if (2 == multiplicity) {
-                        dot2 = (dot1 + (num_leds / 2)) % num_leds;
-                    } else if (3 <= multiplicity) {
-                        dot2 = (dot1 + (num_leds / 3)) % num_leds;
-                        dot3 = (dot1 + (num_leds / 3) * 2) % num_leds;
+                    if (dot2_delta > 0) {
+                        dot2 = (dot1 + dot2_delta) % num_leds;
                     }
-                    CHSV hsv_off(0, 0, 0);
-                    for (uint8_t led = 0; led < num_leds; led++) {
+                    if (dot3_delta > 0) {
+                        dot3 = (dot1 + dot3_delta) % num_leds;
+                    }
+
+                    CRGB current_color = rgb_off;
+
+                    // always start from the first pixel with primary color
+                    uint8_t led = dot1;
+                    uint8_t current_division = 1;
+                    while (true) {
+                        switch (rgb_mode) {
+                            case WS2812B_MODE_DIVISIONS:
+                                if (led == dot2) {
+                                    current_division = 2;
+                                } else if (led == dot3) {
+                                    current_division = 3;
+                                }
+                                current_color = get_user_color(current_division);
+                                break;
+
+                            case WS2812B_MODE_DOTS:
+                            default:
+                                if (led == dot1) {
+                                    current_color = get_user_color(1);
+                                } else if (led == dot2) {
+                                    current_color = get_user_color(2);
+                                } else if (led == dot3) {
+                                    current_color = get_user_color(3);
+                                } else {
+                                    current_color = get_user_color(0);
+                                }
+                                break;
+                        }
+
+                        this->update(current_color, led);
+
+                        // move to the next LED
+                        led += 1;
+                        if (num_leds <= led) {
+                            led = 0;
+                        }
+
                         if (led == dot1) {
-                            this->update(rgb_primary, led);
-                        } else if (led == dot2) {
-                            this->update(rgb_secondary, led);
-                        } else if (led == dot3) {
-                            this->update(rgb_tertiary, led);
-                        } else {
-                            this->update(hsv_off, led);
+                            break;
                         }
                     }
                     this->show();
