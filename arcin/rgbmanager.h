@@ -76,6 +76,8 @@ void crgb_from_colorrgb(ColorRgb color, CRGB& crgb) {
     crgb = CRGB(color.Red, color.Green, color.Blue);
 }
 
+// This routine exists so that we can scale w.r.t. the RPM, which is dependent on the number of
+// LEDs in a circle.
 uint8_t pick_led_number(uint8_t num_leds, fract16 fract) {
     uint16_t val = lerp16by16(0, num_leds, fract);
 
@@ -86,7 +88,6 @@ uint8_t pick_led_number(uint8_t num_leds, fract16 fract) {
 
     return val;
 }
-
 class RGBManager {
 
     CRGB leds[WS2812B_MAX_LEDS];
@@ -466,23 +467,11 @@ class RGBManager {
                     update_shift(60);
 
                     const uint16_t beat = beat16(idle_animation_speed, tt_time_travel_base_ms) + shift_value;
-                    const uint8_t initial_pixel = pick_led_number(num_leds, beat);
-
-                    uint8_t current_pixel = initial_pixel;
+                    ws2812b_global.set_right_shift(pick_led_number(num_leds, beat));
                     uint8_t color_index = 0;
-                    while (true) {
-                        CRGB color = get_user_color((color_index % 3) + 1);
+                    for (uint8_t current_pixel = 0; current_pixel < num_leds; current_pixel++) {
+                        CRGB color = get_user_color(color_index + 1);
                         this->update(color, current_pixel);
-
-                        // move to the next pixel
-                        current_pixel += 1;
-                        if (current_pixel == num_leds) {
-                            current_pixel = 0;
-                        }
-
-                        if (current_pixel == initial_pixel) {
-                            break;
-                        }
 
                         color_index = (color_index + 1) % 3;
                     }
@@ -542,35 +531,22 @@ class RGBManager {
                     // +80 seems good.
                     update_shift(80);
 
-                    const fract16 beat = beat16(idle_animation_speed, tt_time_travel_base_ms) + shift_value;
-                    const uint8_t dot1 = pick_led_number(num_leds, beat);
-
-                    // distance between dot1 and dot2
-                    uint8_t dot2_delta = 0;
-                    // distance between dot2 and dot3
-                    uint8_t dot3_delta = 0;
-                    if (2 == multiplicity) {
-                        dot2_delta = (num_leds / 2);
-                    } else if (3 <= multiplicity) {
-                        dot2_delta = (num_leds / 3);
-                        dot3_delta = (num_leds / 3);
-                    }
-
+                    const uint16_t beat = beat16(idle_animation_speed, tt_time_travel_base_ms) + shift_value;
+                    const uint8_t dot1 = 0;
                     uint8_t dot2 = UINT8_MAX;
                     uint8_t dot3 = UINT8_MAX;
-                    if (dot2_delta > 0) {
-                        dot2 = (dot1 + dot2_delta) % num_leds;
-                    }
-                    if (dot3_delta > 0) {
-                        dot3 = (dot2 + dot3_delta) % num_leds;
+                    if (2 == multiplicity) {
+                        dot2 = (num_leds / 2) % num_leds;
+                    } else if (3 <= multiplicity) {
+                        dot2 = (dot1 + (num_leds / 3)) % num_leds;
+                        dot3 = (dot2 + (num_leds / 3)) % num_leds;
                     }
 
-                    CRGB current_color = rgb_off;
+                    ws2812b_global.set_right_shift(pick_led_number(num_leds, beat));
 
-                    // always start from the first pixel with primary color
-                    uint8_t led = dot1;
+                    CRGB current_color;
                     uint8_t current_division = 1;
-                    while (true) {
+                    for (uint8_t led = 0; led < num_leds; led++) {
                         switch (rgb_mode) {
                             case WS2812B_MODE_DIVISIONS:
                                 if (led == dot2) {
@@ -582,7 +558,7 @@ class RGBManager {
                                 break;
                             
                             case WS2812B_MODE_WAVES:
-                                
+                                break;
 
                             case WS2812B_MODE_DOTS:
                             default:
@@ -599,16 +575,6 @@ class RGBManager {
                         }
 
                         this->update(current_color, led);
-
-                        // move to the next LED
-                        led += 1;
-                        if (num_leds <= led) {
-                            led = 0;
-                        }
-
-                        if (led == dot1) {
-                            break;
-                        }
                     }
                     this->show();
                 }
@@ -660,6 +626,5 @@ class RGBManager {
             ws2812b_global.irq();
         }
 };
-
 
 #endif

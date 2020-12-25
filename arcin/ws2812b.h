@@ -22,6 +22,7 @@ class WS2812B {
         volatile bool busy;
         uint8_t num_leds = WS2812B_MAX_LEDS;
         bool order_reversed = false;
+        uint8_t right_shift = 0;
 
         void schedule_dma() {
             cnt--;
@@ -111,6 +112,14 @@ class WS2812B {
             return this->order_reversed;
         }
 
+        void set_right_shift(uint8_t right_shift) {
+            this->right_shift = right_shift;
+        }
+
+        uint8_t get_right_shift() {
+            return this->right_shift;
+        }
+
         void irq() {
             DMA1.reg.C[6].CR = 0;
             DMA1.reg.IFCR = 1 << 24;
@@ -139,15 +148,18 @@ class ArcinController : public CPixelLEDController<RGB_ORDER> {
                 uint8_t g = pixels.loadAndScale1();
                 uint8_t b = pixels.loadAndScale2();
 
-                uint8_t index;
-                if (ws2812b_global.is_order_reversed()) {
-                    index = ws2812b_global.get_num_leds() - count - 1;
-                } else {
-                    index = count;
-                }
-                ws2812b_global.leds[index] = CRGB(r, g, b);
-                count += 1;
+                uint8_t index = count;
+                index =
+                    (((uint16_t)index) + ws2812b_global.get_right_shift()) %
+                    ws2812b_global.get_num_leds();
 
+                if (ws2812b_global.is_order_reversed()) {
+                    index = (ws2812b_global.get_num_leds() - 1) - index;
+                }
+
+                ws2812b_global.leds[index] = CRGB(r, g, b);
+
+                count += 1;
                 pixels.advanceData();
                 pixels.stepDithering();
             }
