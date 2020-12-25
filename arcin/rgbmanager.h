@@ -70,17 +70,6 @@ typedef enum _WS2812B_Mode {
     WS2812B_MODE_PACIFICA,
 } WS2812B_Mode;
 
-typedef enum _WS2812B_Palette {
-    WS2812B_PALETTE_RAINBOW,
-    WS2812B_PALETTE_DREAM,
-    WS2812B_PALETTE_HAPPYSKY,
-    WS2812B_PALETTE_TRICORO,
-    WS2812B_PALETTE_CANNON_BALLERS,
-    WS2812B_PALETTE_ROOTAGE,
-    WS2812B_PALETTE_HEROIC_VERSE,
-    WS2812B_PALETTE_BISTROVER,
-} WS2812B_Palette;
-
 void crgb_from_colorrgb(ColorRgb color, CRGB& crgb) {
     crgb = CRGB(color.Red, color.Green, color.Blue);
 }
@@ -237,48 +226,10 @@ class RGBManager {
         }
 
         void set_palette(WS2812B_Mode rgb_mode, WS2812B_Palette palette) {
-            switch(palette) {
-                case WS2812B_PALETTE_DREAM:
-                    current_palette = PartyColors_p;
-                    break;
-
-                case WS2812B_PALETTE_CANNON_BALLERS:
-                    current_palette = CannonBallers_p;
-                    break;
-
-                case WS2812B_PALETTE_HAPPYSKY:
-                    current_palette = CloudColors_p;
-                    break;
-
-                case WS2812B_PALETTE_TRICORO:
-                    current_palette = Tricoro_p;
-                    break;
-
-                case WS2812B_PALETTE_BISTROVER:
-                    current_palette = Bistrover_p;
-                    break;
-
-                case WS2812B_PALETTE_HEROIC_VERSE:
-                    current_palette = HeroicVerse_gp;
-                    break;
-
-                case WS2812B_PALETTE_ROOTAGE:
-                    current_palette = Rootage_p;
-                    break;
-
-                case WS2812B_PALETTE_RAINBOW:
-                default:
-                    if (rgb_mode == WS2812B_MODE_RAINBOW_WAVE){
-                        // This makes the rainbow go counter-clockwise
-                        // It "looks" more correct in wave (multiple circle) configuration than the
-                        // clockwise.
-                        current_palette = RainbowColors_reverse_p;
-                    } else {
-                        current_palette = RainbowColors_p;
-                    }
-                    
-                    break;
-            }
+            fill_from_palette(
+                current_palette,
+                palette,
+                bool(rgb_mode == WS2812B_MODE_RAINBOW_WAVE));
         }
         
         void set_mode(WS2812B_Mode rgb_mode, WS2812B_Palette palette, uint8_t multiplicity) {

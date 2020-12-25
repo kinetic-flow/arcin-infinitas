@@ -108,3 +108,86 @@ extern const TProgmemRGBPalette16 Rootage_p FL_PROGMEM =
     CRGB::DarkOrange,
     CRGB::DarkOrange,
 };
+
+extern const TProgmemRGBPalette16 Troopers_p FL_PROGMEM =
+{
+    CRGB::DarkGreen,
+    CRGB::DarkGreen,
+    CRGB::DarkOliveGreen,
+    CRGB::DarkGreen,
+
+    CRGB::Green,
+    CRGB::ForestGreen,
+    CRGB::OliveDrab,
+    CRGB::Green,
+
+    CRGB::DarkGreen,
+    CRGB::DarkOliveGreen,
+    CRGB::DarkOliveGreen,
+    CRGB::Green,
+
+    CRGB::DarkGreen,
+    CRGB::Green,
+    CRGB::DarkGreen,
+    CRGB::ForestGreen
+};
+
+DEFINE_GRADIENT_PALETTE(Empress_gp) {
+    0, 0x59, 0x1f, 0x28,
+    124, 0xca, 0x02, 0x2b,
+    230, 0xff, 0x00, 0xff,
+    255, 0x59, 0x1f, 0x28,
+};
+
+void fill_from_palette(CRGBPalette256& current_palette, WS2812B_Palette palette, bool reverse_rainbow) {
+    switch(palette) {
+        case WS2812B_PALETTE_DREAM:
+            current_palette = PartyColors_p;
+            break;
+
+        case WS2812B_PALETTE_CANNON_BALLERS:
+            current_palette = CannonBallers_p;
+            break;
+
+        case WS2812B_PALETTE_HAPPYSKY:
+            current_palette = CloudColors_p;
+            break;
+
+        case WS2812B_PALETTE_TROOPERS:
+            current_palette = Troopers_p;
+            break;
+
+        case WS2812B_PALETTE_EMPRESS:
+            current_palette = Empress_gp;
+            break;
+
+        case WS2812B_PALETTE_TRICORO:
+            current_palette = Tricoro_p;
+            break;
+
+        case WS2812B_PALETTE_BISTROVER:
+            current_palette = Bistrover_p;
+            break;
+
+        case WS2812B_PALETTE_HEROIC_VERSE:
+            current_palette = HeroicVerse_gp;
+            break;
+
+        case WS2812B_PALETTE_ROOTAGE:
+            current_palette = Rootage_p;
+            break;
+
+        case WS2812B_PALETTE_RAINBOW:
+        default:
+            if (reverse_rainbow){
+                // This makes the rainbow go counter-clockwise
+                // It "looks" more correct in wave (multiple circle) configuration than the
+                // clockwise.
+                current_palette = RainbowColors_reverse_p;
+            } else {
+                current_palette = RainbowColors_p;
+            }
+            
+            break;
+    }
+}
