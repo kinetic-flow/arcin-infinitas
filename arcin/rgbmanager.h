@@ -200,6 +200,7 @@ class RGBManager {
 
                 case WS2812B_MODE_DOTS:
                 case WS2812B_MODE_DIVISIONS:
+                case WS2812B_MODE_WAVES:
                 case WS2812B_MODE_RAINBOW_WAVE:
                 case WS2812B_MODE_TRICOLOR:
                     // RPM. Must match UI calculation
@@ -546,13 +547,13 @@ class RGBManager {
 
                     // distance between dot1 and dot2
                     uint8_t dot2_delta = 0;
-                    // distance between dot1 and dot3
+                    // distance between dot2 and dot3
                     uint8_t dot3_delta = 0;
                     if (2 == multiplicity) {
                         dot2_delta = (num_leds / 2);
                     } else if (3 <= multiplicity) {
                         dot2_delta = (num_leds / 3);
-                        dot3_delta = (num_leds / 3) * 2;
+                        dot3_delta = (num_leds / 3);
                     }
 
                     uint8_t dot2 = UINT8_MAX;
@@ -561,7 +562,7 @@ class RGBManager {
                         dot2 = (dot1 + dot2_delta) % num_leds;
                     }
                     if (dot3_delta > 0) {
-                        dot3 = (dot1 + dot3_delta) % num_leds;
+                        dot3 = (dot2 + dot3_delta) % num_leds;
                     }
 
                     CRGB current_color = rgb_off;
@@ -579,6 +580,9 @@ class RGBManager {
                                 }
                                 current_color = get_user_color(current_division);
                                 break;
+                            
+                            case WS2812B_MODE_WAVES:
+                                
 
                             case WS2812B_MODE_DOTS:
                             default:
@@ -607,6 +611,12 @@ class RGBManager {
                         }
                     }
                     this->show();
+                }
+                break;
+
+                case WS2812B_MODE_WAVES:
+                {
+                    
                 }
                 break;
 

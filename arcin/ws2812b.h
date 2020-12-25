@@ -99,12 +99,16 @@ class WS2812B {
             }
             busy = true;
             cnt = this->num_leds;
-            if (order_reversed) {
-                set_color(this->leds[cnt - 1]);
-            } else {
-                set_color(this->leds[0]);
-            }
+            set_color(this->leds[0]);
             schedule_dma();
+        }
+
+        uint8_t get_num_leds() {
+            return this->num_leds;
+        }
+
+        bool is_order_reversed(){
+            return this->order_reversed;
         }
 
         void irq() {
@@ -112,11 +116,7 @@ class WS2812B {
             DMA1.reg.IFCR = 1 << 24;
             
             if (cnt) {
-                if (order_reversed) {
-                    set_color(this->leds[this->cnt - 1]);
-                } else {
-                    set_color(this->leds[this->num_leds - this->cnt]);
-                }
+                set_color(this->leds[this->num_leds - this->cnt]);
                 schedule_dma();
             } else {
                 busy = false;
@@ -139,7 +139,13 @@ class ArcinController : public CPixelLEDController<RGB_ORDER> {
                 uint8_t g = pixels.loadAndScale1();
                 uint8_t b = pixels.loadAndScale2();
 
-                ws2812b_global.leds[count] = CRGB(r, g, b);
+                uint8_t index;
+                if (ws2812b_global.is_order_reversed()) {
+                    index = ws2812b_global.get_num_leds() - count - 1;
+                } else {
+                    index = count;
+                }
+                ws2812b_global.leds[index] = CRGB(r, g, b);
                 count += 1;
 
                 pixels.advanceData();
