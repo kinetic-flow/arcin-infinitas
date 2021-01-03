@@ -18,22 +18,26 @@ public:
     // State: Center of deadzone
     uint32_t center;
     bool center_valid;
-    // times to: reset to zero, reset center to counter
-    uint32_t t_timeout;
+
+    // time to: reset center to counter
+    uint32_t sustain_timer;
+    bool sustain_timer_armed;
 
     int8_t state; // -1, 0, 1
-    int8_t last_delta;
+
 public:
     analog_button(uint32_t deadzone, uint32_t sustain_ms, bool clear)
         : deadzone(deadzone), sustain_ms(sustain_ms), clear(clear)
     {
         center = 0;
         center_valid = false;
-        t_timeout = 0;
+        sustain_timer = 0;
+        sustain_timer_armed = false;
         state = 0;
     }
 
     int8_t poll(uint32_t current_value) {
+        uint32_t now = Time::time();
         if (!center_valid) {
             center_valid = true;
             center = current_value;
@@ -41,8 +45,8 @@ public:
 
         uint8_t observed = current_value;
         int8_t delta = observed - center;
-        last_delta = delta;
 
+        // is the current value sufficiently far away from the center?
         uint8_t direction = 0;
         if (delta >= (int32_t)deadzone) {
             direction = 1;
@@ -51,12 +55,20 @@ public:
         }
 
         if (direction != 0) {
+            // turntable is moving -
+            // keep updating the new center, and keep extending the sustain timer
             center = observed;
-            t_timeout = Time::time() + sustain_ms;
-        } else if (t_timeout != 0 && Time::time() >= t_timeout) {
-            state = 0;
-            center = observed;
-            t_timeout = 0;
+            sustain_timer = now + sustain_ms;
+            sustain_timer_armed = true;
+        } else if (sustain_timer_armed) {
+            // check if sustain timer expired
+            int32_t diff = now - sustain_timer;
+            if (diff > 0) {
+                // sustain timer expired, time to reset to neutral
+                state = 0;
+                center = observed;
+                sustain_timer_armed = false;
+            }
         }
 
         if (direction == -state && clear) {
