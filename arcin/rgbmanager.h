@@ -39,6 +39,11 @@ typedef enum _WS2812B_Mode {
     // tt       - tt movement turns all LED to 2, fade out to 1
     WS2812B_MODE_TWO_COLOR_FADE,
 
+    // static   - all LEDs on random color
+    // animated - reverse sawtooth (flash all with random color, fade out to 0, repeat)
+    // tt       - tt movement turns all LED to a new random color
+    WS2812B_MODE_RANDOM_HUE,
+
     // static   - each LED takes 1/2/3
     // animated - each LED cycles through 1/2/3
     // tt       - controls animation speed and direction
@@ -51,9 +56,6 @@ typedef enum _WS2812B_Mode {
     WS2812B_MODE_DOTS,
     WS2812B_MODE_DIVISIONS,
 
-    // todo
-    WS2812B_MODE_WAVES,
-
     // static   - all LEDs have the same color (somewhere on the hue spectrum)
     // animated - all LEDs cycle through hue spectrum
     // tt       - controls animation speed and direction
@@ -64,11 +66,6 @@ typedef enum _WS2812B_Mode {
     // tt       - controls animation speed and direction
     // mult     - controls the wave length
     WS2812B_MODE_RAINBOW_WAVE,
-
-    // static   - all LEDs on random color
-    // animated - reverse sawtooth (flash all with random color, fade out to 0, repeat)
-    // tt       - tt movement turns all LED to a new random color
-    WS2812B_MODE_RANDOM_HUE,
 
     WS2812B_MODE_PRIDE,
     WS2812B_MODE_PACIFICA,
@@ -101,45 +98,6 @@ void get_divisions(uint8_t multiplicity, uint8_t num_leds, uint8_t dot1, uint8_t
         dot2 = (dot1 + (num_leds / 3)) % num_leds;
         dot3 = (dot2 + (num_leds / 3)) % num_leds;
     }
-}
-
-void get_divisions_continous(uint8_t multiplicity, uint16_t theta1, uint16_t& theta2, uint16_t& theta3) {
-    // no need for modulo operations here since they will all wrap around UINT16_MAX
-    if (2 == multiplicity) {
-        theta2 = (theta1 + (UINT16_MAX / 2));
-    } else if (3 <= multiplicity) {
-        theta2 = (theta1 + (UINT16_MAX / 3));
-        theta3 = (theta2 + (UINT16_MAX / 3));
-    }
-}
-
-uint8_t get_angular_fade(uint16_t theta, uint16_t target_theta) {
-    uint16_t fade;
-    uint16_t delta_theta;
-    
-    // find the smaller angle between the two 
-    if (theta <= target_theta) {
-        delta_theta = (target_theta - theta);
-    } else {
-        delta_theta = (theta - target_theta);
-    }
-    if ((UINT16_MAX / 2) < delta_theta) {
-        delta_theta = UINT16_MAX - delta_theta;
-    }
-    
-    // want:
-    //   delta_theta of 0 to be max brightness
-    //   delta_theta of 30degrees and beyond to be 0 brightness
-
-    if ((UINT16_MAX / 12) < delta_theta) {
-        fade = UINT8_MAX;
-    } else {
-        // linear; the scope is [UINT8_MAX]/[UINT16_MAX/12]
-        // we can use scale16 here
-        fade = scale16(delta_theta, UINT8_MAX * 12);
-    }
-
-    return fade;
 }
 
 class RGBManager {
@@ -242,7 +200,6 @@ class RGBManager {
 
                 case WS2812B_MODE_DOTS:
                 case WS2812B_MODE_DIVISIONS:
-                case WS2812B_MODE_WAVES:
                 case WS2812B_MODE_RAINBOW_WAVE:
                 case WS2812B_MODE_TRICOLOR:
                     // RPM. Must match UI calculation
@@ -607,45 +564,6 @@ class RGBManager {
 
                         leds[led] = current_color;
                     }
-                    this->show();
-                }
-                break;
-
-                case WS2812B_MODE_WAVES:
-                {
-                    // +80 seems good.
-                    update_shift(80);
-                    const uint16_t beat = beat16(idle_animation_speed, tt_time_travel_base_ms) + shift_value;
-
-                    const uint16_t theta1 = beat;
-                    uint16_t theta2 = 0;
-                    uint16_t theta3 = 0;
-                    get_divisions_continous(multiplicity, theta1, theta2, theta3);
-
-                    for (uint8_t led = 0; led < num_leds; led++) {
-                        uint16_t led_theta = (UINT16_MAX / num_leds) * led;
-                        CRGB color = get_user_color(0);
-
-                        // primary color
-                        {
-                            uint16_t fade = get_angular_fade(led_theta, theta1);
-                            CRGB color_to_add = get_user_color(1);
-                            color += color_to_add.fadeToBlackBy(fade);
-                        }
-                        if (multiplicity >= 2) {
-                            uint16_t fade = get_angular_fade(led_theta, theta2);
-                            CRGB color_to_add = get_user_color(2);
-                            color += color_to_add.fadeToBlackBy(fade);
-                        }
-                        if (multiplicity >= 3) {
-                            uint16_t fade = get_angular_fade(led_theta, theta3);
-                            CRGB color_to_add = get_user_color(3);
-                            color += color_to_add.fadeToBlackBy(fade);
-                        }
-
-                        leds[led] = color;
-                    }
-
                     this->show();
                 }
                 break;
