@@ -38,6 +38,12 @@ public:
         return (diff > 0);
     }
 
+    int32_t get_remaining_time() {
+        // assumes that the timer is armed
+        int32_t diff = time_to_expire - Time::time();
+        return diff;
+    }
+
     bool check_if_expired_reset() {
         bool expired = is_expired();
         if (expired) {

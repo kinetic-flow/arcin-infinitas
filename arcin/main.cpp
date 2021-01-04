@@ -3,7 +3,6 @@
 #include <interrupt/interrupt.h>
 #include <timer/timer.h>
 #include <dma/dma.h>
-#include <os/time.h>
 #include <usb/usb.h>
 #include <usb/descriptor.h>
 
@@ -150,7 +149,6 @@ void interrupt<Interrupt::DMA1_Channel7>() {
     rgb_manager.irq();
 }
 
-uint32_t last_tt_led_time = 0;
 timer hid_lights_expiry_timer;
 
 class HID_arcin : public USB_HID {
@@ -280,14 +278,12 @@ debounce_state debounce_state_keys;
 debounce_state debounce_state_effectors;
 uint8_t debounce_window_effectors;
 
-bool scheduled_leds = false;
-uint32_t scheduled_led_time = 0;
+timer scheduled_led_timer;
 uint16_t scheduled_leds_aside = 0;
 uint16_t scheduled_leds_bside = 0;
 
 void schedule_led(uint16_t time_from_now_ms, uint16_t leds_a, uint16_t leds_b) {
-    scheduled_leds = true;
-    scheduled_led_time = Time::time() + time_from_now_ms;
+    scheduled_led_timer.arm(time_from_now_ms);
     scheduled_leds_aside = leds_a;
     scheduled_leds_bside = leds_b;
 }
@@ -328,7 +324,7 @@ void set_hid_lights(uint16_t leds) {
     }
 
     // if LED overrides are in effect, ignore HID lights
-    if (scheduled_leds) {
+    if (scheduled_led_timer.is_armed()) {
         return;
     }
 
@@ -336,21 +332,8 @@ void set_hid_lights(uint16_t leds) {
     hid_lights_expiry_timer.arm(5000);
     set_button_lights(leds);
     if (global_tt_hid_enable) {
-        last_tt_led_time = last_led_time;
         set_tt_led((leds & 0x800) != 0, (leds & 0x1000) != 0);
     }
-}
-
-void check_for_outdated_tt_led_report(config_flags *runtime_flags) {
-    if (runtime_flags->TtLedReactive) {
-        return;
-    }
-    if (runtime_flags->TtLedHid &&
-        last_tt_led_time != 0 &&
-        (Time::time() - last_tt_led_time) < 5000) {
-        return;
-    }
-    set_tt_led(global_led_enable, global_led_enable);
 }
 
 #if DEBUG_TIMING_GAMEPAD
@@ -487,7 +470,6 @@ int main() {
     while(1) {
         usb->process();
 
-        uint32_t now = Time::time();
         uint16_t buttons = button_inputs.get() ^ 0x7ff;
         if (config.flags.Ws2812b) {
             buttons &= (~ARCIN_PIN_BUTTON_9);
@@ -504,8 +486,8 @@ int main() {
         }
         
         // Non-HID controlled handling of button LEDs
-        if (scheduled_leds) {
-            int32_t diff = scheduled_led_time - now;
+        if (scheduled_led_timer.is_armed()) {
+            int32_t diff = scheduled_led_timer.get_remaining_time();
             if (diff > 0) {
                 if ((diff / 200) % 2 == 0) {
                     set_button_lights(scheduled_leds_aside);
@@ -513,25 +495,25 @@ int main() {
                     set_button_lights(scheduled_leds_bside);
                 }
             } else {
-                // we went past it; no more scheduled lights
-                scheduled_leds = false;
+                scheduled_led_timer.reset();
             }
 
         } else if (
             !hid_lights_expiry_timer.is_armed() ||
             hid_lights_expiry_timer.check_if_expired_reset()) {
 
-            // If it's been a while since the last HID lights, use the raw
-            // button input for lights
+            // If it's been a while since the last HID lights, use the raw button input for lights
             if (global_led_enable) {
                 set_button_lights(buttons);
             } else {
                 set_button_lights(0);
             }
-        }
 
-        // Non-HID controlled handling of LED1 / LED2
-        check_for_outdated_tt_led_report(&runtime_flags);
+            if (!runtime_flags.TtLedReactive) {
+                // revert back to static on or off state, depending on user selection
+                set_tt_led(global_led_enable, global_led_enable);
+            }
+        }
 
         // [READ QE1]
         uint32_t qe1_count = TIM2.CNT;
