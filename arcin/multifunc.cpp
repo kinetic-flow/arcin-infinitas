@@ -1,4 +1,4 @@
-#include <os/time.h>
+#include "timer.h"
 #include "multifunc.h"
 #include "inf_defines.h"
 
@@ -19,8 +19,7 @@ typedef enum _MF_CURRENT_WINDOW {
 
 static MF_CURRENT_WINDOW current_window = MF_IDLE;
 
-// marks the beginning of capture window
-static uint32_t first_e2_rising_edge_time = 0;
+timer window_close_timer;
 
 // how many times was E2 pressed during the capture window?
 static uint8_t e2_rising_edge_count = 0;
@@ -33,7 +32,7 @@ void capture_e2_presses(bool pressed) {
         // if we were idle, start capturing input now.
         if (current_window == MF_IDLE) {
             e2_rising_edge_count = 0;
-            first_e2_rising_edge_time = Time::time();
+            window_close_timer.arm(MULTITAP_DETECTION_WINDOW_MS);
             current_window = MF_CAPTURING_INPUT;
         }
 
@@ -78,19 +77,6 @@ static uint32_t last_update_time = 0;
 // button combination to assert
 static uint16_t effector_buttons_being_asserted = 0;
 
-// when MF_ASSERTING_INPUT started
-static uint32_t effector_buttons_assertion_start = 0;
-
-bool is_capture_window_past_due(uint32_t now) {
-    uint32_t diff = now - first_e2_rising_edge_time;
-    return (MULTITAP_DETECTION_WINDOW_MS < diff);
-}
-
-bool is_assert_window_past_due(uint32_t now) {
-    uint32_t diff = now - effector_buttons_assertion_start;
-    return (EFFECTOR_COMBO_HOLD_DURATION_MS < diff);
-}
-
 uint16_t get_multi_function_keys(bool is_e2_pressed) {
     uint32_t now = Time::time();
 
@@ -107,18 +93,18 @@ uint16_t get_multi_function_keys(bool is_e2_pressed) {
     }
 
     // are we past capture window?
-    if (current_window == MF_CAPTURING_INPUT && is_capture_window_past_due(now)) {
+    if (current_window == MF_CAPTURING_INPUT && window_close_timer.check_if_expired_reset()) {
         // Start asserting button combo
         current_window = MF_ASSERTING_INPUT;
-        effector_buttons_assertion_start = now;
+        window_close_timer.arm(EFFECTOR_COMBO_HOLD_DURATION_MS);
         effector_buttons_being_asserted = get_multitap_output(e2_rising_edge_count);
     }
 
     // are we past assertion window?
-    if (current_window == MF_ASSERTING_INPUT && is_assert_window_past_due(now)) {
+    if (current_window == MF_ASSERTING_INPUT && window_close_timer.check_if_expired_reset()) {
         if (is_e2_pressed) {
-            // Extend the time since the button is still pressed
-            effector_buttons_assertion_start = now - (EFFECTOR_COMBO_HOLD_DURATION_MS - 10);
+            // If the button is held down, extend the timer
+            window_close_timer.arm(EFFECTOR_COMBO_HOLD_DURATION_MS);
         } else {
             current_window = MF_IDLE;
             effector_buttons_being_asserted = 0;

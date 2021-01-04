@@ -26,11 +26,12 @@ config_flags initialize_mode_switch(config_flags flags) {
 }
 
 config_flags process_mode_switch(uint16_t raw_input) {
+    uint32_t now = Time::time();
     // Capture at most once per 1ms.
-    if (Time::time() == last_capture_time) {
+    if (now == last_capture_time) {
         return current_flags;
     }
-    last_capture_time = Time::time();
+    last_capture_time = now;
 
     if ((raw_input & ARCIN_PIN_BUTTON_START) &&
         (raw_input & ARCIN_PIN_BUTTON_SELECT)) {
