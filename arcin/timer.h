@@ -9,6 +9,17 @@ private:
     bool armed = false;
     uint32_t time_to_expire = 0;
 
+public:
+    timer() {
+        reset();
+    }
+
+    void arm(uint32_t milliseconds_from_now) {
+        uint32_t now = Time::time();
+        time_to_expire = now + milliseconds_from_now;
+        armed = true;
+    }
+
     void reset() {
         armed = false;
     }
@@ -27,18 +38,7 @@ private:
         return (diff > 0);
     }
 
-public:
-    timer() {
-        reset();
-    }
-
-    void arm(uint32_t milliseconds_from_now) {
-        uint32_t now = Time::time();
-        time_to_expire = now + milliseconds_from_now;
-        armed = true;
-    }
-
-    bool check_expiry_and_reset() {
+    bool check_if_expired_reset() {
         bool expired = is_expired();
         if (expired) {
             reset();

@@ -55,7 +55,7 @@ public:
             // keep updating the new center, and keep extending the sustain timer
             center = observed;
             sustain_timer.arm(sustain_ms);
-        } else if (sustain_timer.check_expiry_and_reset()) {
+        } else if (sustain_timer.check_if_expired_reset()) {
             // sustain timer expired, time to reset to neutral
             state = 0;
             center = observed;

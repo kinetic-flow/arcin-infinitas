@@ -150,8 +150,8 @@ void interrupt<Interrupt::DMA1_Channel7>() {
     rgb_manager.irq();
 }
 
-uint32_t last_led_time = 0;
 uint32_t last_tt_led_time = 0;
+timer hid_lights_expiry_timer;
 
 class HID_arcin : public USB_HID {
     private:
@@ -332,7 +332,8 @@ void set_hid_lights(uint16_t leds) {
         return;
     }
 
-    last_led_time = Time::time();
+    // valid for 5 seconds
+    hid_lights_expiry_timer.arm(5000);
     set_button_lights(leds);
     if (global_tt_hid_enable) {
         last_tt_led_time = last_led_time;
@@ -516,7 +517,10 @@ int main() {
                 scheduled_leds = false;
             }
 
-        } else if (now - last_led_time > 1000) {
+        } else if (
+            !hid_lights_expiry_timer.is_armed() ||
+            hid_lights_expiry_timer.check_if_expired_reset()) {
+
             // If it's been a while since the last HID lights, use the raw
             // button input for lights
             if (global_led_enable) {

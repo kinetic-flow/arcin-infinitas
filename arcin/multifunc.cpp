@@ -93,7 +93,7 @@ uint16_t get_multi_function_keys(bool is_e2_pressed) {
     }
 
     // are we past capture window?
-    if (current_window == MF_CAPTURING_INPUT && window_close_timer.check_expiry_and_reset()) {
+    if (current_window == MF_CAPTURING_INPUT && window_close_timer.check_if_expired_reset()) {
         // Start asserting button combo
         current_window = MF_ASSERTING_INPUT;
         window_close_timer.arm(EFFECTOR_COMBO_HOLD_DURATION_MS);
@@ -101,7 +101,7 @@ uint16_t get_multi_function_keys(bool is_e2_pressed) {
     }
 
     // are we past assertion window?
-    if (current_window == MF_ASSERTING_INPUT && window_close_timer.check_expiry_and_reset()) {
+    if (current_window == MF_ASSERTING_INPUT && window_close_timer.check_if_expired_reset()) {
         if (is_e2_pressed) {
             // If the button is held down, extend the timer
             window_close_timer.arm(EFFECTOR_COMBO_HOLD_DURATION_MS);
