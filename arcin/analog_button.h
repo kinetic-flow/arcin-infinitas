@@ -2,7 +2,7 @@
 #define ANALOG_BUTTON_DEFINES_H
 
 #include <stdint.h>
-#include <os/time.h>
+#include "timer.h"
 
 class analog_button {
 public:
@@ -20,8 +20,7 @@ public:
     bool center_valid;
 
     // time to: reset center to counter
-    uint32_t sustain_timer;
-    bool sustain_timer_armed;
+    timer sustain_timer;
 
     int8_t state; // -1, 0, 1
 
@@ -31,13 +30,10 @@ public:
     {
         center = 0;
         center_valid = false;
-        sustain_timer = 0;
-        sustain_timer_armed = false;
         state = 0;
     }
 
     int8_t poll(uint32_t current_value) {
-        uint32_t now = Time::time();
         if (!center_valid) {
             center_valid = true;
             center = current_value;
@@ -58,17 +54,11 @@ public:
             // turntable is moving -
             // keep updating the new center, and keep extending the sustain timer
             center = observed;
-            sustain_timer = now + sustain_ms;
-            sustain_timer_armed = true;
-        } else if (sustain_timer_armed) {
-            // check if sustain timer expired
-            int32_t diff = now - sustain_timer;
-            if (diff > 0) {
-                // sustain timer expired, time to reset to neutral
-                state = 0;
-                center = observed;
-                sustain_timer_armed = false;
-            }
+            sustain_timer.arm(sustain_ms);
+        } else if (sustain_timer.check_expiry_and_reset()) {
+            // sustain timer expired, time to reset to neutral
+            state = 0;
+            center = observed;
         }
 
         if (direction == -state && clear) {
