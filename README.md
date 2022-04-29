@@ -68,6 +68,8 @@ The goal is to be the only firmware you'll ever need for your IIDX controller fo
 
 Press "Refresh" to update the list of devices. Press "Load" to load settings from your controller. Press "Save" to save your settings to your controller.
 
+**Note: the configuration tool seems to be freezing or taking too long to read/write devices when OBS is running. If you run into trouble please try with OBS closed. Also it may trigger some anti-virus scanners due to use of PyInstaller.**
+
 Hovering over some of the options will show you a tooltip with helpful text.
 
 The following settings are recommended:
